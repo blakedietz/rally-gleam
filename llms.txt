@@ -1,0 +1,167 @@
+# Lando Framework
+
+A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, Marmot for queries, ETF for wire format.
+
+## Quick start
+
+```sh
+bash bin/new my_app
+cd my_app && bin/dev
+```
+
+`bin/dev` runs the lando codegen (scans `src/pages/`, generates router, dispatch, SSR handler, and client package), builds the JS client, and starts the Mist server on port 8080.
+
+## Page module contract
+
+A page file in `src/pages/` maps directly to a URL route. The filename determines the route:
+
+| File | URL | Route variant |
+|---|---|---|
+| `home_.gleam` | `/` | `Home` |
+| `about.gleam` | `/about` | `About` |
+| `products/id_.gleam` | `/products/:id` | `ProductsId(id: Int)` |
+
+Trailing underscore marks a dynamic segment. Names ending in `_id` become `Int` params; everything else `String`.
+
+### What a page exports
+
+```gleam
+// src/pages/counter.gleam
+
+// -- Types --
+pub type Model { Model(count: Int) }
+pub type Msg { UserClickedIncrement; GotServerMsg(ToFrontend) }
+pub type ToBackend { Increment; Decrement }
+pub type ToFrontend { CounterNewValue(Int) }
+pub type ServerModel { ServerModel(count: Int) }
+
+// -- Client functions --
+pub fn init() -> #(Model, Effect(Msg))
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg))
+pub fn view(model: Model) -> Element(Msg)
+
+// -- Server functions --
+pub fn server_update(model: ServerModel, msg: ToBackend, ctx: Context) -> #(ServerModel, Effect(ToFrontend))
+pub fn load(ctx: Context) -> Result(Model, LoadError)  // optional, for SSR
+```
+
+- `Model`/`Msg` — client-side state and UI events
+- `init`/`update`/`view` — standard Lustre TEA (The Elm Architecture)
+- `ToBackend` — messages the client sends to the server over WebSocket
+- `ToFrontend` — messages the server sends back to the client
+- `GotServerMsg(ToFrontend)` — the single Msg variant that handles ALL server responses
+- `server_update` — runs on the BEAM, has access to DB/session via `ctx`
+- `ServerModel` — per-session server state
+- `load` — SSR data loading, runs server-side before first render
+- `Context` — defined in `app_config.gleam`, typically holds DB connection + session
+
+### Effect primitives
+
+Page modules import from `lando_runtime/effect`:
+
+- `send_to_backend(variant)` — sends a `ToBackend` message to the server
+- `send_to_client(variant)` — sends a `ToFrontend` message to the client (server-side)
+- `broadcast(variant)` — sends to all connected clients (server-side)
+- `effect.none()` — no-op effect
+- `effect.from(fn)` — create a custom effect
+
+## Project structure
+
+```
+my_app/
+├── src/
+│   ├── app.gleam           # server entry point (generated once, customizable)
+│   ├── app_config.gleam    # Context type, DB setup
+│   ├── pages/              # route = filesystem
+│   ├── sql/                # marmot .sql files
+│   └── generated/          # lando codegen output (never edit)
+├── client/                 # JS client (fully generated)
+├── gleam.toml
+└── bin/dev
+```
+
+## What lando generates
+
+Running `gleam run -m lando` produces:
+
+| File | Purpose |
+|---|---|
+| `src/generated/router.gleam` | `Route` type, `parse_route`, `route_to_path`, `href` |
+| `src/generated/page_dispatch.gleam` | `PageModel`/`PageMsg` unions, init/update/view dispatch |
+| `src/generated/server_dispatch.gleam` | WebSocket handler, routes `ToBackend` to page `server_update` |
+| `src/generated/ssr_handler.gleam` | SSR entry: calls `load`, renders `view` to HTML, embeds model as flags |
+| `client/src/generated/app.gleam` | Lustre SPA entry point with hydration |
+
+## Architecture
+
+### Codegen tool (`src/lando/`)
+
+| Module | Role |
+|---|---|
+| `lando.gleam` | CLI entry point, reads `[tools.lando]` from gleam.toml, runs pipeline |
+| `scanner.gleam` | Recursively walks pages directory, produces `List(ScannedRoute)` |
+| `parser.gleam` | Reads page source, detects `ToBackend`/`ToFrontend` variants, `server_update`, `load` |
+| `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
+| `generator/client.gleam` | Client package scaffold |
+| `generator/server_dispatch.gleam` | Server WebSocket dispatch |
+| `generator/ssr_handler.gleam` | SSR handler |
+| `format.gleam` | `gleam format` runner for generated code |
+| `field_type.gleam` | Type representation (from libero) |
+| `gen_error.gleam` | Terminal error formatting (from libero) |
+
+### Runtime library (`src/lando_runtime/`)
+
+| Module | Role |
+|---|---|
+| `effect.gleam` | `send_to_backend`, `send_to_client`, `broadcast` primitives |
+| `wire.gleam` | ETF encode/decode (cross-target, from libero) |
+| `codec.gleam` | Base64 ETF serialization for SSR flags |
+| `ssr.gleam` | HTML rendering via `element.to_document_string` |
+| `remote_data.gleam` | Typed async state (`NotAsked`/`Loading`/`Failure`/`Success`) |
+| `error.gleam` | RPC error types |
+| `trace.gleam` | Panic catching + trace IDs (from libero) |
+
+### Transport
+
+- **Wire format:** ETF (Erlang External Term Format), binary
+- **Transport:** WebSocket with auto-reconnect (via `rpc_ffi.mjs`, from libero)
+- **SSR:** First request renders HTML with base64 ETF model embedded as `window.__LANDO_FLAGS__`
+- **Hydration:** Client reads flags, boots Lustre, takes over as SPA
+
+## Dependencies
+
+- `lustre` — UI framework (TEA, SSR, VDOM)
+- `mist` — HTTP/WebSocket server (BEAM)
+- `marmot` — SQL-to-Gleam codegen (introspects SQLite)
+- `sqlight` — SQLite NIF
+- `glance` — Gleam AST parser
+- `tom` — TOML config parser
+- `simplifile` — Filesystem operations
+
+## Configuration
+
+In `gleam.toml`:
+
+```toml
+[tools.lando]
+pages_root = "src/pages"
+output_route = "src/generated/router.gleam"
+output_dispatch = "src/generated/page_dispatch.gleam"
+output_server_dispatch = "src/generated/server_dispatch.gleam"
+output_ssr = "src/generated/ssr_handler.gleam"
+client_root = "client"
+```
+
+## Prior art
+
+- elm-land: file-based routing conventions
+- Lamdera: explicit `ToBackend`/`ToFrontend` message types as client-server contract
+- libero: ETF wire protocol, codegen architecture, SSR patterns
+- marmot: SQL-first codegen with live SQLite introspection
+
+## Testing
+
+```sh
+gleam test                    # 83 tests: scanner, generator, parser, wire, codec, snapshots
+gleam run -m birdie           # review snapshot changes
+```

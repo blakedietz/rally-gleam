@@ -149,15 +149,9 @@ pub fn scan(config: ScanConfig) -> Result(List(ScannedRoute), String) {
 }
 
 /// Derive a Gleam module path from a filesystem path under pages_root.
-/// "src/pages/products/id_" -> "pages/products/id_"
-fn derive_module_path(pages_root: String, relative_path: String) -> String {
-  // Drop the pages_root prefix from the full path to get the module path
-  let prefix = case string.ends_with(pages_root, "/") {
-    True -> pages_root
-    False -> pages_root <> "/"
-  }
-  case string.starts_with(relative_path, prefix) {
-    True -> string.drop_start(relative_path, string.length(prefix))
-    False -> relative_path
-  }
+/// Uses "pages/" as the fixed module prefix, appending the relative path
+/// within pages_root.
+/// E.g. "home_" -> "pages/home_"
+fn derive_module_path(_pages_root: String, relative_path: String) -> String {
+  "pages/" <> relative_path
 }
