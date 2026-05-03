@@ -27,3 +27,15 @@ pub type ScanConfig {
     client_root: String,
   )
 }
+
+pub type PageContract {
+  PageContract(
+    to_backend_variants: List(String),
+    to_frontend_variants: List(String),
+    has_server_update: Bool,
+    has_load: Bool,
+    has_init: Bool,
+    has_model: Bool,
+    param_names: List(String),
+  )
+}
