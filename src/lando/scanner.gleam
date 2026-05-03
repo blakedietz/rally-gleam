@@ -71,10 +71,12 @@ fn build_route(
 /// Recursively scan a directory, accumulating routes.
 /// prefix_segments carries the UrlSegments for directories above the current level.
 /// path_parts carries the raw directory names for computing module paths.
+/// pages_root is the base directory for deriving module paths.
 fn scan_dir(
   path: String,
   prefix_segments: List(UrlSegment),
   path_parts: List(String),
+  pages_root: String,
 ) -> Result(List(ScannedRoute), String) {
   use entries <- result.try(
     simplifile.read_directory(at: path)
@@ -106,6 +108,7 @@ fn scan_dir(
         entry_path,
         list.append(prefix_segments, [seg]),
         list.append(path_parts, [entry]),
+        pages_root,
       ))
       Ok(list.append(acc, nested))
     }
@@ -115,8 +118,10 @@ fn scan_dir(
         False -> Ok(acc)
         True -> {
           let stem = string.drop_end(entry, string.length(".gleam"))
-          let module_path =
-            "admin/pages/" <> string.join(list.append(path_parts, [stem]), "/")
+          let module_path = derive_module_path(
+            pages_root,
+            string.join(list.append(path_parts, [stem]), "/"),
+          )
           // Special case: home_.gleam at scanner root (no prefix) -> Home route
           let route = case stem == "home_" && list.is_empty(prefix_segments) {
             True ->
@@ -140,5 +145,19 @@ fn scan_dir(
 
 /// Scan a root directory and return all routes found.
 pub fn scan(config: ScanConfig) -> Result(List(ScannedRoute), String) {
-  scan_dir(config.pages_root, [], [])
+  scan_dir(config.pages_root, [], [], config.pages_root)
+}
+
+/// Derive a Gleam module path from a filesystem path under pages_root.
+/// "src/pages/products/id_" -> "pages/products/id_"
+fn derive_module_path(pages_root: String, relative_path: String) -> String {
+  // Drop the pages_root prefix from the full path to get the module path
+  let prefix = case string.ends_with(pages_root, "/") {
+    True -> pages_root
+    False -> pages_root <> "/"
+  }
+  case string.starts_with(relative_path, prefix) {
+    True -> string.drop_start(relative_path, string.length(prefix))
+    False -> relative_path
+  }
 }

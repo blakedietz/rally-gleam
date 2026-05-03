@@ -10,13 +10,9 @@ import pages/about as page_about
 import pages/home_ as page_home
 import pages/products/id_ as page_products_id
 import pages/products/new as page_products_new
-import admin/breadcrumb
-import admin/page
 import lustre/effect
 import lustre/element.{type Element}
 import lustre/element/html
-import shared/admin/client_context.{type ClientContext}
-import shared/admin/route
 
 pub type PageModel {
   HomeModel(page_home.Model)
