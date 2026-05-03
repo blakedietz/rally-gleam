@@ -7,7 +7,7 @@
 %% Erlang term shapes.
 
 -module(lando_runtime_ffi).
--export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0, unique_id/0]).
+-export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0, unique_id/0, put_ws_state/2, get_ws_conn/0, get_ws_page/0, push_outgoing_frame/1, drain_outgoing_frames/0]).
 
 identity(X) -> X.
 
@@ -64,3 +64,32 @@ unique_id() ->
     Int = erlang:unique_integer([positive, monotonic]),
     Time = erlang:system_time(millisecond),
     erlang:iolist_to_binary(io_lib:format("~.16b-~.16b", [Time, Int])).
+
+%% WebSocket handler state stored in the process dictionary.
+%% The WS handler process stores its Mist Connection and the current
+%% page name before calling into server_update. The effect functions
+%% (send_to_client, broadcast) read this state to push frames.
+
+put_ws_state(Conn, Page) ->
+    put(lando_ws_conn, Conn),
+    put(lando_ws_page, Page),
+    nil.
+
+get_ws_conn() -> get(lando_ws_conn).
+get_ws_page() -> get(lando_ws_page).
+
+%% Accumulate outgoing push frames in the process dictionary.
+%% Called by send_to_client / broadcast from within server_update.
+%% The WebSocket handler drains frames after handle_message returns.
+push_outgoing_frame(Frame) ->
+    case get(lando_outgoing_frames) of
+        undefined -> put(lando_outgoing_frames, [Frame]);
+        Frames -> put(lando_outgoing_frames, [Frame | Frames])
+    end,
+    nil.
+
+drain_outgoing_frames() ->
+    case get(lando_outgoing_frames) of
+        undefined -> [];
+        Frames -> put(lando_outgoing_frames, []), lists:reverse(Frames)
+    end.

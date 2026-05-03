@@ -56,3 +56,18 @@ pub fn handle_message(
   }
 }
 
+/// Get the initial server model for a page.
+/// Returns Nil for pages without a server_init function.
+pub fn init_server_model(
+  page: String,
+  ctx: Context,
+) -> dynamic.Dynamic {
+  case page {
+    "Home" -> wire.coerce(pages/home_.server_init(ctx))
+    "About" -> wire.coerce(pages/about.server_init(ctx))
+    "ProductsNew" -> wire.coerce(pages/products/new.server_init(ctx))
+    "ProductsId" -> wire.coerce(pages/products/id_.server_init(ctx))
+    _ -> dynamic.from(Nil)
+  }
+}
+

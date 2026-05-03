@@ -8,6 +8,7 @@ if [ -z "$PROJECT_PATH" ]; then
 fi
 
 PROJECT_NAME=$(basename "$PROJECT_PATH")
+LANDO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "Creating new lando project: $PROJECT_NAME at $PROJECT_PATH"
 
@@ -18,14 +19,14 @@ mkdir -p "$PROJECT_PATH/client/src/generated"
 mkdir -p "$PROJECT_PATH/bin"
 
 # gleam.toml
-cat > "$PROJECT_PATH/gleam.toml" <<'TOML'
+cat > "$PROJECT_PATH/gleam.toml" <<TOML
 name = "PROJECT_NAME_PLACEHOLDER"
 version = "0.1.0"
 target = "erlang"
 
 [dependencies]
 gleam_stdlib = ">= 0.60.0 and < 2.0.0"
-lando = { path = "../lando" }
+lando = { path = "$LANDO_ROOT" }
 lustre = ">= 5.6.0 and < 7.0.0"
 marmot = ">= 1.0.0 and < 2.0.0"
 mist = ">= 6.0.0 and < 7.0.0"
@@ -40,6 +41,7 @@ output_route = "src/generated/router.gleam"
 output_dispatch = "src/generated/page_dispatch.gleam"
 output_server_dispatch = "src/generated/server_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
+output_ws = "src/generated/ws_handler.gleam"
 client_root = "client"
 TOML
 
@@ -102,6 +104,10 @@ pub fn server_update(
     Decrement -> #(ServerModel(count: model.count - 1), lando_effect.send_to_client(CounterNewValue(model.count - 1)))
   }
 }
+
+pub fn server_init(_ctx: Context) -> ServerModel {
+  ServerModel(count: 0)
+}
 GLEAM
 
 # app.gleam (server entry point)
@@ -112,16 +118,30 @@ import gleam/bit_array
 import gleam/erlang/process
 import gleam/http/response
 import gleam/http/request
+import gleam/result
+import simplifile
 import generated/ssr_handler
+import generated/ws_handler
 
 pub fn main() {
   let db = start_db()
   let ctx = Context(db:)
 
   let handler = fn(req: request.Request(bit_array.BitArray)) -> response.Response(ResponseData) {
-    case request.method(req) {
-      request.Get -> ssr_handler.handle_request(req, ctx)
-      _ -> response.new(405) |> response.set_body(mist.Bytes(<<"Not found">>))
+    case request.path(req) {
+      "/ws" -> mist.websocket(
+        req,
+        fn(conn) { ws_handler.on_init(conn, ctx) },
+        ws_handler.on_close,
+        fn(state, msg, conn) { ws_handler.handler(state, msg, conn, ctx) },
+      )
+      "/client.js" -> serve_client_js()
+      _ -> {
+        case request.method(req) {
+          request.Get -> ssr_handler.handle_request(req, ctx)
+          _ -> response.new(405) |> response.set_body(mist.Bytes(<<"Not found">>))
+        }
+      }
     }
   }
 
@@ -130,6 +150,18 @@ pub fn main() {
     |> mist.port(8080)
     |> mist.start
   process.sleep_forever()
+}
+
+fn serve_client_js() -> response.Response(ResponseData) {
+  case simplifile.read("client/build/dev/javascript/client/app.mjs") {
+    Ok(js) ->
+      response.new(200)
+      |> response.set_header("content-type", "application/javascript")
+      |> response.set_body(mist.Bytes(<<js:utf8>>))
+    Error(_) ->
+      response.new(404)
+      |> response.set_body(mist.Bytes(<<"Client JS not found — run bin/dev to build">>))
+  }
 }
 
 fn start_db() -> sqlight.Connection {

@@ -9,7 +9,7 @@ bash bin/new my_app
 cd my_app && bin/dev
 ```
 
-`bin/dev` runs the lando codegen (scans `src/pages/`, generates router, dispatch, SSR handler, and client package), builds the JS client, and starts the Mist server on port 8080.
+`bin/dev` runs the lando codegen (scans `src/pages/`, generates router, dispatch, SSR handler, WS handler, and client package), builds the JS client, and starts the Mist server on port 8080.
 
 ## Page module contract
 
@@ -42,6 +42,7 @@ pub fn view(model: Model) -> Element(Msg)
 
 // -- Server functions --
 pub fn server_update(model: ServerModel, msg: ToBackend, ctx: Context) -> #(ServerModel, Effect(ToFrontend))
+pub fn server_init(ctx: Context) -> ServerModel  // initial server model
 pub fn load(ctx: Context) -> Result(Model, LoadError)  // optional, for SSR
 ```
 
@@ -51,6 +52,7 @@ pub fn load(ctx: Context) -> Result(Model, LoadError)  // optional, for SSR
 - `ToFrontend` — messages the server sends back to the client
 - `GotServerMsg(ToFrontend)` — the single Msg variant that handles ALL server responses
 - `server_update` — runs on the BEAM, has access to DB/session via `ctx`
+- `server_init` — returns the initial `ServerModel` for a new session
 - `ServerModel` — per-session server state
 - `load` — SSR data loading, runs server-side before first render
 - `Context` — defined in `app_config.gleam`, typically holds DB connection + session
@@ -59,9 +61,9 @@ pub fn load(ctx: Context) -> Result(Model, LoadError)  // optional, for SSR
 
 Page modules import from `lando_runtime/effect`:
 
-- `send_to_backend(variant)` — sends a `ToBackend` message to the server
-- `send_to_client(variant)` — sends a `ToFrontend` message to the client (server-side)
-- `broadcast(variant)` — sends to all connected clients (server-side)
+- `send_to_backend(variant)` — sends a `ToBackend` message to the server over WebSocket. On the client, the generated transport module provides the real implementation via `rpc_ffi.mjs`. On the server this is a no-op.
+- `send_to_client(variant)` — encodes the `ToFrontend` message as an ETF push frame and queues it for the WebSocket handler to send. Uses process dictionary for handler state.
+- `broadcast(variant)` — same as `send_to_client` for the current connected client.
 - `effect.none()` — no-op effect
 - `effect.from(fn)` — create a custom effect
 
@@ -88,9 +90,12 @@ Running `gleam run -m lando` produces:
 |---|---|
 | `src/generated/router.gleam` | `Route` type, `parse_route`, `route_to_path`, `href` |
 | `src/generated/page_dispatch.gleam` | `PageModel`/`PageMsg` unions, init/update/view dispatch |
-| `src/generated/server_dispatch.gleam` | WebSocket handler, routes `ToBackend` to page `server_update` |
+| `src/generated/server_dispatch.gleam` | `handle_message` dispatcher + `init_server_model` per-page init |
 | `src/generated/ssr_handler.gleam` | SSR entry: calls `load`, renders `view` to HTML, embeds model as flags |
-| `client/src/generated/app.gleam` | Lustre SPA entry point with hydration |
+| `src/generated/ws_handler.gleam` | WebSocket upgrade handler: ETF frame loop, session model storage, push frame delivery |
+| `client/src/generated/app.gleam` | Lustre SPA entry point with WebSocket transport initialization |
+| `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handler registration, ETF codec |
+| `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from lando_runtime) |
 
 ## Architecture
 
@@ -100,11 +105,12 @@ Running `gleam run -m lando` produces:
 |---|---|
 | `lando.gleam` | CLI entry point, reads `[tools.lando]` from gleam.toml, runs pipeline |
 | `scanner.gleam` | Recursively walks pages directory, produces `List(ScannedRoute)` |
-| `parser.gleam` | Reads page source, detects `ToBackend`/`ToFrontend` variants, `server_update`, `load` |
+| `parser.gleam` | Reads page source, detects `ToBackend`/`ToFrontend` variants, `server_update`, `server_init`, `load` |
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
-| `generator/client.gleam` | Client package scaffold |
-| `generator/server_dispatch.gleam` | Server WebSocket dispatch |
+| `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam, rpc_ffi.mjs |
+| `generator/server_dispatch.gleam` | Server dispatch: `handle_message` + `init_server_model` |
 | `generator/ssr_handler.gleam` | SSR handler |
+| `generator/ws_handler.gleam` | WebSocket frame loop: decodes call envelopes, dispatches to server_update, sends push frames |
 | `format.gleam` | `gleam format` runner for generated code |
 | `field_type.gleam` | Type representation (from libero) |
 | `gen_error.gleam` | Terminal error formatting (from libero) |
@@ -113,20 +119,27 @@ Running `gleam run -m lando` produces:
 
 | Module | Role |
 |---|---|
-| `effect.gleam` | `send_to_backend`, `send_to_client`, `broadcast` primitives |
-| `wire.gleam` | ETF encode/decode (cross-target, from libero) |
+| `effect.gleam` | `send_to_backend` (no-op on server), `send_to_client`/`broadcast` (ETF push frames via process dict) |
+| `wire.gleam` | ETF encode/decode, call envelope parsing, frame tagging, variant tagging, Dynamic coercion |
 | `codec.gleam` | Base64 ETF serialization for SSR flags |
 | `ssr.gleam` | HTML rendering via `element.to_document_string` |
 | `remote_data.gleam` | Typed async state (`NotAsked`/`Loading`/`Failure`/`Success`) |
 | `error.gleam` | RPC error types |
 | `trace.gleam` | Panic catching + trace IDs (from libero) |
+| `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect (1180 lines, from libero) |
+| `lando_runtime_ffi.erl` | Erlang FFI: encode/decode, process dict state for WS handler, push frame accumulator |
+| `lando_runtime_wire_ffi.erl` | Erlang FFI: `decode_call` envelope parser, `variant_tag` extraction |
 
 ### Transport
 
 - **Wire format:** ETF (Erlang External Term Format), binary
+- **Call envelope:** `{module_name, request_id, msg}` for client→server messages
+- **Response frame:** `<<0x00, request_id:32, response_etf>>` — sent after each dispatch so the client's request/response matching doesn't timeout
+- **Push frame:** `<<0x01, {module_name, msg}_etf>>` — server→client push messages (from `send_to_client`/`broadcast`)
 - **Transport:** WebSocket with auto-reconnect (via `rpc_ffi.mjs`, from libero)
-- **SSR:** First request renders HTML with base64 ETF model embedded as `window.__LANDO_FLAGS__`
+- **SSR:** First request renders HTML with serialized model embedded as flags
 - **Hydration:** Client reads flags, boots Lustre, takes over as SPA
+- **Server effects:** `send_to_client` encodes and queues push frames in the process dictionary. The WS handler drains and sends them after each dispatch via `mist.send_binary_frame`.
 
 ## Dependencies
 
@@ -149,8 +162,11 @@ output_route = "src/generated/router.gleam"
 output_dispatch = "src/generated/page_dispatch.gleam"
 output_server_dispatch = "src/generated/server_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
+output_ws = "src/generated/ws_handler.gleam"
 client_root = "client"
 ```
+
+The lando package path is resolved from `[dependencies].lando.path` in the consumer's gleam.toml, defaulting to `".."`.
 
 ## Prior art
 

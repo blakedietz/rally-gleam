@@ -11,6 +11,7 @@ import lando/generator
 import lando/generator/client
 import lando/generator/server_dispatch
 import lando/generator/ssr_handler
+import lando/generator/ws_handler
 import lando/parser
 import lando/scanner
 import lando/types.{type ScanConfig, ScanConfig}
@@ -62,9 +63,24 @@ fn read_config() -> Result(ScanConfig, String) {
   let output_ssr =
     tom.get_string(lando_config, ["output_ssr"])
     |> result.unwrap("src/generated/ssr_handler.gleam")
+  let output_ws =
+    tom.get_string(lando_config, ["output_ws"])
+    |> result.unwrap("src/generated/ws_handler.gleam")
   let client_root =
     tom.get_string(lando_config, ["client_root"])
     |> result.unwrap("client")
+  let lando_package_path = {
+    case tom.get_table(toml_map, ["dependencies"]) {
+      Ok(deps) ->
+        case tom.get_table(deps, ["lando"]) {
+          Ok(lando_dep) ->
+            tom.get_string(lando_dep, ["path"])
+            |> result.unwrap("..")
+          Error(_) -> ".."
+        }
+      Error(_) -> ".."
+    }
+  }
 
   Ok(ScanConfig(
     pages_root:,
@@ -72,7 +88,9 @@ fn read_config() -> Result(ScanConfig, String) {
     output_dispatch:,
     output_server_dispatch:,
     output_ssr:,
+    output_ws:,
     client_root:,
+    lando_package_path:,
   ))
 }
 
@@ -116,8 +134,26 @@ fn run() -> Result(Int, String) {
   let ssr_source = ssr_handler.generate(contracts)
   use _ <- result.try(write_file(config.output_ssr, ssr_source))
 
-  // 6. Generate client package
-  let client_files = client.generate_package(routes, contracts, config)
+  // 6. Generate WebSocket handler
+  let ws_source = ws_handler.generate(contracts)
+  use _ <- result.try(write_file(config.output_ws, ws_source))
+
+  // 7. Read rpc_ffi.mjs from the lando package
+  let rpc_ffi_path =
+    config.lando_package_path <> "/src/lando_runtime/rpc_ffi.mjs"
+  use rpc_ffi_content <- result.try(
+    simplifile.read(rpc_ffi_path)
+    |> result.map_error(fn(e) {
+      "Cannot read rpc_ffi.mjs from lando package at "
+      <> rpc_ffi_path
+      <> ": "
+      <> string.inspect(e)
+    }),
+  )
+
+  // 8. Generate client package
+  let client_files =
+    client.generate_package(routes, contracts, config, rpc_ffi_content)
   use _ <- result.try(write_generated_files(client_files))
 
   Ok(list.length(routes))

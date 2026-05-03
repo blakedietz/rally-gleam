@@ -3,8 +3,8 @@
 
 find_executable(Name) ->
   case os:find_executable(binary_to_list(Name)) of
-    false -> {error, nil};
-    Path -> {ok, list_to_binary(Path)}
+    false -> none;
+    Path -> {some, list_to_binary(Path)}
   end.
 
 run_executable(Program, Args) ->
@@ -30,4 +30,4 @@ get_env(Name) ->
   end.
 
 unique_id() ->
-  {ok, erlang:integer_to_binary(erlang:unique_integer())}.
+  erlang:integer_to_binary(erlang:unique_integer()).

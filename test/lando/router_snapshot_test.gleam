@@ -46,6 +46,7 @@ fn basic_contracts() -> List(#(ScannedRoute, PageContract)) {
         to_backend_variants: ["Increment", "Decrement"],
         to_frontend_variants: ["CounterNewValue"],
         has_server_update: True,
+        has_server_init: True,
         has_load: True,
         has_init: True,
         has_model: True,

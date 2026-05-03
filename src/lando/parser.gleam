@@ -9,6 +9,7 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
   let to_backend = extract_variants(source, "pub type ToBackend")
   let to_frontend = extract_variants(source, "pub type ToFrontend")
   let has_server_update = string.contains(source, "pub fn server_update")
+  let has_server_init = string.contains(source, "pub fn server_init")
   let has_load = string.contains(source, "pub fn load")
   let has_init = string.contains(source, "pub fn init")
   let has_model = string.contains(source, "pub type Model")
@@ -18,6 +19,7 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
     to_backend_variants: to_backend,
     to_frontend_variants: to_frontend,
     has_server_update:,
+    has_server_init:,
     has_load:,
     has_init:,
     has_model:,
