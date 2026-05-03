@@ -91,7 +91,7 @@ Running `gleam run -m lando` produces:
 | `src/generated/router.gleam` | `Route` type, `parse_route`, `route_to_path`, `href` |
 | `src/generated/page_dispatch.gleam` | `PageModel`/`PageMsg` unions, init/update/view dispatch |
 | `src/generated/server_dispatch.gleam` | `handle_message` dispatcher + `init_server_model` per-page init |
-| `src/generated/ssr_handler.gleam` | SSR entry: calls `load`, renders `view` to HTML, embeds model as flags |
+| `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, embeds model as flags |
 | `src/generated/ws_handler.gleam` | WebSocket upgrade handler: ETF frame loop, session model storage, push frame delivery |
 | `client/src/generated/app.gleam` | Lustre SPA entry point with WebSocket transport initialization |
 | `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handler registration, ETF codec |
@@ -165,6 +165,7 @@ output_dispatch = "src/generated/page_dispatch.gleam"
 output_server_dispatch = "src/generated/server_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
 output_ws = "src/generated/ws_handler.gleam"
+sql_dir = "src/sql"
 client_root = "client"
 ```
 

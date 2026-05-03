@@ -12,10 +12,10 @@ import lando_runtime/wire
 import app_config.{type Context}
 
 
-import pages/home_
-import pages/about
-import pages/products/new
-import pages/products/id_
+import pages/home_ as pages_home_
+import pages/about as pages_about
+import pages/products/new as pages_products_new
+import pages/products/id_ as pages_products_id_
 
 /// Handle an incoming WebSocket message.
 /// Dispatches to the correct page's server_update.
@@ -31,25 +31,25 @@ pub fn handle_message(
     "Home" -> {
       let page_model = wire.coerce(model)
       let page_msg = wire.coerce(msg)
-      let #(new_model, effects) = pages/home_.server_update(page_model, page_msg, ctx)
+      let #(new_model, effects) = pages_home_.server_update(page_model, page_msg, ctx)
       #(wire.coerce(new_model), wire.coerce(effects))
     }
     "About" -> {
       let page_model = wire.coerce(model)
       let page_msg = wire.coerce(msg)
-      let #(new_model, effects) = pages/about.server_update(page_model, page_msg, ctx)
+      let #(new_model, effects) = pages_about.server_update(page_model, page_msg, ctx)
       #(wire.coerce(new_model), wire.coerce(effects))
     }
     "ProductsNew" -> {
       let page_model = wire.coerce(model)
       let page_msg = wire.coerce(msg)
-      let #(new_model, effects) = pages/products/new.server_update(page_model, page_msg, ctx)
+      let #(new_model, effects) = pages_products_new.server_update(page_model, page_msg, ctx)
       #(wire.coerce(new_model), wire.coerce(effects))
     }
     "ProductsId" -> {
       let page_model = wire.coerce(model)
       let page_msg = wire.coerce(msg)
-      let #(new_model, effects) = pages/products/id_.server_update(page_model, page_msg, ctx)
+      let #(new_model, effects) = pages_products_id_.server_update(page_model, page_msg, ctx)
       #(wire.coerce(new_model), wire.coerce(effects))
     }
     _ -> #(model, effect.none())
@@ -63,10 +63,10 @@ pub fn init_server_model(
   ctx: Context,
 ) -> dynamic.Dynamic {
   case page {
-    "Home" -> wire.coerce(pages/home_.server_init(ctx))
-    "About" -> wire.coerce(pages/about.server_init(ctx))
-    "ProductsNew" -> wire.coerce(pages/products/new.server_init(ctx))
-    "ProductsId" -> wire.coerce(pages/products/id_.server_init(ctx))
+    "Home" -> wire.coerce(pages_home_.server_init(ctx))
+    "About" -> wire.coerce(pages_about.server_init(ctx))
+    "ProductsNew" -> wire.coerce(pages_products_new.server_init(ctx))
+    "ProductsId" -> wire.coerce(pages_products_id_.server_init(ctx))
     _ -> dynamic.from(Nil)
   }
 }

@@ -25,6 +25,8 @@ version = "0.1.0"
 target = "erlang"
 
 [dependencies]
+gleam_erlang = ">= 1.0.0 and < 2.0.0"
+gleam_http = ">= 4.0.0 and < 5.0.0"
 gleam_stdlib = ">= 0.60.0 and < 2.0.0"
 lando = { path = "$LANDO_ROOT" }
 lustre = ">= 5.6.0 and < 7.0.0"
@@ -58,6 +60,7 @@ rm -f "$PROJECT_PATH/gleam.toml.bak"
 # Sample home page
 cat > "$PROJECT_PATH/src/pages/home_.gleam" <<'GLEAM'
 import app_config.{type Context}
+import gleam/string
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/effect.{type Effect}
@@ -139,11 +142,13 @@ cat > "$PROJECT_PATH/src/app.gleam" <<'GLEAM'
 import app_config.{type Context}
 import mist.{type ResponseData}
 import gleam/bit_array
+import gleam/bytes_tree
 import gleam/erlang/process
 import gleam/http/response
 import gleam/http/request
 import gleam/result
 import simplifile
+import generated/router
 import generated/ssr_handler
 import generated/ws_handler
 
@@ -162,8 +167,11 @@ pub fn main() {
       "/client.js" -> serve_client_js()
       _ -> {
         case request.method(req) {
-          request.Get -> ssr_handler.handle_request(req, ctx)
-          _ -> response.new(405) |> response.set_body(mist.Bytes(<<"Not found">>))
+          request.Get -> {
+            let route = router.parse_route(request.to_uri(req))
+            ssr_handler.handle_request(route, ctx)
+          }
+          _ -> response.new(405) |> response.set_body(mist.Bytes(bytes_tree.from_string("Not found")))
         }
       }
     }

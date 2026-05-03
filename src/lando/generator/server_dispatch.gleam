@@ -18,7 +18,8 @@ fn generate_imports(
   page_contracts
   |> list.map(fn(pair) {
     let #(route, _) = pair
-    "import " <> route.module_path
+    let alias = module_to_alias(route.module_path)
+    "import " <> route.module_path <> " as " <> alias
   })
   |> string.join("\n")
 }
@@ -33,6 +34,7 @@ fn generate_handler(
       case contract.has_server_update {
         False -> Error(Nil)
         True -> {
+          let alias = module_to_alias(route.module_path)
           Ok(
             "    \""
             <> route.variant_name
@@ -40,7 +42,7 @@ fn generate_handler(
             <> "      let page_model = wire.coerce(model)\n"
             <> "      let page_msg = wire.coerce(msg)\n"
             <> "      let #(new_model, effects) = "
-            <> route.module_path
+            <> alias
             <> ".server_update(page_model, page_msg, ctx)\n"
             <> "      #(wire.coerce(new_model), wire.coerce(effects))\n"
             <> "    }",
@@ -75,11 +77,12 @@ fn generate_init_model(
       case contract.has_server_init {
         False -> Error(Nil)
         True -> {
+          let alias = module_to_alias(route.module_path)
           Ok(
             "    \""
             <> route.variant_name
             <> "\" -> wire.coerce("
-            <> route.module_path
+            <> alias
             <> ".server_init(ctx))",
           )
         }
@@ -96,4 +99,8 @@ pub fn init_server_model(
   case page {\n"
   <> arms
   <> "\n    _ -> dynamic.from(Nil)\n  }\n}"
+}
+
+fn module_to_alias(module_path: String) -> String {
+  string.replace(module_path, "/", "_")
 }
