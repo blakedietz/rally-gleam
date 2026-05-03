@@ -106,3 +106,56 @@ pub fn server_init(ctx) -> ServerModel { ServerModel(count: 0) }
     type_: IntField,
   )])] = contract.to_client_variants
 }
+
+pub fn parse_page_with_nested_types_test() {
+  let source = "
+pub type ToServer {
+  GetItems
+  GetItem(id: Int)
+  SearchItems(query: String, page: Int)
+}
+pub type ToClient {
+  ItemList(items: List(String))
+  MaybeItem(item: Option(String))
+  OpResult(result: Result(String, String))
+}
+pub fn server_update(model, msg, ctx) -> #(ServerModel, Effect(ToClient)) { todo }
+"
+  let assert Ok(contract) = parser.parse_page(source)
+
+  // GetItems — zero fields
+  let assert [VariantInfo(name: "GetItems", fields: []), ..] =
+    contract.to_server_variants
+
+  // ItemList(items: List(String))
+  list.map(contract.to_client_variants, fn(v: VariantInfo) { v.name })
+  |> should.equal(["ItemList", "MaybeItem", "OpResult"])
+
+  contract.has_server_update |> should.be_true()
+}
+
+pub fn parse_page_detects_server_init_test() {
+  let source = "
+pub type Model { Model }
+pub type ToServer { Noop }
+pub type ToClient { Ack }
+pub type ServerModel { ServerModel }
+pub fn server_init(ctx) -> ServerModel { ServerModel }
+pub fn server_update(model, msg, ctx) -> #(ServerModel, Effect(ToClient)) { todo }
+"
+  let assert Ok(contract) = parser.parse_page(source)
+  contract.has_server_init |> should.be_true()
+  contract.has_server_update |> should.be_true()
+}
+
+pub fn parse_page_without_server_init_test() {
+  let source = "
+pub type Model { Model }
+pub type ToServer { Noop }
+pub type ToClient { Ack }
+pub fn server_update(model, msg, ctx) -> #(ServerModel, Effect(ToClient)) { todo }
+"
+  let assert Ok(contract) = parser.parse_page(source)
+  contract.has_server_init |> should.be_false()
+  contract.has_server_update |> should.be_true()
+}

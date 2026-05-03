@@ -1,13 +1,16 @@
 import birdie
 import gleam/list
+import gleam/string
 import lando/field_type.{IntField}
 import lando/generator
+import lando/generator/client
+import lando/generator/codec
 import lando/generator/server_dispatch
 import lando/generator/ssr_handler
 import gleam/option.{None}
 import lando/types.{
   IntParam, PageContract, type PageContract, type ScannedRoute, ScannedRoute,
-  StaticSegment, VariantField, VariantInfo,
+  type ScanConfig, ScanConfig, StaticSegment, VariantField, VariantInfo,
 }
 
 fn basic_routes() -> List(ScannedRoute) {
@@ -85,4 +88,63 @@ pub fn ssr_handler_snapshot_test() {
   let contracts = basic_contracts()
   let output = ssr_handler.generate(contracts)
   birdie.snap(output, "ssr_handler_gleam")
+}
+
+pub fn transport_gleam_snapshot_test() {
+  let routes = basic_routes()
+  let contracts = basic_contracts()
+  let config = test_scan_config()
+  let files = client.generate_package(routes, contracts, config, "", "")
+  // Find the transport.gleam file
+  let transport = list.find(files, fn(f: client.GeneratedFile) {
+    string.ends_with(f.path, "transport.gleam")
+  })
+  let assert Ok(file) = transport
+  birdie.snap(file.content, "client_transport_gleam")
+}
+
+pub fn app_gleam_snapshot_test() {
+  let routes = basic_routes()
+  let contracts = basic_contracts()
+  let config = test_scan_config()
+  let files = client.generate_package(routes, contracts, config, "", "")
+  let app = list.find(files, fn(f: client.GeneratedFile) {
+    string.ends_with(f.path, "app.gleam")
+  })
+  let assert Ok(file) = app
+  birdie.snap(file.content, "client_app_gleam")
+}
+
+pub fn types_gleam_snapshot_test() {
+  let contracts = basic_contracts()
+  let files = codec.generate(contracts, [])
+  let types = list.find(files, fn(f: codec.CodecFile) {
+    string.ends_with(f.path, "types.gleam")
+  })
+  let assert Ok(file) = types
+  birdie.snap(file.content, "client_types_gleam")
+}
+
+pub fn codec_gleam_snapshot_test() {
+  let contracts = basic_contracts()
+  let files = codec.generate(contracts, [])
+  let codec_file = list.find(files, fn(f: codec.CodecFile) {
+    string.ends_with(f.path, "codec.gleam")
+  })
+  let assert Ok(file) = codec_file
+  birdie.snap(file.content, "client_codec_gleam")
+}
+
+fn test_scan_config() -> ScanConfig {
+  ScanConfig(
+    pages_root: "src/pages",
+    output_route: "",
+    output_dispatch: "",
+    output_server_dispatch: "",
+    output_ssr: "",
+    output_ws: "",
+    sql_dir: "",
+    client_root: "client",
+    lando_package_path: "",
+  )
 }

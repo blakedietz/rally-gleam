@@ -1,7 +1,8 @@
 import gleam/list
+import gleeunit/should
 import simplifile
 import lando/scanner
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import lando/types.{
   DynamicSegment, IntParam, ScanConfig, type ScanConfig, ScannedRoute,
   StaticSegment, StringParam,
@@ -212,5 +213,48 @@ pub fn scan_underscore_name_pascal_case_test() {
         layout_module: None, module_path: "pages/settings/item_subtypes",
       ),
     )
+  cleanup(dir)
+}
+
+pub fn scan_layout_assigned_to_page_test() {
+  let dir = make_temp_dir("layout")
+  touch(dir <> "/layout.gleam")
+  touch(dir <> "/home_.gleam")
+  let assert Ok(routes) = scanner.scan(test_config(dir))
+
+  let assert True = list.length(routes) == 1
+  let assert [route] = routes
+  route.layout_module |> should.equal(Some("pages/layout"))
+  route.variant_name |> should.equal("Home")
+
+  cleanup(dir)
+}
+
+pub fn scan_nested_layout_test() {
+  let dir = make_temp_dir("nested_layout")
+  touch(dir <> "/layout.gleam")
+  mkdir(dir <> "/settings")
+  touch(dir <> "/settings/layout.gleam")
+  touch(dir <> "/settings/profile.gleam")
+  let assert Ok(routes) = scanner.scan(test_config(dir))
+
+  let assert True = list.length(routes) == 1
+  let assert [route] = routes
+  route.layout_module |> should.equal(Some("pages/settings/layout"))
+  route.variant_name |> should.equal("SettingsProfile")
+
+  cleanup(dir)
+}
+
+pub fn scan_no_layout_when_none_present_test() {
+  let dir = make_temp_dir("no_layout")
+  mkdir(dir <> "/admin")
+  touch(dir <> "/admin/users.gleam")
+  let assert Ok(routes) = scanner.scan(test_config(dir))
+
+  let assert [route] = routes
+  route.layout_module |> should.equal(None)
+  route.variant_name |> should.equal("AdminUsers")
+
   cleanup(dir)
 }
