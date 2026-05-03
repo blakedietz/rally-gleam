@@ -1,3 +1,5 @@
+import lando/field_type.{type FieldType}
+
 pub type ParamType {
   IntParam
   StringParam
@@ -30,10 +32,20 @@ pub type ScanConfig {
   )
 }
 
+/// A single field in a variant constructor.
+pub type VariantField {
+  VariantField(label: String, type_: FieldType)
+}
+
+/// A single variant in a custom type, with its fields.
+pub type VariantInfo {
+  VariantInfo(name: String, fields: List(VariantField))
+}
+
 pub type PageContract {
   PageContract(
-    to_backend_variants: List(String),
-    to_frontend_variants: List(String),
+    to_backend_variants: List(VariantInfo),
+    to_frontend_variants: List(VariantInfo),
     has_server_update: Bool,
     has_server_init: Bool,
     has_load: Bool,

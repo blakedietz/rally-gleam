@@ -1,11 +1,12 @@
 import birdie
 import gleam/list
+import lando/field_type.{IntField}
 import lando/generator
 import lando/generator/server_dispatch
 import lando/generator/ssr_handler
 import lando/types.{
   IntParam, PageContract, type PageContract, type ScannedRoute, ScannedRoute,
-  StaticSegment,
+  StaticSegment, VariantField, VariantInfo,
 }
 
 fn basic_routes() -> List(ScannedRoute) {
@@ -43,8 +44,13 @@ fn basic_contracts() -> List(#(ScannedRoute, PageContract)) {
     #(
       route,
       PageContract(
-        to_backend_variants: ["Increment", "Decrement"],
-        to_frontend_variants: ["CounterNewValue"],
+        to_backend_variants: [
+          VariantInfo("Increment", []),
+          VariantInfo("Decrement", []),
+        ],
+        to_frontend_variants: [
+          VariantInfo("CounterNewValue", [VariantField("value", IntField)]),
+        ],
         has_server_update: True,
         has_server_init: True,
         has_load: True,
