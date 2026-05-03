@@ -107,45 +107,28 @@ GLEAM
 # app.gleam (server entry point)
 cat > "$PROJECT_PATH/src/app.gleam" <<'GLEAM'
 import app_config.{type Context}
-import mist
-import mist/websocket
+import mist.{type ResponseData}
+import gleam/bit_array
 import gleam/erlang/process
 import gleam/http/response
 import gleam/http/request
-import generated/server_dispatch
 import generated/ssr_handler
-import lando_runtime/wire
 
 pub fn main() {
   let db = start_db()
   let ctx = Context(db:)
 
-  let handler = fn(req: request.Request(mist.Body)) -> response.Response(mist.ResponseData) {
-    case request.method(req), request.path(req) {
-      request.Get, "/ws" -> {
-        mist.websocket(
-          request: req,
-          handler: fn(conn, msg) {
-            case msg {
-              mist.Binary(data) -> {
-                let assert Ok(#(page, _request_id, variant)) = wire.decode_call(data)
-                let #(_new_model, _effects) = server_dispatch.handle_message(ctx, page, variant)
-                // TODO: encode response and send back
-                conn
-              }
-              _ -> conn
-            }
-          },
-          on_init: fn(_conn) { ctx },
-          on_close: fn(_) { Nil },
-        )
-      }
-      request.Get, _ -> ssr_handler.handle_request(req, ctx)
-      _, _ -> response.new(405)
+  let handler = fn(req: request.Request(bit_array.BitArray)) -> response.Response(ResponseData) {
+    case request.method(req) {
+      request.Get -> ssr_handler.handle_request(req, ctx)
+      _ -> response.new(405) |> response.set_body(mist.Bytes(<<"Not found">>))
     }
   }
 
-  let assert Ok(_) = mist.run_service(handler, on: 8080)
+  let assert Ok(_) =
+    mist.new(handler)
+    |> mist.port(8080)
+    |> mist.start
   process.sleep_forever()
 }
 
