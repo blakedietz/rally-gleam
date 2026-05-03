@@ -8,9 +8,8 @@ find_executable(Name) ->
   end.
 
 run_executable(Program, Args) ->
-  Cmd = binary_to_list(Program),
   CmdArgs = [binary_to_list(A) || A <- Args],
-  Port = open_port({spawn_executable, os:find_executable(Cmd)},
+  Port = open_port({spawn_executable, binary_to_list(Program)},
                    [{args, CmdArgs}, exit_status, stderr_to_stdout]),
   Result = loop_until_exit(Port, []),
   {Status, _Output} = Result,

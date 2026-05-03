@@ -1,28 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_NAME="${1:-}"
-if [ -z "$PROJECT_NAME" ]; then
-  echo "Usage: bin/new <project-name>"
+PROJECT_PATH="${1:-}"
+if [ -z "$PROJECT_PATH" ]; then
+  echo "Usage: bin/new <project-name-or-path>"
   exit 1
 fi
 
-echo "Creating new lando project: $PROJECT_NAME"
+PROJECT_NAME=$(basename "$PROJECT_PATH")
 
-mkdir -p "$PROJECT_NAME/src/pages"
-mkdir -p "$PROJECT_NAME/src/sql"
-mkdir -p "$PROJECT_NAME/src/generated"
-mkdir -p "$PROJECT_NAME/client/src/generated"
-mkdir -p "$PROJECT_NAME/bin"
+echo "Creating new lando project: $PROJECT_NAME at $PROJECT_PATH"
+
+mkdir -p "$PROJECT_PATH/src/pages"
+mkdir -p "$PROJECT_PATH/src/sql"
+mkdir -p "$PROJECT_PATH/src/generated"
+mkdir -p "$PROJECT_PATH/client/src/generated"
+mkdir -p "$PROJECT_PATH/bin"
 
 # gleam.toml
-cat > "$PROJECT_NAME/gleam.toml" <<'TOML'
+cat > "$PROJECT_PATH/gleam.toml" <<'TOML'
 name = "PROJECT_NAME_PLACEHOLDER"
 version = "0.1.0"
 target = "erlang"
 
 [dependencies]
 gleam_stdlib = ">= 0.60.0 and < 2.0.0"
+lando = { path = "../lando" }
 lustre = ">= 5.6.0 and < 7.0.0"
 marmot = ">= 1.0.0 and < 2.0.0"
 mist = ">= 6.0.0 and < 7.0.0"
@@ -41,11 +44,11 @@ client_root = "client"
 TOML
 
 # Replace placeholder with actual project name
-sed -i.bak "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/" "$PROJECT_NAME/gleam.toml"
-rm -f "$PROJECT_NAME/gleam.toml.bak"
+sed -i.bak "s|PROJECT_NAME_PLACEHOLDER|$PROJECT_NAME|" "$PROJECT_PATH/gleam.toml"
+rm -f "$PROJECT_PATH/gleam.toml.bak"
 
 # Sample home page
-cat > "$PROJECT_NAME/src/pages/home_.gleam" <<'GLEAM'
+cat > "$PROJECT_PATH/src/pages/home_.gleam" <<'GLEAM'
 import app_config.{type Context}
 import lustre/element.{type Element}
 import lustre/element/html
@@ -60,7 +63,10 @@ pub type Msg {
   GotServerMsg(ToFrontend)
 }
 
-pub type ToBackend { Increment; Decrement }
+pub type ToBackend {
+  Increment
+  Decrement
+}
 
 pub type ToFrontend { CounterNewValue(value: Int) }
 
@@ -99,7 +105,7 @@ pub fn server_update(
 GLEAM
 
 # app.gleam (server entry point)
-cat > "$PROJECT_NAME/src/app.gleam" <<'GLEAM'
+cat > "$PROJECT_PATH/src/app.gleam" <<'GLEAM'
 import app_config.{type Context}
 import mist
 import mist/websocket
@@ -150,14 +156,14 @@ fn start_db() -> sqlight.Connection {
 GLEAM
 
 # app_config.gleam
-cat > "$PROJECT_NAME/src/app_config.gleam" <<'GLEAM'
+cat > "$PROJECT_PATH/src/app_config.gleam" <<'GLEAM'
 pub type Context {
   Context(db: sqlight.Connection)
 }
 GLEAM
 
 # bin/dev
-cat > "$PROJECT_NAME/bin/dev" <<'SCRIPT'
+cat > "$PROJECT_PATH/bin/dev" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -168,8 +174,8 @@ cd client && gleam build --target javascript && cd ..
 echo "==> Starting server..."
 gleam run
 SCRIPT
-chmod +x "$PROJECT_NAME/bin/dev"
+chmod +x "$PROJECT_PATH/bin/dev"
 
 echo ""
 echo "Created $PROJECT_NAME. To start:"
-echo "  cd $PROJECT_NAME && bin/dev"
+echo "  cd $PROJECT_PATH && bin/dev"
