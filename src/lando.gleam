@@ -6,6 +6,7 @@ import gleam/result
 import gleam/string
 import tom
 import simplifile
+import lando/format
 import lando/generator
 import lando/generator/client
 import lando/generator/server_dispatch
@@ -132,8 +133,12 @@ fn last_module_segment(module_path: String) -> String {
 }
 
 fn write_file(path: String, content: String) -> Result(Nil, String) {
+  let formatted = case string.ends_with(path, ".gleam") {
+    True -> format.format_gleam(content)
+    False -> content
+  }
   let _ = simplifile.create_directory_all(dirname(path))
-  simplifile.write(path, content)
+  simplifile.write(path, formatted)
   |> result.map_error(fn(e) {
     "Failed to write " <> path <> ": " <> string.inspect(e)
   })
@@ -143,8 +148,12 @@ fn write_generated_files(
   files: List(client.GeneratedFile),
 ) -> Result(Nil, String) {
   list.try_fold(files, Nil, fn(_, file) {
+    let formatted = case string.ends_with(file.path, ".gleam") {
+      True -> format.format_gleam(file.content)
+      False -> file.content
+    }
     let _ = simplifile.create_directory_all(dirname(file.path))
-    simplifile.write(file.path, file.content)
+    simplifile.write(file.path, formatted)
     |> result.map_error(fn(e) {
       "Failed to write " <> file.path <> ": " <> string.inspect(e)
     })
