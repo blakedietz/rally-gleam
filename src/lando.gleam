@@ -21,12 +21,7 @@ import lando/walker
 
 pub fn main() {
   case run() {
-    Ok(count) ->
-      io.println(
-        "lando: generated route.gleam + page_dispatch.gleam + server_dispatch.gleam + ssr_handler.gleam + client package with "
-        <> int.to_string(count)
-        <> " routes",
-      )
+    Ok(msg) -> io.println("lando: " <> msg)
     Error(msg) -> {
       io.println_error("lando error: " <> msg)
       halt(1)
@@ -69,6 +64,9 @@ fn read_config() -> Result(ScanConfig, String) {
   let output_ws =
     tom.get_string(lando_config, ["output_ws"])
     |> result.unwrap("src/generated/ws_handler.gleam")
+  let sql_dir =
+    tom.get_string(lando_config, ["sql_dir"])
+    |> result.unwrap("src/sql")
   let client_root =
     tom.get_string(lando_config, ["client_root"])
     |> result.unwrap("client")
@@ -92,12 +90,13 @@ fn read_config() -> Result(ScanConfig, String) {
     output_server_dispatch:,
     output_ssr:,
     output_ws:,
+    sql_dir:,
     client_root:,
     lando_package_path:,
   ))
 }
 
-fn run() -> Result(Int, String) {
+fn run() -> Result(String, String) {
   use config <- result.try(read_config())
 
   // 1. Scan pages directory
@@ -190,7 +189,17 @@ fn run() -> Result(Int, String) {
     list.append(codec_files, client_files),
   ))
 
-  Ok(list.length(routes))
+  // 11. Run marmot for SQL query generation
+  let sql_count = run_marmot(config.sql_dir)
+
+  Ok(
+    int.to_string(list.length(routes))
+    <> " routes"
+    <> case sql_count {
+      0 -> ""
+      n -> ", " <> int.to_string(n) <> " SQL queries"
+    },
+  )
 }
 
 /// Collect (module_path, type_name) seed pairs from all page contracts.
@@ -257,3 +266,30 @@ fn dirname(path: String) -> String {
     [] -> "."
   }
 }
+
+/// Scan a directory for .sql files and shell out to marmot if any are found.
+/// Returns the number of SQL files found.
+fn run_marmot(sql_dir: String) -> Int {
+  let sql_files = scan_sql_dir(sql_dir)
+  case sql_files {
+    [] -> 0
+    files -> {
+      let _ = run_executable("gleam", ["run", "-m", "marmot"])
+      list.length(files)
+    }
+  }
+}
+
+fn scan_sql_dir(dir: String) -> List(String) {
+  case simplifile.read_directory(at: dir) {
+    Ok(entries) -> {
+      entries
+      |> list.sort(string.compare)
+      |> list.filter(fn(entry) { string.ends_with(entry, ".sql") })
+    }
+    Error(_) -> []
+  }
+}
+
+@external(erlang, "lando_cli_ffi", "run_executable")
+fn run_executable(program: String, args: List(String)) -> Int

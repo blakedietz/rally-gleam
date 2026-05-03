@@ -42,7 +42,13 @@ output_dispatch = "src/generated/page_dispatch.gleam"
 output_server_dispatch = "src/generated/server_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
 output_ws = "src/generated/ws_handler.gleam"
+sql_dir = "src/sql"
 client_root = "client"
+
+[tools.marmot]
+database = "app.db"
+sql_dir = "src/sql"
+output = "src/generated/sql"
 TOML
 
 # Replace placeholder with actual project name
