@@ -4,7 +4,7 @@ import gleam/string
 import simplifile
 import lando/types.{
   type ParamType, type ScannedRoute, type UrlSegment, DynamicSegment, IntParam,
-  ScannedRoute, StaticSegment, StringParam,
+  ScannedRoute, StaticSegment, StringParam, type ScanConfig,
 }
 
 /// Convert a snake_case name to PascalCase.
@@ -139,6 +139,6 @@ fn scan_dir(
 }
 
 /// Scan a root directory and return all routes found.
-pub fn scan(root: String) -> Result(List(ScannedRoute), String) {
-  scan_dir(root, [], [])
+pub fn scan(config: ScanConfig) -> Result(List(ScannedRoute), String) {
+  scan_dir(config.pages_root, [], [])
 }

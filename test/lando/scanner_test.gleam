@@ -2,7 +2,19 @@ import gleam/list
 import simplifile
 import lando/scanner
 import lando/types.{
-  DynamicSegment, IntParam, ScannedRoute, StaticSegment, StringParam,
+  DynamicSegment, IntParam, ScanConfig, type ScanConfig, ScannedRoute,
+  StaticSegment, StringParam,
+}
+
+fn test_config(dir: String) -> ScanConfig {
+  ScanConfig(
+    pages_root: dir,
+    output_route: "",
+    output_dispatch: "",
+    output_server_dispatch: "",
+    output_ssr: "",
+    client_root: "",
+  )
 }
 
 fn make_temp_dir(name: String) -> String {
@@ -29,7 +41,7 @@ fn mkdir(path: String) -> Nil {
 pub fn scan_home_test() {
   let dir = make_temp_dir("home")
   touch(dir <> "/home_.gleam")
-  let assert Ok(routes) = scanner.scan(dir)
+  let assert Ok(routes) = scanner.scan(test_config(dir))
   let assert True =
     list.contains(
       routes,
@@ -47,7 +59,7 @@ pub fn scan_static_route_test() {
   let dir = make_temp_dir("static")
   mkdir(dir <> "/settings")
   touch(dir <> "/settings/general.gleam")
-  let assert Ok(routes) = scanner.scan(dir)
+  let assert Ok(routes) = scanner.scan(test_config(dir))
   let assert True =
     list.contains(
       routes,
@@ -65,7 +77,7 @@ pub fn scan_dynamic_int_route_test() {
   let dir = make_temp_dir("dynamic_int")
   mkdir(dir <> "/registration/orders")
   touch(dir <> "/registration/orders/id_.gleam")
-  let assert Ok(routes) = scanner.scan(dir)
+  let assert Ok(routes) = scanner.scan(test_config(dir))
   let assert True =
     list.contains(
       routes,
@@ -87,7 +99,7 @@ pub fn scan_dynamic_string_route_test() {
   let dir = make_temp_dir("dynamic_string")
   mkdir(dir <> "/registration/custom_questions")
   touch(dir <> "/registration/custom_questions/key_.gleam")
-  let assert Ok(routes) = scanner.scan(dir)
+  let assert Ok(routes) = scanner.scan(test_config(dir))
   let assert True =
     list.contains(
       routes,
@@ -109,7 +121,7 @@ pub fn scan_nested_dynamic_route_test() {
   let dir = make_temp_dir("nested_dynamic")
   mkdir(dir <> "/registration/orders/id_/payments/payment_id_")
   touch(dir <> "/registration/orders/id_/payments/payment_id_/edit.gleam")
-  let assert Ok(routes) = scanner.scan(dir)
+  let assert Ok(routes) = scanner.scan(test_config(dir))
   let assert True =
     list.contains(
       routes,
@@ -136,7 +148,7 @@ pub fn scan_file_and_directory_coexist_test() {
   touch(dir <> "/orders.gleam")
   touch(dir <> "/orders/new.gleam")
   touch(dir <> "/orders/id_.gleam")
-  let assert Ok(routes) = scanner.scan(dir)
+  let assert Ok(routes) = scanner.scan(test_config(dir))
   let assert True = list.length(routes) == 3
   let assert True =
     list.contains(
@@ -176,7 +188,7 @@ pub fn scan_ignores_non_gleam_files_test() {
   touch(dir <> "/home_.gleam")
   touch(dir <> "/README.md")
   touch(dir <> "/notes.txt")
-  let assert Ok(routes) = scanner.scan(dir)
+  let assert Ok(routes) = scanner.scan(test_config(dir))
   let assert True = list.length(routes) == 1
   cleanup(dir)
 }
@@ -185,7 +197,7 @@ pub fn scan_underscore_name_pascal_case_test() {
   let dir = make_temp_dir("pascal")
   mkdir(dir <> "/settings")
   touch(dir <> "/settings/item_subtypes.gleam")
-  let assert Ok(routes) = scanner.scan(dir)
+  let assert Ok(routes) = scanner.scan(test_config(dir))
   let assert True =
     list.contains(
       routes,

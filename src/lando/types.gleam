@@ -16,3 +16,14 @@ pub type ScannedRoute {
     module_path: String,
   )
 }
+
+pub type ScanConfig {
+  ScanConfig(
+    pages_root: String,
+    output_route: String,
+    output_dispatch: String,
+    output_server_dispatch: String,
+    output_ssr: String,
+    client_root: String,
+  )
+}
