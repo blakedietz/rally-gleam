@@ -12,10 +12,12 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/effect.{type Effect}
 import lustre/event
+import generated/router
 import generated/transport
 
 pub type Model {
   Model(
+    route: router.Route,
     connection: Connection,
     loading: Bool,
     toasts: List(Toast),
@@ -38,6 +40,7 @@ pub type ToastKind {
 }
 
 pub type Msg {
+  UrlChanged(router.Route)
   TransportConnected
   TransportDisconnected(reason: String)
   PageLoading
@@ -56,7 +59,8 @@ pub fn main() {
 }
 
 fn init(_flags: Nil) -> #(Model, Effect(Msg)) {
-  #(Model(connection: Disconnected, loading: False, toasts: []),
+  let route = router.parse_route_from_url()
+  #(Model(route:, connection: Disconnected, loading: False, toasts: []),
     init_transport())
 }
 
@@ -71,6 +75,8 @@ fn init_transport() -> Effect(Msg) {
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
+    UrlChanged(route) ->
+      #(Model(..model, route:), effect.none())
     TransportConnected ->
       #(Model(..model, connection: Connected), effect.none())
     TransportDisconnected(_reason) ->
@@ -88,12 +94,20 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 fn view(model: Model) -> Element(Msg) {
   html.div([attr.class("lando-app")], [
     loading_bar(model.loading),
-    // Page content is rendered by the generated page view dispatch.
-    // Placeholder until client-side page views are generated (bean after ETF codec).
-    html.div([], [html.text("Lando")]),
+    render_page(model.route),
     connection_banner(model.connection),
     toast_container(model.toasts),
   ])
+}
+
+fn render_page(route: router.Route) -> Element(Msg) {
+  case route {    router.Home -> html.div([], [html.text("Home")])
+    router.About -> html.div([], [html.text("About")])
+    router.ProductsNew -> html.div([], [html.text("ProductsNew")])
+    router.ProductsId -> html.div([], [html.text("ProductsId")])
+    router.NotFound(_) ->
+      html.div([], [html.text("Page not found")])
+  }
 }
 
 fn loading_bar(loading: Bool) -> Element(Msg) {
