@@ -9,12 +9,15 @@ import simplifile
 import lando/format
 import lando/generator
 import lando/generator/client
+import lando/generator/codec
 import lando/generator/server_dispatch
 import lando/generator/ssr_handler
 import lando/generator/ws_handler
+import lando/field_type
 import lando/parser
 import lando/scanner
-import lando/types.{type ScanConfig, ScanConfig}
+import lando/types.{type PageContract, type ScanConfig, type ScannedRoute, type VariantInfo, ScanConfig}
+import lando/walker
 
 pub fn main() {
   case run() {
@@ -138,7 +141,7 @@ fn run() -> Result(Int, String) {
   let ws_source = ws_handler.generate(contracts)
   use _ <- result.try(write_file(config.output_ws, ws_source))
 
-  // 7. Read rpc_ffi.mjs from the lando package
+  // 7. Read JS runtime files from the lando package
   let rpc_ffi_path =
     config.lando_package_path <> "/src/lando_runtime/rpc_ffi.mjs"
   use rpc_ffi_content <- result.try(
@@ -150,13 +153,65 @@ fn run() -> Result(Int, String) {
       <> string.inspect(e)
     }),
   )
+  let decoders_prelude_path =
+    config.lando_package_path <> "/src/lando_runtime/decoders_prelude.mjs"
+  use decoders_prelude_content <- result.try(
+    simplifile.read(decoders_prelude_path)
+    |> result.map_error(fn(e) {
+      "Cannot read decoders_prelude.mjs from lando package at "
+      <> decoders_prelude_path
+      <> ": "
+      <> string.inspect(e)
+    }),
+  )
 
-  // 8. Generate client package
+  // 8. Walk type graph for codec generation
+  let seeds = collect_codec_seeds(contracts)
+  let page_file_paths =
+    list.map(routes, fn(r) {
+      config.pages_root
+      <> "/"
+      <> last_module_segment(r.module_path)
+      <> ".gleam"
+    })
+  let discovered =
+    walker.walk(seeds, page_file_paths, config.pages_root)
+
+  // 9. Generate codec files for the client package
+  let codec_files =
+    list.map(codec.generate(contracts, discovered), fn(f: codec.CodecFile) {
+      client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
+    })
+
+  // 10. Generate client package (includes rpc_ffi.mjs and decoders_prelude.mjs)
   let client_files =
-    client.generate_package(routes, contracts, config, rpc_ffi_content)
-  use _ <- result.try(write_generated_files(client_files))
+    client.generate_package(routes, contracts, config, rpc_ffi_content, decoders_prelude_content)
+  use _ <- result.try(write_generated_files(
+    list.append(codec_files, client_files),
+  ))
 
   Ok(list.length(routes))
+}
+
+/// Collect (module_path, type_name) seed pairs from all page contracts.
+/// Walks the field types of ToBackend/ToFrontend variants to find
+/// user-defined types that need decoder generation.
+fn collect_codec_seeds(
+  contracts: List(#(ScannedRoute, PageContract)),
+) -> List(#(String, String)) {
+  contracts
+  |> list.flat_map(fn(pair) {
+    let #(_, contract) = pair
+    let to_backend_types =
+      list.flat_map(contract.to_backend_variants, collect_variant_user_types)
+    let to_frontend_types =
+      list.flat_map(contract.to_frontend_variants, collect_variant_user_types)
+    list.append(to_backend_types, to_frontend_types)
+  })
+}
+
+fn collect_variant_user_types(v: VariantInfo) -> List(#(String, String)) {
+  list.flat_map(v.fields, fn(f) { field_type.collect_user_types(f.type_) })
 }
 
 /// Extract the last path segment of a module path for file lookup.

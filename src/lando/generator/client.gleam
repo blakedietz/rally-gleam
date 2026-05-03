@@ -11,6 +11,7 @@ pub fn generate_package(
   contracts: List(#(ScannedRoute, PageContract)),
   config: ScanConfig,
   rpc_ffi_content: String,
+  decoders_prelude_content: String,
 ) -> List(GeneratedFile) {
   [
     GeneratedFile(
@@ -20,6 +21,10 @@ pub fn generate_package(
     GeneratedFile(
       config.client_root <> "/src/generated/rpc_ffi.mjs",
       rpc_ffi_content,
+    ),
+    GeneratedFile(
+      config.client_root <> "/src/generated/decoders_prelude.mjs",
+      decoders_prelude_content,
     ),
     GeneratedFile(
       config.client_root <> "/src/generated/transport.gleam",

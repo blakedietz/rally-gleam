@@ -188,7 +188,7 @@ fn resolve_named_type(
 // ---------- Import maps (from libero scanner) ----------
 
 /// Build a map from unqualified type names to their full module paths.
-fn build_type_import_map(
+pub fn build_type_import_map(
   imports: List(glance.Definition(glance.Import)),
 ) -> Dict(String, String) {
   list.fold(imports, dict.new(), fn(acc, def) {
@@ -204,7 +204,7 @@ fn build_type_import_map(
 }
 
 /// Build a map from module aliases to full paths.
-fn build_alias_resolution_map(
+pub fn build_alias_resolution_map(
   imports: List(glance.Definition(glance.Import)),
 ) -> Dict(String, String) {
   list.fold(imports, dict.new(), fn(acc, def) {
@@ -219,7 +219,7 @@ fn build_alias_resolution_map(
 }
 
 /// Build a map from aliased type names to original names.
-fn build_type_alias_originals(
+pub fn build_type_alias_originals(
   imports: List(glance.Definition(glance.Import)),
 ) -> Dict(String, String) {
   list.fold(imports, dict.new(), fn(acc, def) {

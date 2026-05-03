@@ -105,9 +105,11 @@ Running `gleam run -m lando` produces:
 |---|---|
 | `lando.gleam` | CLI entry point, reads `[tools.lando]` from gleam.toml, runs pipeline |
 | `scanner.gleam` | Recursively walks pages directory, produces `List(ScannedRoute)` |
-| `parser.gleam` | Reads page source, detects `ToBackend`/`ToFrontend` variants, `server_update`, `server_init`, `load` |
+| `parser.gleam` | Glance AST parser: extracts ToBackend/ToFrontend types with full field info, detects function signatures |
+| `walker.gleam` | BFS type graph walker: discovers all reachable custom types from page message types (from libero) |
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
-| `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam, rpc_ffi.mjs |
+| `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam, rpc_ffi.mjs, decoders_prelude.mjs |
+| `generator/codec.gleam` | ETF codec generation: types.gleam (mirrored page types), codec.gleam (typed wrappers), codec_ffi.mjs (JS decoders) |
 | `generator/server_dispatch.gleam` | Server dispatch: `handle_message` + `init_server_model` |
 | `generator/ssr_handler.gleam` | SSR handler |
 | `generator/ws_handler.gleam` | WebSocket frame loop: decodes call envelopes, dispatches to server_update, sends push frames |
