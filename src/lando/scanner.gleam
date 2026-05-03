@@ -1,5 +1,7 @@
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleam/set
 import gleam/string
 import simplifile
 import lando/types.{
@@ -8,7 +10,6 @@ import lando/types.{
 }
 
 /// Convert a snake_case name to PascalCase.
-/// "custom_questions" -> "CustomQuestions"
 pub fn to_pascal_case(name: String) -> String {
   name
   |> string.split("_")
@@ -25,7 +26,6 @@ fn param_type_for(name: String) -> ParamType {
 }
 
 /// Parse a filename stem (without .gleam extension) into a UrlSegment.
-/// Trailing underscore means dynamic; otherwise static.
 pub fn parse_segment(stem: String) -> UrlSegment {
   case string.ends_with(stem, "_") {
     True -> {
@@ -65,19 +65,25 @@ fn build_route(
     variant_name: variant_name,
     params: params,
     module_path: module_path,
+    layout_module: None,
   )
 }
 
-/// Recursively scan a directory, accumulating routes.
-/// prefix_segments carries the UrlSegments for directories above the current level.
-/// path_parts carries the raw directory names for computing module paths.
-/// pages_root is the base directory for deriving module paths.
+/// Internal accumulator for the scan.
+type ScanAcc {
+  ScanAcc(
+    routes: List(ScannedRoute),
+    layout_modules: List(String),
+  )
+}
+
+/// Recursively scan a directory, accumulating routes and layout modules.
 fn scan_dir(
   path: String,
   prefix_segments: List(UrlSegment),
   path_parts: List(String),
-  pages_root: String,
-) -> Result(List(ScannedRoute), String) {
+  acc: ScanAcc,
+) -> Result(ScanAcc, String) {
   use entries <- result.try(
     simplifile.read_directory(at: path)
     |> result.map_error(fn(e) {
@@ -90,7 +96,7 @@ fn scan_dir(
 
   let sorted_entries = list.sort(entries, string.compare)
 
-  use acc, entry <- list.try_fold(over: sorted_entries, from: [])
+  use acc, entry <- list.try_fold(over: sorted_entries, from: acc)
   let entry_path = path <> "/" <> entry
 
   use is_dir <- result.try(
@@ -102,56 +108,100 @@ fn scan_dir(
 
   case is_dir {
     True -> {
-      // Directory: derive a segment from the directory name and recurse.
       let seg = parse_segment(entry)
-      use nested <- result.try(scan_dir(
+      scan_dir(
         entry_path,
         list.append(prefix_segments, [seg]),
         list.append(path_parts, [entry]),
-        pages_root,
-      ))
-      Ok(list.append(acc, nested))
+        acc,
+      )
     }
     False -> {
-      // File: only process .gleam files.
       case string.ends_with(entry, ".gleam") {
         False -> Ok(acc)
         True -> {
           let stem = string.drop_end(entry, string.length(".gleam"))
-          let module_path = derive_module_path(
-            pages_root,
-            string.join(list.append(path_parts, [stem]), "/"),
-          )
-          // Special case: home_.gleam at scanner root (no prefix) -> Home route
-          let route = case stem == "home_" && list.is_empty(prefix_segments) {
+          let relative_path = string.join(list.append(path_parts, [stem]), "/")
+          let module_path = derive_module_path(relative_path)
+
+          // layout.gleam files are not routes — they provide page chrome.
+          case stem == "layout" {
             True ->
-              ScannedRoute(
-                segments: [],
-                variant_name: "Home",
-                params: [],
-                module_path:,
-              )
+              Ok(ScanAcc(..acc, layout_modules: [module_path, ..acc.layout_modules]))
             False -> {
-              let segments = list.append(prefix_segments, [parse_segment(stem)])
-              build_route(segments, module_path)
+              let route = case stem == "home_" && list.is_empty(prefix_segments) {
+                True ->
+                  ScannedRoute(
+                    segments: [],
+                    variant_name: "Home",
+                    params: [],
+                    module_path:,
+                    layout_module: None,
+                  )
+                False -> {
+                  let segments = list.append(prefix_segments, [parse_segment(stem)])
+                  build_route(segments, module_path)
+                }
+              }
+              Ok(ScanAcc(..acc, routes: [route, ..acc.routes]))
             }
           }
-          Ok(list.append(acc, [route]))
         }
       }
     }
   }
 }
 
-/// Scan a root directory and return all routes found.
+/// Resolve the nearest layout module for a page route.
+/// Walks up the module path, checking if <dir>/layout exists in the layout set.
+fn resolve_layout(
+  route: ScannedRoute,
+  layout_set: set.Set(String),
+) -> ScannedRoute {
+  let parts = string.split(route.module_path, "/")
+  // Drop the last segment (the page name), then walk up looking for a layout.
+  let dirs = case list.length(parts) {
+    1 -> []
+    n -> list.take(parts, n - 1)
+  }
+  let layout = find_nearest_layout(dirs, [], layout_set)
+  ScannedRoute(..route, layout_module: layout)
+}
+
+fn find_nearest_layout(
+  remaining: List(String),
+  _acc: List(String),
+  layout_set: set.Set(String),
+) -> Option(String) {
+  case remaining {
+    [] -> None
+    _ -> {
+      let candidate = string.join(remaining, "/") <> "/layout"
+      case set.contains(layout_set, candidate) {
+        True -> Some(candidate)
+        False ->
+          find_nearest_layout(
+            list.take(remaining, list.length(remaining) - 1),
+            [],
+            layout_set,
+          )
+      }
+    }
+  }
+}
+
+/// Scan a root directory and return all routes found with layout assignments.
 pub fn scan(config: ScanConfig) -> Result(List(ScannedRoute), String) {
-  scan_dir(config.pages_root, [], [], config.pages_root)
+  use acc <- result.try(scan_dir(
+    config.pages_root, [], [], ScanAcc([], []),
+  ))
+  let layout_set = set.from_list(acc.layout_modules)
+  let routes_with_layouts =
+    list.map(acc.routes, fn(route) { resolve_layout(route, layout_set) })
+  Ok(list.reverse(routes_with_layouts))
 }
 
 /// Derive a Gleam module path from a filesystem path under pages_root.
-/// Uses "pages/" as the fixed module prefix, appending the relative path
-/// within pages_root.
-/// E.g. "home_" -> "pages/home_"
-fn derive_module_path(_pages_root: String, relative_path: String) -> String {
+fn derive_module_path(relative_path: String) -> String {
   "pages/" <> relative_path
 }

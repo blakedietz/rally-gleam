@@ -1,5 +1,6 @@
 import gleam/string
 import lando/generator
+import gleam/option.{None}
 import lando/types.{
   type ScannedRoute, DynamicSegment, IntParam, ScannedRoute, StaticSegment,
   StringParam,
@@ -11,13 +12,13 @@ fn sample_routes() -> List(ScannedRoute) {
       segments: [],
       variant_name: "Home",
       params: [],
-      module_path: "pages/home_",
+      layout_module: None, module_path: "pages/home_",
     ),
     ScannedRoute(
       segments: [StaticSegment("settings"), StaticSegment("general")],
       variant_name: "SettingsGeneral",
       params: [],
-      module_path: "pages/settings/general",
+      layout_module: None, module_path: "pages/settings/general",
     ),
     ScannedRoute(
       segments: [
@@ -27,7 +28,7 @@ fn sample_routes() -> List(ScannedRoute) {
       ],
       variant_name: "RegistrationOrdersId",
       params: [#("id", IntParam)],
-      module_path: "pages/registration/orders/id_",
+      layout_module: None, module_path: "pages/registration/orders/id_",
     ),
     ScannedRoute(
       segments: [
@@ -37,7 +38,7 @@ fn sample_routes() -> List(ScannedRoute) {
       ],
       variant_name: "RegistrationCustomQuestionsKey",
       params: [#("key", StringParam)],
-      module_path: "pages/registration/custom_questions/key_",
+      layout_module: None, module_path: "pages/registration/custom_questions/key_",
     ),
   ]
 }
@@ -65,7 +66,7 @@ pub fn generate_multi_param_variant_test() {
       ],
       variant_name: "RegistrationOrdersIdPaymentsPaymentIdEdit",
       params: [#("id", IntParam), #("payment_id", IntParam)],
-      module_path: "pages/registration/orders/id_/payments/payment_id_/edit",
+      layout_module: None, module_path: "pages/registration/orders/id_/payments/payment_id_/edit",
     ),
   ]
   let output = generator.generate(routes)
@@ -92,13 +93,13 @@ pub fn generate_parse_route_ordering_test() {
       segments: [StaticSegment("orders"), StaticSegment("new")],
       variant_name: "OrdersNew",
       params: [],
-      module_path: "pages/orders/new",
+      layout_module: None, module_path: "pages/orders/new",
     ),
     ScannedRoute(
       segments: [StaticSegment("orders"), DynamicSegment("id", IntParam)],
       variant_name: "OrdersId",
       params: [#("id", IntParam)],
-      module_path: "pages/orders/id_",
+      layout_module: None, module_path: "pages/orders/id_",
     ),
   ]
   let output = generator.generate(routes)

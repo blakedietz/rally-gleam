@@ -4,6 +4,7 @@ import lando/field_type.{IntField}
 import lando/generator
 import lando/generator/server_dispatch
 import lando/generator/ssr_handler
+import gleam/option.{None}
 import lando/types.{
   IntParam, PageContract, type PageContract, type ScannedRoute, ScannedRoute,
   StaticSegment, VariantField, VariantInfo,
@@ -15,25 +16,25 @@ fn basic_routes() -> List(ScannedRoute) {
       segments: [],
       variant_name: "Home",
       params: [],
-      module_path: "pages/home_",
+      layout_module: None, module_path: "pages/home_",
     ),
     ScannedRoute(
       segments: [StaticSegment("about")],
       variant_name: "About",
       params: [],
-      module_path: "pages/about",
+      layout_module: None, module_path: "pages/about",
     ),
     ScannedRoute(
       segments: [StaticSegment("products"), StaticSegment("new")],
       variant_name: "ProductsNew",
       params: [],
-      module_path: "pages/products/new",
+      layout_module: None, module_path: "pages/products/new",
     ),
     ScannedRoute(
       segments: [StaticSegment("products"), StaticSegment("id")],
       variant_name: "ProductsId",
       params: [#("id", IntParam)],
-      module_path: "pages/products/id_",
+      layout_module: None, module_path: "pages/products/id_",
     ),
   ]
 }

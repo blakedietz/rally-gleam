@@ -111,7 +111,7 @@ fn generate_parse_route(routes: List(ScannedRoute)) -> String {
 }
 
 fn parse_route_arm(route: ScannedRoute) -> String {
-  let ScannedRoute(segments:, variant_name:, params:, module_path: _) = route
+  let ScannedRoute(segments:, variant_name:, params:, module_path: _, layout_module: _) = route
   let pattern = build_pattern(segments)
   let int_params =
     list.filter(params, fn(p) {
@@ -251,7 +251,7 @@ fn generate_route_to_path(routes: List(ScannedRoute)) -> String {
 }
 
 fn route_to_path_arm(route: ScannedRoute) -> String {
-  let ScannedRoute(segments:, variant_name:, params:, module_path: _) = route
+  let ScannedRoute(segments:, variant_name:, params:, module_path: _, layout_module: _) = route
   let destructor = build_constructor(variant_name, params)
   let path_expr = build_path_expr(segments)
   "    " <> destructor <> " -> " <> path_expr

@@ -110,6 +110,24 @@ pub fn server_init(_ctx: Context) -> ServerModel {
 }
 GLEAM
 
+# Example layout (optional — delete or modify freely)
+cat > "$PROJECT_PATH/src/pages/layout.gleam" <<'GLEAM'
+import lustre/element.{type Element}
+
+/// A layout wraps page content in shared chrome (header, footer, etc.).
+/// The framework automatically applies the nearest layout.gleam to each page.
+/// If a page doesn't need a layout, delete its nearest layout.gleam file.
+pub fn layout(content: Element(msg)) -> Element(msg) {
+  content
+  // To add shared chrome, wrap content:
+  //   html.div([], [
+  //     html.header([], [html.text("My App")]),
+  //     content,
+  //     html.footer([], [html.text("Powered by Lando")]),
+  //   ])
+}
+GLEAM
+
 # app.gleam (server entry point)
 cat > "$PROJECT_PATH/src/app.gleam" <<'GLEAM'
 import app_config.{type Context}

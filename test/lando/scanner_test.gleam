@@ -1,6 +1,7 @@
 import gleam/list
 import simplifile
 import lando/scanner
+import gleam/option.{None}
 import lando/types.{
   DynamicSegment, IntParam, ScanConfig, type ScanConfig, ScannedRoute,
   StaticSegment, StringParam,
@@ -51,7 +52,7 @@ pub fn scan_home_test() {
         segments: [],
         variant_name: "Home",
         params: [],
-        module_path: "pages/home_",
+        layout_module: None, module_path: "pages/home_",
       ),
     )
   cleanup(dir)
@@ -69,7 +70,7 @@ pub fn scan_static_route_test() {
         segments: [StaticSegment("settings"), StaticSegment("general")],
         variant_name: "SettingsGeneral",
         params: [],
-        module_path: "pages/settings/general",
+        layout_module: None, module_path: "pages/settings/general",
       ),
     )
   cleanup(dir)
@@ -91,7 +92,7 @@ pub fn scan_dynamic_int_route_test() {
         ],
         variant_name: "RegistrationOrdersId",
         params: [#("id", IntParam)],
-        module_path: "pages/registration/orders/id_",
+        layout_module: None, module_path: "pages/registration/orders/id_",
       ),
     )
   cleanup(dir)
@@ -113,7 +114,7 @@ pub fn scan_dynamic_string_route_test() {
         ],
         variant_name: "RegistrationCustomQuestionsKey",
         params: [#("key", StringParam)],
-        module_path: "pages/registration/custom_questions/key_",
+        layout_module: None, module_path: "pages/registration/custom_questions/key_",
       ),
     )
   cleanup(dir)
@@ -138,7 +139,7 @@ pub fn scan_nested_dynamic_route_test() {
         ],
         variant_name: "RegistrationOrdersIdPaymentsPaymentIdEdit",
         params: [#("id", IntParam), #("payment_id", IntParam)],
-        module_path: "pages/registration/orders/id_/payments/payment_id_/edit",
+        layout_module: None, module_path: "pages/registration/orders/id_/payments/payment_id_/edit",
       ),
     )
   cleanup(dir)
@@ -159,7 +160,7 @@ pub fn scan_file_and_directory_coexist_test() {
         segments: [StaticSegment("orders")],
         variant_name: "Orders",
         params: [],
-        module_path: "pages/orders",
+        layout_module: None, module_path: "pages/orders",
       ),
     )
   let assert True =
@@ -169,7 +170,7 @@ pub fn scan_file_and_directory_coexist_test() {
         segments: [StaticSegment("orders"), StaticSegment("new")],
         variant_name: "OrdersNew",
         params: [],
-        module_path: "pages/orders/new",
+        layout_module: None, module_path: "pages/orders/new",
       ),
     )
   let assert True =
@@ -179,7 +180,7 @@ pub fn scan_file_and_directory_coexist_test() {
         segments: [StaticSegment("orders"), DynamicSegment("id", IntParam)],
         variant_name: "OrdersId",
         params: [#("id", IntParam)],
-        module_path: "pages/orders/id_",
+        layout_module: None, module_path: "pages/orders/id_",
       ),
     )
   cleanup(dir)
@@ -207,7 +208,7 @@ pub fn scan_underscore_name_pascal_case_test() {
         segments: [StaticSegment("settings"), StaticSegment("item_subtypes")],
         variant_name: "SettingsItemSubtypes",
         params: [],
-        module_path: "pages/settings/item_subtypes",
+        layout_module: None, module_path: "pages/settings/item_subtypes",
       ),
     )
   cleanup(dir)

@@ -1,3 +1,4 @@
+import gleam/option.{type Option}
 import lando/field_type.{type FieldType}
 
 pub type ParamType {
@@ -16,6 +17,7 @@ pub type ScannedRoute {
     variant_name: String,
     params: List(#(String, ParamType)),
     module_path: String,
+    layout_module: Option(String),
   )
 }
 
