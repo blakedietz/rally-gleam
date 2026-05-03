@@ -4,7 +4,7 @@ target = "erlang"
 
 [dependencies]
 gleam_stdlib = ">= 0.60.0 and < 2.0.0"
-glance = ">= 1.0.0 and < 2.0.0"
+glance = "~> 6.0"
 glexer = ">= 2.0.0 and < 3.0.0"
 lustre = ">= 5.6.0 and < 7.0.0"
 marmot = ">= 1.0.0 and < 2.0.0"
@@ -14,3 +14,10 @@ tom = ">= 2.1.0 and < 3.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
+birdie = ">= 1.5.5 and < 2.0.0"
+glinter = ">= 2.16.0 and < 3.0.0"
+
+[tools.glinter]
+stats = true
+warnings_as_errors = true
+include = ["src/"]
