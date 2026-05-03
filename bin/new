@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_NAME="${1:-}"
+if [ -z "$PROJECT_NAME" ]; then
+  echo "Usage: bin/new <project-name>"
+  exit 1
+fi
+
+echo "Creating new lando project: $PROJECT_NAME"
+
+mkdir -p "$PROJECT_NAME/src/pages"
+mkdir -p "$PROJECT_NAME/src/sql"
+mkdir -p "$PROJECT_NAME/src/generated"
+mkdir -p "$PROJECT_NAME/client/src/generated"
+mkdir -p "$PROJECT_NAME/bin"
+
+# gleam.toml
+cat > "$PROJECT_NAME/gleam.toml" <<'TOML'
+name = "PROJECT_NAME_PLACEHOLDER"
+version = "0.1.0"
+target = "erlang"
+
+[dependencies]
+gleam_stdlib = ">= 0.60.0 and < 2.0.0"
+lustre = ">= 5.6.0 and < 7.0.0"
+marmot = ">= 1.0.0 and < 2.0.0"
+mist = ">= 6.0.0 and < 7.0.0"
+sqlight = ">= 1.0.0 and < 2.0.0"
+
+[dev-dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"
+
+[tools.lando]
+pages_root = "src/pages"
+output_route = "src/generated/router.gleam"
+output_dispatch = "src/generated/page_dispatch.gleam"
+output_server_dispatch = "src/generated/server_dispatch.gleam"
+output_ssr = "src/generated/ssr_handler.gleam"
+client_root = "client"
+TOML
+
+# Replace placeholder with actual project name
+sed -i.bak "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/" "$PROJECT_NAME/gleam.toml"
+rm -f "$PROJECT_NAME/gleam.toml.bak"
+
+# Sample home page
+cat > "$PROJECT_NAME/src/pages/home_.gleam" <<'GLEAM'
+import lustre/element.{type Element}
+import lustre/element/html
+import lustre/effect.{type Effect}
+import lando_runtime/effect as lando_effect
+
+pub type Model { Model(count: Int) }
+
+pub type Msg {
+  UserClickedIncrement
+  UserClickedDecrement
+  GotServerMsg(ToFrontend)
+}
+
+pub type ToBackend { Increment; Decrement }
+
+pub type ToFrontend { CounterNewValue(value: Int) }
+
+pub type ServerModel { ServerModel(count: Int) }
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(count: 0), effect.none())
+}
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case msg {
+    UserClickedIncrement -> #(model, lando_effect.send_to_backend(Increment))
+    UserClickedDecrement -> #(model, lando_effect.send_to_backend(Decrement))
+    GotServerMsg(CounterNewValue(n)) -> #(Model(count: n), effect.none())
+  }
+}
+
+pub fn view(model: Model) -> Element(Msg) {
+  html.div([], [
+    html.button([], [html.text("+")]),
+    html.text(string.inspect(model.count)),
+    html.button([], [html.text("-")]),
+  ])
+}
+
+pub fn server_update(
+  model: ServerModel,
+  msg: ToBackend,
+  _ctx: Context,
+) -> #(ServerModel, Effect(ToFrontend)) {
+  case msg {
+    Increment -> #(ServerModel(count: model.count + 1), lando_effect.send_to_client(CounterNewValue(model.count + 1)))
+    Decrement -> #(ServerModel(count: model.count - 1), lando_effect.send_to_client(CounterNewValue(model.count - 1)))
+  }
+}
+GLEAM
+
+# app_config.gleam
+cat > "$PROJECT_NAME/src/app_config.gleam" <<'GLEAM'
+pub type Context {
+  Context(db: sqlight.Connection)
+}
+GLEAM
+
+# bin/dev
+cat > "$PROJECT_NAME/bin/dev" <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+echo "==> Running lando codegen..."
+gleam run -m lando
+echo "==> Building client..."
+cd client && gleam build --target javascript && cd ..
+echo "==> Starting server..."
+gleam run
+SCRIPT
+chmod +x "$PROJECT_NAME/bin/dev"
+
+echo ""
+echo "Created $PROJECT_NAME. To start:"
+echo "  cd $PROJECT_NAME && bin/dev"
