@@ -13,8 +13,12 @@ import mist.{type Response, type ResponseData, type Body}
 import lando_runtime/ssr
 import lando_runtime/codec
 import generated/router
+import app_config.{type Context}
 
-pub fn handle_request(req: request.Request(Body)) -> Response(ResponseData) {
+pub fn handle_request(
+  req: request.Request(Body),
+  ctx: Context,
+) -> Response(ResponseData) {
   case request.method(req) {
     request.Get -> {
       let route = router.parse_route(request.uri(req))
