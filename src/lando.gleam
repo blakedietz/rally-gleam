@@ -49,13 +49,13 @@ fn read_config() -> Result(ScanConfig, String) {
 
   let pages_root =
     tom.get_string(lando_config, ["pages_root"])
-    |> result.unwrap("../../clients/admin/src/admin/pages")
+    |> result.unwrap("src/pages")
   let output_route =
     tom.get_string(lando_config, ["output_route"])
-    |> result.unwrap("../../shared/src/shared/admin/route.gleam")
+    |> result.unwrap("src/generated/router.gleam")
   let output_dispatch =
     tom.get_string(lando_config, ["output_dispatch"])
-    |> result.unwrap("../../clients/admin/src/generated/page_dispatch.gleam")
+    |> result.unwrap("src/generated/page_dispatch.gleam")
   let output_server_dispatch =
     tom.get_string(lando_config, ["output_server_dispatch"])
     |> result.unwrap("src/generated/server_dispatch.gleam")
