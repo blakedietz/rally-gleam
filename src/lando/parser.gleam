@@ -1,6 +1,6 @@
 //// Page module parser using Glance AST.
 //// Parses page source files to extract the page contract:
-//// custom types (ToBackend, ToFrontend) with full variant/field info,
+//// custom types (ToServer, ToClient) with full variant/field info,
 //// and function presence (server_update, server_init, load, etc.).
 
 import glance
@@ -26,16 +26,16 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
   let alias_map = build_alias_resolution_map(ast.imports)
   let type_alias_originals = build_type_alias_originals(ast.imports)
 
-  let to_backend = extract_variants(
+  let to_server = extract_variants(
     ast: ast,
-    type_name: "ToBackend",
+    type_name: "ToServer",
     type_imports: type_imports,
     alias_map: alias_map,
     type_alias_originals: type_alias_originals,
   )
-  let to_frontend = extract_variants(
+  let to_client = extract_variants(
     ast: ast,
-    type_name: "ToFrontend",
+    type_name: "ToClient",
     type_imports: type_imports,
     alias_map: alias_map,
     type_alias_originals: type_alias_originals,
@@ -51,8 +51,8 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
   let param_names = extract_init_params_from_ast(functions_list)
 
   Ok(PageContract(
-    to_backend_variants: to_backend,
-    to_frontend_variants: to_frontend,
+    to_server_variants: to_server,
+    to_client_variants: to_client,
     has_server_update:,
     has_server_init:,
     has_load:,

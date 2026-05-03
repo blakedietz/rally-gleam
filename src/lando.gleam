@@ -194,7 +194,7 @@ fn run() -> Result(Int, String) {
 }
 
 /// Collect (module_path, type_name) seed pairs from all page contracts.
-/// Walks the field types of ToBackend/ToFrontend variants to find
+/// Walks the field types of ToServer/ToClient variants to find
 /// user-defined types that need decoder generation.
 fn collect_codec_seeds(
   contracts: List(#(ScannedRoute, PageContract)),
@@ -202,11 +202,11 @@ fn collect_codec_seeds(
   contracts
   |> list.flat_map(fn(pair) {
     let #(_, contract) = pair
-    let to_backend_types =
-      list.flat_map(contract.to_backend_variants, collect_variant_user_types)
-    let to_frontend_types =
-      list.flat_map(contract.to_frontend_variants, collect_variant_user_types)
-    list.append(to_backend_types, to_frontend_types)
+    let to_server_types =
+      list.flat_map(contract.to_server_variants, collect_variant_user_types)
+    let to_client_types =
+      list.flat_map(contract.to_client_variants, collect_variant_user_types)
+    list.append(to_server_types, to_client_types)
   })
 }
 

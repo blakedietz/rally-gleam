@@ -68,7 +68,7 @@ fn send_raw(
 
 /// Register a handler for push messages from the server.
 /// The handler is called with the decoded push value whenever
-/// the server sends a ToFrontend for this page.
+/// the server sends a ToClient for this page.
 @external(javascript, \"./rpc_ffi.mjs\", \"registerPushHandler\")
 pub fn register_push_handler(
   page: String,
@@ -92,9 +92,9 @@ pub fn encode(value: a) -> BitArray
 @external(javascript, \"./rpc_ffi.mjs\", \"decode_value\")
 pub fn decode(data: BitArray) -> a
 
-/// Send a ToBackend message to the server.
+/// Send a ToServer message to the server.
 /// Encodes the message and sends it over the WebSocket.
-pub fn send_to_backend(page: String, msg: a) -> Nil {
+pub fn send_to_server(page: String, msg: a) -> Nil {
   send_raw(\"/ws\", page, msg, fn(_) { Nil })
 }
 "

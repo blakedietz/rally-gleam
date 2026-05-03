@@ -9,14 +9,14 @@ pub fn from(f: fn(fn(a) -> Nil) -> Nil) -> Effect(a) {
   effect.from(f)
 }
 
-/// Send a ToBackend variant to the server over WebSocket.
+/// Send a ToServer variant to the server over WebSocket.
 /// On the server this is a no-op. On the client, the generated
 /// transport module provides the real implementation.
-pub fn send_to_backend(_msg: a) -> Effect(b) {
+pub fn send_to_server(_msg: a) -> Effect(b) {
   effect.none()
 }
 
-/// Send a ToFrontend variant to the connected client.
+/// Send a ToClient variant to the connected client.
 /// Encodes the message as an ETF push frame and queues it for
 /// the WebSocket handler to send after the current dispatch.
 pub fn send_to_client(msg: a) -> Effect(b) {
@@ -24,7 +24,7 @@ pub fn send_to_client(msg: a) -> Effect(b) {
   effect.none()
 }
 
-/// Broadcast a ToFrontend variant to all clients on a page.
+/// Broadcast a ToClient variant to all clients on a page.
 /// Currently queues a push to the single connected client.
 pub fn broadcast(msg: a) -> Effect(b) {
   do_push(msg)

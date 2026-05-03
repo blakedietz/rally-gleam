@@ -1,6 +1,6 @@
 //// Type graph walker for codec generation.
 ////
-//// Walks the type graph starting from seed types (ToBackend/ToFrontend
+//// Walks the type graph starting from seed types (ToServer/ToClient
 //// from page contracts) to discover every custom type reachable through
 //// the message types. Produces DiscoveredType/DiscoveredVariant lists
 //// that the codec generator uses to emit typed JS decoders.
@@ -72,7 +72,7 @@ fn is_skipped_module(module_path: String) -> Bool {
 }
 
 /// Walk the type graph starting from seed types extracted from page contracts.
-/// Seeds are (module_path, type_name) pairs for ToBackend/ToFrontend types.
+/// Seeds are (module_path, type_name) pairs for ToServer/ToClient types.
 pub fn walk(
   seeds seeds: List(#(String, String)),
   page_files page_files: List(String),

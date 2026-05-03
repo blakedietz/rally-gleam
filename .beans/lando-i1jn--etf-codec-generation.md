@@ -7,14 +7,14 @@ created_at: 2026-05-03T14:34:11Z
 updated_at: 2026-05-03T17:45:00Z
 ---
 
-Generate per-page ETF encode/decode from ToBackend/ToFrontend types
+Generate per-page ETF encode/decode from ToServer/ToClient types
 
 ## What was done
 
-- Ported `walker.gleam` from libero — BFS type graph walker that discovers all reachable custom types from ToBackend/ToFrontend seed types
+- Ported `walker.gleam` from libero — BFS type graph walker that discovers all reachable custom types from ToServer/ToClient seed types
 - Created `generator/codec.gleam` — generates client codec files:
   - `codec_ffi.mjs` — JS typed decoders from discovered types (adapted from libero's codegen_decoders)
-  - `types.gleam` — mirrored page ToBackend/ToFrontend types with full field type info
+  - `types.gleam` — mirrored page ToServer/ToClient types with full field type info
   - `codec.gleam` — typed encode/decode wrapper functions per page
 - Updated `lando.gleam` to run the walker + codec generator pipeline
 - Copies `decoders_prelude.mjs` to client package (needed by codec_ffi.mjs)

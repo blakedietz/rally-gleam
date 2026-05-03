@@ -30,9 +30,9 @@ Trailing underscore marks a dynamic segment. Names ending in `_id` become `Int` 
 
 // -- Types --
 pub type Model { Model(count: Int) }
-pub type Msg { UserClickedIncrement; GotServerMsg(ToFrontend) }
-pub type ToBackend { Increment; Decrement }
-pub type ToFrontend { CounterNewValue(Int) }
+pub type Msg { UserClickedIncrement; GotServerMsg(ToClient) }
+pub type ToServer { Increment; Decrement }
+pub type ToClient { CounterNewValue(Int) }
 pub type ServerModel { ServerModel(count: Int) }
 
 // -- Client functions --
@@ -41,16 +41,16 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg))
 pub fn view(model: Model) -> Element(Msg)
 
 // -- Server functions --
-pub fn server_update(model: ServerModel, msg: ToBackend, ctx: Context) -> #(ServerModel, Effect(ToFrontend))
+pub fn server_update(model: ServerModel, msg: ToServer, ctx: Context) -> #(ServerModel, Effect(ToClient))
 pub fn server_init(ctx: Context) -> ServerModel  // initial server model
 pub fn load(ctx: Context) -> Result(Model, LoadError)  // optional, for SSR
 ```
 
 - `Model`/`Msg` — client-side state and UI events
 - `init`/`update`/`view` — standard Lustre TEA (The Elm Architecture)
-- `ToBackend` — messages the client sends to the server over WebSocket
-- `ToFrontend` — messages the server sends back to the client
-- `GotServerMsg(ToFrontend)` — the single Msg variant that handles ALL server responses
+- `ToServer` — messages the client sends to the server over WebSocket
+- `ToClient` — messages the server sends back to the client
+- `GotServerMsg(ToClient)` — the single Msg variant that handles ALL server responses
 - `server_update` — runs on the BEAM, has access to DB/session via `ctx`
 - `server_init` — returns the initial `ServerModel` for a new session
 - `ServerModel` — per-session server state
@@ -61,8 +61,8 @@ pub fn load(ctx: Context) -> Result(Model, LoadError)  // optional, for SSR
 
 Page modules import from `lando_runtime/effect`:
 
-- `send_to_backend(variant)` — sends a `ToBackend` message to the server over WebSocket. On the client, the generated transport module provides the real implementation via `rpc_ffi.mjs`. On the server this is a no-op.
-- `send_to_client(variant)` — encodes the `ToFrontend` message as an ETF push frame and queues it for the WebSocket handler to send. Uses process dictionary for handler state.
+- `send_to_server(variant)` — sends a `ToServer` message to the server over WebSocket. On the client, the generated transport module provides the real implementation via `rpc_ffi.mjs`. On the server this is a no-op.
+- `send_to_client(variant)` — encodes the `ToClient` message as an ETF push frame and queues it for the WebSocket handler to send. Uses process dictionary for handler state.
 - `broadcast(variant)` — same as `send_to_client` for the current connected client.
 - `effect.none()` — no-op effect
 - `effect.from(fn)` — create a custom effect
@@ -105,7 +105,7 @@ Running `gleam run -m lando` produces:
 |---|---|
 | `lando.gleam` | CLI entry point, reads `[tools.lando]` from gleam.toml, runs pipeline |
 | `scanner.gleam` | Recursively walks pages directory, produces `List(ScannedRoute)` |
-| `parser.gleam` | Glance AST parser: extracts ToBackend/ToFrontend types with full field info, detects function signatures |
+| `parser.gleam` | Glance AST parser: extracts ToServer/ToClient types with full field info, detects function signatures |
 | `walker.gleam` | BFS type graph walker: discovers all reachable custom types from page message types (from libero) |
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
 | `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam, rpc_ffi.mjs, decoders_prelude.mjs |
@@ -121,7 +121,7 @@ Running `gleam run -m lando` produces:
 
 | Module | Role |
 |---|---|
-| `effect.gleam` | `send_to_backend` (no-op on server), `send_to_client`/`broadcast` (ETF push frames via process dict) |
+| `effect.gleam` | `send_to_server` (no-op on server), `send_to_client`/`broadcast` (ETF push frames via process dict) |
 | `wire.gleam` | ETF encode/decode, call envelope parsing, frame tagging, variant tagging, Dynamic coercion |
 | `codec.gleam` | Base64 ETF serialization for SSR flags |
 | `ssr.gleam` | HTML rendering via `element.to_document_string` |
@@ -173,7 +173,7 @@ The lando package path is resolved from `[dependencies].lando.path` in the consu
 ## Prior art
 
 - elm-land: file-based routing conventions
-- Lamdera: explicit `ToBackend`/`ToFrontend` message types as client-server contract
+- Lamdera: explicit `ToServer`/`ToClient` message types as client-server contract
 - libero: ETF wire protocol, codegen architecture, SSR patterns
 - marmot: SQL-first codegen with live SQLite introspection
 

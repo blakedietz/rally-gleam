@@ -44,11 +44,11 @@ fn basic_contracts() -> List(#(ScannedRoute, PageContract)) {
     #(
       route,
       PageContract(
-        to_backend_variants: [
+        to_server_variants: [
           VariantInfo("Increment", []),
           VariantInfo("Decrement", []),
         ],
-        to_frontend_variants: [
+        to_client_variants: [
           VariantInfo("CounterNewValue", [VariantField("value", IntField)]),
         ],
         has_server_update: True,

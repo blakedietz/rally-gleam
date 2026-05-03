@@ -44,8 +44,8 @@ pub type VariantInfo {
 
 pub type PageContract {
   PageContract(
-    to_backend_variants: List(VariantInfo),
-    to_frontend_variants: List(VariantInfo),
+    to_server_variants: List(VariantInfo),
+    to_client_variants: List(VariantInfo),
     has_server_update: Bool,
     has_server_init: Bool,
     has_load: Bool,

@@ -7,7 +7,7 @@ created_at: 2026-05-03T14:34:11Z
 updated_at: 2026-05-03T15:55:00Z
 ---
 
-Wire up send_to_backend/send_to_client with real WebSocket transport using rpc_ffi.mjs
+Wire up send_to_server/send_to_client with real WebSocket transport using rpc_ffi.mjs
 
 ## What was done
 

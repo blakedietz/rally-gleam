@@ -62,15 +62,15 @@ pub type Model { Model(count: Int) }
 pub type Msg {
   UserClickedIncrement
   UserClickedDecrement
-  GotServerMsg(ToFrontend)
+  GotServerMsg(ToClient)
 }
 
-pub type ToBackend {
+pub type ToServer {
   Increment
   Decrement
 }
 
-pub type ToFrontend { CounterNewValue(value: Int) }
+pub type ToClient { CounterNewValue(value: Int) }
 
 pub type ServerModel { ServerModel(count: Int) }
 
@@ -80,8 +80,8 @@ pub fn init() -> #(Model, Effect(Msg)) {
 
 pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
-    UserClickedIncrement -> #(model, lando_effect.send_to_backend(Increment))
-    UserClickedDecrement -> #(model, lando_effect.send_to_backend(Decrement))
+    UserClickedIncrement -> #(model, lando_effect.send_to_server(Increment))
+    UserClickedDecrement -> #(model, lando_effect.send_to_server(Decrement))
     GotServerMsg(CounterNewValue(n)) -> #(Model(count: n), effect.none())
   }
 }
@@ -96,9 +96,9 @@ pub fn view(model: Model) -> Element(Msg) {
 
 pub fn server_update(
   model: ServerModel,
-  msg: ToBackend,
+  msg: ToServer,
   _ctx: Context,
-) -> #(ServerModel, Effect(ToFrontend)) {
+) -> #(ServerModel, Effect(ToClient)) {
   case msg {
     Increment -> #(ServerModel(count: model.count + 1), lando_effect.send_to_client(CounterNewValue(model.count + 1)))
     Decrement -> #(ServerModel(count: model.count - 1), lando_effect.send_to_client(CounterNewValue(model.count - 1)))
