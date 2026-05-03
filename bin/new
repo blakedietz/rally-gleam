@@ -140,6 +140,8 @@ GLEAM
 
 # app_config.gleam
 cat > "$PROJECT_PATH/src/app_config.gleam" <<'GLEAM'
+import sqlight
+
 pub type Context {
   Context(db: sqlight.Connection)
 }
