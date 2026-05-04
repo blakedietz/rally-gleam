@@ -1,7 +1,4 @@
 build/
-src/generated/
-client/src/generated/
-client/gleam.toml
 manifest.toml
 client/manifest.toml
 app.db
