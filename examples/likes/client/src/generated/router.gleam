@@ -10,14 +10,14 @@ pub type Route {
 
 pub fn parse_route(uri: Uri) -> Route {
   case uri.path_segments(uri.path) {
-    [] -> Home
+    ["home"] -> Home
     _ -> NotFound(uri:)
   }
 }
 
 pub fn route_to_path(route route: Route) -> String {
   case route {
-    Home -> "/"
+    Home -> "/" <> "/home"
     NotFound(uri:) -> uri.to_string(uri)
   }
 }

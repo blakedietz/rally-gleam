@@ -108,13 +108,19 @@ fn scan_dir(
 
   case is_dir {
     True -> {
-      let seg = parse_segment(entry)
-      scan_dir(
-        entry_path,
-        list.append(prefix_segments, [seg]),
-        list.append(path_parts, [entry]),
-        acc,
-      )
+      // Skip sql/ directories (used by marmot, not routes)
+      case entry == "sql" {
+        True -> Ok(acc)
+        False -> {
+          let seg = parse_segment(entry)
+          scan_dir(
+            entry_path,
+            list.append(prefix_segments, [seg]),
+            list.append(path_parts, [entry]),
+            acc,
+          )
+        }
+      }
     }
     False -> {
       case string.ends_with(entry, ".gleam") {
@@ -125,10 +131,26 @@ fn scan_dir(
           let module_path = derive_module_path(relative_path)
 
           // layout.gleam files are not routes — they provide page chrome.
-          case stem == "layout" {
-            True ->
+          case stem {
+            "layout" ->
               Ok(ScanAcc(..acc, layout_modules: [module_path, ..acc.layout_modules]))
-            False -> {
+            // index.gleam is the route for its parent directory.
+            // Uses the parent's segments, not adding "index" as a segment.
+            "index" -> {
+              let route = case list.is_empty(prefix_segments) {
+                True ->
+                  ScannedRoute(
+                    segments: [],
+                    variant_name: "Home",
+                    params: [],
+                    module_path:,
+                    layout_module: None,
+                  )
+                False -> build_route(prefix_segments, module_path)
+              }
+              Ok(ScanAcc(..acc, routes: [route, ..acc.routes]))
+            }
+            _ -> {
               let route = case stem == "home_" && list.is_empty(prefix_segments) {
                 True ->
                   ScannedRoute(

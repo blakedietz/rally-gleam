@@ -1,6 +1,6 @@
 import gleam/int
 import client_context.{type ClientContext, UpdateLikes}
-import generated/sql/likes_sql
+import generated/sql/pages/home_sql
 import lando_runtime/effect as lando_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
@@ -92,7 +92,7 @@ pub fn view(ctx: ClientContext, _model: Model) -> Element(Msg) {
 }
 
 pub fn server_init(ctx: ServerContext) -> #(ServerModel, Effect(ToClient)) {
-  let assert Ok([row]) = likes_sql.get_likes(db: ctx.db)
+  let assert Ok([row]) = home_sql.get_likes(db: ctx.db)
   #(ServerModel, lando_effect.send_to_client(NewSmashedLikes(row.count)))
 }
 
@@ -103,8 +103,8 @@ pub fn server_update(
 ) -> #(ServerModel, Effect(ToClient)) {
   case msg {
     SmashLike -> {
-      let assert Ok(_) = likes_sql.increment_likes(db: ctx.db)
-      let assert Ok([row]) = likes_sql.get_likes(db: ctx.db)
+      let assert Ok(_) = home_sql.increment_likes(db: ctx.db)
+      let assert Ok([row]) = home_sql.get_likes(db: ctx.db)
       #(ServerModel, lando_effect.broadcast_to_page(NewSmashedLikes(row.count)))
     }
   }
