@@ -237,6 +237,12 @@ fn app_gleam(
       #(Model(..model, page_model:), page_effects)"
   }
 
+  let ctx_push_registration = case has_client_context {
+    True ->
+      "\n    let _ = transport.register_push_handler(\"__ClientContext__\", fn(raw) {\n      dispatch(ClientContextUpdate(transport.decode(raw)))\n    })"
+    False -> ""
+  }
+
   let render_page_call = case has_client_context {
     True -> "render_page(model.page_model, model.client_context)"
     False -> "render_page(model.page_model)"
@@ -327,6 +333,7 @@ fn init_transport() -> Effect(Msg) {
     let _ = transport.register_on_disconnect(fn(reason) { dispatch(TransportDisconnected(reason)) })
 "
   <> push_registrations
+  <> ctx_push_registration
   <> "
     Nil
   })

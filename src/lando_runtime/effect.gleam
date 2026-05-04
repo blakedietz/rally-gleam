@@ -46,9 +46,12 @@ pub fn broadcast_to_app(msg: a) -> Effect(b) {
   effect.none()
 }
 
-/// Send a ClientContextMsg from a page to update the client context.
-/// On the server, this is a no-op (client context is client-side only).
-pub fn send_to_client_context(_msg: a) -> Effect(b) {
+/// Send a ClientContextMsg to update the client's shared context.
+/// On the server, encodes and queues a push frame tagged "__ClientContext__".
+/// On the client, the generated app dispatches it through client_context.update.
+pub fn send_to_client_context(msg: a) -> Effect(b) {
+  let frame = wire.tag_push("__ClientContext__", msg)
+  push_outgoing_frame(frame)
   effect.none()
 }
 
