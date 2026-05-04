@@ -194,7 +194,7 @@ fn ffi_variant_tag(value: dynamic.Dynamic) -> Result(String, Nil) {
 /// which live in consumer packages and need pub access.
 @external(erlang, "lando_runtime_ffi", "identity")
 @external(javascript, "./rpc_ffi.mjs", "identity")
-pub fn coerce(value: dynamic.Dynamic) -> a {
+pub fn coerce(value: a) -> b {
   let _ = value
   panic as "lando_runtime/wire.coerce: external is missing for this target. This indicates a libero packaging bug; the function should be resolved by the @external attributes."
 }

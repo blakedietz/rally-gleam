@@ -1,5 +1,8 @@
-import lustre/effect.{type Effect}
+import lustre/effect
 import lando_runtime/wire
+
+pub type Effect(a) =
+  effect.Effect(a)
 
 pub fn none() -> Effect(a) {
   effect.none()
@@ -40,10 +43,16 @@ fn do_push(msg: a) -> Nil {
 // --- FFI bindings ---
 
 @external(erlang, "lando_runtime_ffi", "put_ws_state")
-pub fn put_ws_state(conn: a, page: String) -> Nil {
+pub fn put_ws_state(conn: a, ctx: b, page: String) -> Nil {
   let _ = conn
+  let _ = ctx
   let _ = page
   panic as "put_ws_state: server-side only"
+}
+
+@external(erlang, "lando_runtime_ffi", "get_stored_ctx")
+pub fn get_stored_ctx() -> a {
+  panic as "get_stored_ctx: server-side only"
 }
 
 @external(erlang, "lando_runtime_ffi", "get_ws_page")

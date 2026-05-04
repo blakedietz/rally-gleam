@@ -3,14 +3,9 @@ import gleam/string
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/effect.{type Effect}
-import lustre/event
 import lando_runtime/effect as lando_effect
 
-// -- Types --
-
-pub type Model {
-  Model(count: Int)
-}
+pub type Model { Model(count: Int) }
 
 pub type Msg {
   UserClickedIncrement
@@ -23,15 +18,9 @@ pub type ToServer {
   Decrement
 }
 
-pub type ToClient {
-  CounterNewValue(value: Int)
-}
+pub type ToClient { CounterNewValue(value: Int) }
 
-pub type ServerModel {
-  ServerModel(count: Int)
-}
-
-// -- Client --
+pub type ServerModel { ServerModel(count: Int) }
 
 pub fn init() -> #(Model, Effect(Msg)) {
   #(Model(count: 0), effect.none())
@@ -39,25 +28,19 @@ pub fn init() -> #(Model, Effect(Msg)) {
 
 pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
-    UserClickedIncrement ->
-      #(model, lando_effect.send_to_server(Increment))
-    UserClickedDecrement ->
-      #(model, lando_effect.send_to_server(Decrement))
-    GotServerMsg(CounterNewValue(n)) ->
-      #(Model(count: n), effect.none())
+    UserClickedIncrement -> #(model, lando_effect.send_to_server(Increment))
+    UserClickedDecrement -> #(model, lando_effect.send_to_server(Decrement))
+    GotServerMsg(CounterNewValue(n)) -> #(Model(count: n), effect.none())
   }
 }
 
 pub fn view(model: Model) -> Element(Msg) {
   html.div([], [
-    html.h1([], [html.text("Counter")]),
-    html.p([], [html.text("Count: " <> string.inspect(model.count))]),
-    html.button([event.on_click(UserClickedIncrement)], [html.text("+")]),
-    html.button([event.on_click(UserClickedDecrement)], [html.text("-")]),
+    html.button([], [html.text("+")]),
+    html.text(string.inspect(model.count)),
+    html.button([], [html.text("-")]),
   ])
 }
-
-// -- Server --
 
 pub fn server_update(
   model: ServerModel,
@@ -65,10 +48,8 @@ pub fn server_update(
   _ctx: Context,
 ) -> #(ServerModel, Effect(ToClient)) {
   case msg {
-    Increment ->
-      #(ServerModel(count: model.count + 1), lando_effect.send_to_client(CounterNewValue(model.count + 1)))
-    Decrement ->
-      #(ServerModel(count: model.count - 1), lando_effect.send_to_client(CounterNewValue(model.count - 1)))
+    Increment -> #(ServerModel(count: model.count + 1), lando_effect.send_to_client(CounterNewValue(model.count + 1)))
+    Decrement -> #(ServerModel(count: model.count - 1), lando_effect.send_to_client(CounterNewValue(model.count - 1)))
   }
 }
 

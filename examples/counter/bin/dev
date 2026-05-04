@@ -5,5 +5,5 @@ echo "==> Running lando codegen..."
 gleam run -m lando
 echo "==> Building client..."
 cd client && gleam build --target javascript && cd ..
-echo "==> Starting server on http://localhost:8080..."
+echo "==> Starting server..."
 gleam run
