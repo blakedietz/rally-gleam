@@ -35,35 +35,37 @@ pub type ToServer { Increment; Decrement }
 pub type ToClient { CounterNewValue(Int) }
 pub type ServerModel { ServerModel(count: Int) }
 
-// -- Client functions --
-pub fn init() -> #(Model, Effect(Msg))
-pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg))
-pub fn view(model: Model) -> Element(Msg)
+// -- Client functions (with ClientContext) --
+pub fn init(ctx: ClientContext) -> #(Model, Effect(Msg))
+pub fn update(ctx: ClientContext, model: Model, msg: Msg) -> #(Model, Effect(Msg))
+pub fn view(ctx: ClientContext, model: Model) -> Element(Msg)
 
 // -- Server functions --
-pub fn server_update(model: ServerModel, msg: ToServer, ctx: Context) -> #(ServerModel, Effect(ToClient))
-pub fn server_init(ctx: Context) -> ServerModel  // initial server model
-pub fn load(ctx: Context) -> Result(Model, LoadError)  // optional, for SSR
+pub fn server_update(model: ServerModel, msg: ToServer, ctx: ServerContext) -> #(ServerModel, Effect(ToClient))
+pub fn server_init(ctx: ServerContext) -> #(ServerModel, Effect(ToClient))
+pub fn load(ctx: ServerContext) -> Result(Model, LoadError)  // optional, for SSR
 ```
 
 - `Model`/`Msg` — client-side state and UI events
-- `init`/`update`/`view` — standard Lustre TEA (The Elm Architecture)
+- `init`/`update`/`view` — standard Lustre TEA (The Elm Architecture); receive `ClientContext` as first arg when a `client_context.gleam` module exists
 - `ToServer` — messages the client sends to the server over WebSocket
 - `ToClient` — messages the server sends back to the client
 - `GotServerMsg(ToClient)` — the single Msg variant that handles ALL server responses
-- `server_update` — runs on the BEAM, has access to DB/session via `ctx`
-- `server_init` — returns the initial `ServerModel` for a new session
+- `server_update` — runs on the BEAM, has access to DB/session via `ServerContext`
+- `server_init` — returns the initial `ServerModel` + optional initial effect (e.g. sending current state to client)
 - `ServerModel` — per-session server state
 - `load` — SSR data loading, runs server-side before first render
-- `Context` — defined in `app_config.gleam`, typically holds DB connection + session
+- `ServerContext` — defined in `server_context.gleam`, holds server dependencies (DB connection, etc.)
+- `ClientContext` — defined in `client_context.gleam`, holds cross-page client state (updated via `send_to_client_context`)
 
 ### Effect primitives
 
 Page modules import from `lando_runtime/effect`:
 
 - `send_to_server(variant)` — sends a `ToServer` message to the server over WebSocket. On the client, the generated transport module provides the real implementation via `rpc_ffi.mjs`. On the server this is a no-op.
-- `send_to_client(variant)` — encodes the `ToClient` message as an ETF push frame and queues it for the WebSocket handler to send. Uses process dictionary for handler state.
-- `broadcast(variant)` — same as `send_to_client` for the current connected client.
+- `send_to_client(variant)` — encodes the `ToClient` message as an ETF push frame and queues it for the WebSocket handler to send. Uses process dictionary for handler state. Useful for sending initial state on connect (e.g. from `server_init`).
+- `broadcast_to_page(variant)` — broadcasts a `ToClient` push frame to ALL connections viewing the same page (via pg topic). Used for real-time updates that all viewers should see.
+- `send_to_client_context(variant)` — sends a `ClientContextMsg` from a page to update the shared `ClientContext`. Allows server responses to propagate to cross-page state.
 - `effect.none()` — no-op effect
 - `effect.from(fn)` — create a custom effect
 
@@ -172,6 +174,11 @@ client_root = "client"
 ```
 
 The lando package path is resolved from `[dependencies].lando.path` in the consumer's gleam.toml, defaulting to `".."`.
+
+## Examples
+
+- `examples/counter/` — basic counter with server-side state, demonstrates ToServer/ToClient round-trip
+- `examples/likes/` — real-time broadcast with ClientContext and ServerContext, SQLite persistence, demonstrates `broadcast_to_page`, `send_to_client`, and `send_to_client_context`
 
 ## Prior art
 
