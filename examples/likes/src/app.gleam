@@ -7,6 +7,7 @@ import gleam/http.{Get}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
 import gleam/string
+import lando_runtime/db
 import lando_runtime/migrate
 import lando_runtime/session
 import mist.{type Connection, type ResponseData}
@@ -113,7 +114,7 @@ fn serve_static(path: String) -> Response(ResponseData) {
 }
 
 fn start_db() -> sqlight.Connection {
-  let assert Ok(conn) = sqlight.open("app.db")
+  let assert Ok(conn) = db.open("app.db")
   let assert Ok(_) = migrate.run(conn:, dir: "migrations")
   conn
 }
