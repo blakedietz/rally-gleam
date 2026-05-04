@@ -193,6 +193,7 @@ The lando package path is resolved from `[dependencies].lando.path` in the consu
 ## Examples
 
 - `examples/likes/` — real-time broadcast with ClientContext and ServerContext, SQLite persistence, demonstrates `broadcast_to_page`, `send_to_client`, and `send_to_client_context`
+- `examples/realworld/` — RealWorld (Conduit) clone: full CRUD app with auth, articles, comments, tags, favorites, follows. Tests cover password hashing, slug generation, datetime formatting, and full schema validation with birdie snapshots
 
 ## Prior art
 
