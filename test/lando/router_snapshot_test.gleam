@@ -66,6 +66,8 @@ fn basic_contracts() -> List(#(ScannedRoute, PageContract)) {
         has_model: True,
         param_names: [],
         view_source: "",
+        init_source: "",
+        update_source: "",
       ),
     )
   })

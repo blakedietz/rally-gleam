@@ -65,7 +65,9 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
 
   let param_names = extract_init_params_from_ast(functions_list)
 
-  let view_source = extract_view_source(source, functions_list)
+  let view_source = extract_function_source(source, functions_list, "view")
+  let init_source = extract_function_source(source, functions_list, "init")
+  let update_source = extract_function_source(source, functions_list, "update")
 
   Ok(PageContract(
     to_server_variants: to_server,
@@ -79,6 +81,8 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
     has_model:,
     param_names:,
     view_source:,
+    init_source:,
+    update_source:,
   ))
 }
 
@@ -297,14 +301,15 @@ pub fn build_type_alias_originals(
 
 // ---------- Function detection ----------
 
-/// Extract the source text of the `view` function using AST span positions.
-fn extract_view_source(
+/// Extract the source text of a named public function using AST span positions.
+fn extract_function_source(
   source: String,
   functions: List(glance.Definition(glance.Function)),
+  name: String,
 ) -> String {
   case
     list.find(functions, fn(def) {
-      def.definition.name == "view" && def.definition.publicity == glance.Public
+      def.definition.name == name && def.definition.publicity == glance.Public
     })
   {
     Error(Nil) -> ""
