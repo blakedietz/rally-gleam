@@ -92,7 +92,7 @@ Running `gleam run -m lando` produces:
 | `src/generated/page_dispatch.gleam` | `PageModel`/`PageMsg` unions, init/update/view dispatch |
 | `src/generated/server_dispatch.gleam` | `handle_message` dispatcher + `init_server_model` per-page init |
 | `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, embeds model as flags |
-| `src/generated/ws_handler.gleam` | WebSocket upgrade handler: ETF frame loop, session model storage, push frame delivery |
+| `src/generated/ws_handler.gleam` | WebSocket upgrade handler: ETF frame loop, session model storage, push frame delivery, topic auto-join (app/session/page), broadcast frame forwarding |
 | `client/src/generated/app.gleam` | Lustre SPA entry point with WebSocket transport initialization |
 | `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handler registration, ETF codec |
 | `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from lando_runtime) |
@@ -112,7 +112,7 @@ Running `gleam run -m lando` produces:
 | `generator/codec.gleam` | ETF codec generation: types.gleam (mirrored page types), codec.gleam (typed wrappers), codec_ffi.mjs (JS decoders) |
 | `generator/server_dispatch.gleam` | Server dispatch: `handle_message` + `init_server_model` |
 | `generator/ssr_handler.gleam` | SSR handler |
-| `generator/ws_handler.gleam` | WebSocket frame loop: decodes call envelopes, dispatches to server_update, sends push frames |
+| `generator/ws_handler.gleam` | WebSocket frame loop: auto-joins pg topics (app, session, page), decodes call envelopes, dispatches to server_update, sends push frames, forwards broadcast frames via Mist selector |
 | `format.gleam` | `gleam format` runner for generated code |
 | `field_type.gleam` | Type representation (from libero) |
 | `gen_error.gleam` | Terminal error formatting (from libero) |
@@ -143,7 +143,7 @@ Running `gleam run -m lando` produces:
 - **Transport:** WebSocket with auto-reconnect (via `rpc_ffi.mjs`, from libero)
 - **SSR:** First request renders HTML with serialized model embedded as flags
 - **Hydration:** Client reads flags, boots Lustre, takes over as SPA
-- **Server effects:** `send_to_client` encodes and queues push frames in the process dictionary. The WS handler drains and sends them after each dispatch via `mist.send_binary_frame`.
+- **Server effects:** `send_to_client` encodes and queues push frames in the process dictionary. The WS handler drains and sends them after each dispatch via `mist.send_binary_frame`. `broadcast` sends push frames to all connections in a topic via pg groups; the WS handler's Mist selector catches these messages and forwards them as `Custom` frames.
 
 ## Dependencies
 
@@ -183,6 +183,6 @@ The lando package path is resolved from `[dependencies].lando.path` in the consu
 ## Testing
 
 ```sh
-gleam test                    # 92 tests: scanner, generator, parser, wire, codec, topics, snapshots
+gleam test                    # 100 tests: scanner, generator, parser, wire, codec, topics, snapshots
 gleam run -m birdie           # review snapshot changes
 ```
