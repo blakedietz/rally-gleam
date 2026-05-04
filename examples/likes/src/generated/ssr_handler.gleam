@@ -15,8 +15,18 @@ pub fn handle_request(
   ctx: ServerContext,
 ) -> response.Response(ResponseData) {
   case route {
-    _ ->
-      response.new(404)
-      |> response.set_body(mist.Bytes(bytes_tree.from_string("Not found")))
+    _ -> serve_html_shell()
   }
+}
+
+fn serve_html_shell() -> response.Response(ResponseData) {
+  let html =
+    "<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>
+<body><div id='app'></div><script type='module' src='/client.js'></script></body>
+</html>"
+  response.new(200)
+  |> response.set_header("content-type", "text/html")
+  |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
 }

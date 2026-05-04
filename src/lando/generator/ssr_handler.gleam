@@ -11,6 +11,7 @@ pub fn generate(
     <> layout_imports
 
   let load_arms = generate_load_arms(page_contracts)
+  let has_load_arms = load_arms != ""
 
   header
   <> "
@@ -20,10 +21,27 @@ pub fn handle_request(
 ) -> response.Response(ResponseData) {
   case route {\n"
   <> load_arms
-  <> "
-    _ -> response.new(404)
-    |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not found\")))
+  <> case has_load_arms {
+    True -> "
+    router.NotFound(_) ->
+      response.new(404)
+      |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not found\")))"
+    False -> ""
   }
+  <> "
+    _ -> serve_html_shell()
+  }
+}
+
+fn serve_html_shell() -> response.Response(ResponseData) {
+  let html = \"<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>
+<body><div id='app'></div><script type='module' src='/client.js'></script></body>
+</html>\"
+  response.new(200)
+  |> response.set_header(\"content-type\", \"text/html\")
+  |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
 }
 "
 }

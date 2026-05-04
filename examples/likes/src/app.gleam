@@ -79,7 +79,7 @@ pub fn main() {
 }
 
 fn serve_client_js() -> Response(ResponseData) {
-  case simplifile.read("client/build/dev/javascript/client/app.mjs") {
+  case simplifile.read("client/build/dev/javascript/client/generated/app.mjs") {
     Ok(js) ->
       response.new(200)
       |> response.set_header("content-type", "application/javascript")
