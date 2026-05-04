@@ -99,6 +99,9 @@ Running `gleam run -m lando` produces:
 | `src/generated/ws_handler.gleam` | WebSocket upgrade handler: ETF frame loop, session model storage, push frame delivery, topic auto-join (app/session/page), broadcast frame forwarding |
 | `client/src/generated/app.gleam` | Lustre SPA entry point with WebSocket transport initialization |
 | `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handler registration, ETF codec |
+| `client/src/generated/views.gleam` | Per-page Model/Msg types and adapted init/update/view functions with prefixed types |
+| `client/src/generated/types.gleam` | Mirrored page ToServer/ToClient types for the client |
+| `client/src/generated/codec.gleam` | Typed encode/decode wrappers for page message types |
 | `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from lando_runtime) |
 
 ## Architecture
@@ -113,7 +116,7 @@ Running `gleam run -m lando` produces:
 | `walker.gleam` | BFS type graph walker: discovers all reachable custom types from page message types (from libero) |
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
 | `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam, rpc_ffi.mjs, decoders_prelude.mjs |
-| `generator/codec.gleam` | ETF codec generation: types.gleam (mirrored page types), codec.gleam (typed wrappers), codec_ffi.mjs (JS decoders) |
+| `generator/codec.gleam` | ETF codec generation: types.gleam (mirrored page types), codec.gleam (typed wrappers), codec_ffi.mjs (JS decoders), views.gleam (adapts real page init/update/view functions with prefixed types) |
 | `generator/server_dispatch.gleam` | Server dispatch: `handle_message` + `init_server_model` |
 | `generator/ssr_handler.gleam` | SSR handler |
 | `generator/ws_handler.gleam` | WebSocket frame loop: auto-joins pg topics (app, session, page), decodes call envelopes, dispatches to server_update, sends push frames, forwards broadcast frames via Mist selector |

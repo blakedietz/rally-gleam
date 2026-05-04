@@ -64,6 +64,7 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/effect.{type Effect}
 import lustre/event
+import lando_runtime/effect as lando_effect
 "
   <> client_context_import
   <> "import generated/types.{"
@@ -102,8 +103,14 @@ fn emit_page_view_block(
     "" -> emit_default_view(fn_suffix, prefix)
     source -> adapt_view_source(fn_suffix, prefix, source)
   }
-  let init_fn = emit_client_init(fn_suffix, prefix, contract, has_client_context)
-  let update_fn = emit_client_update(fn_suffix, prefix)
+  let init_fn = case contract.init_source {
+    "" -> emit_client_init(fn_suffix, prefix, contract, has_client_context)
+    source -> adapt_init_source(fn_suffix, prefix, source)
+  }
+  let update_fn = case contract.update_source {
+    "" -> emit_client_update(fn_suffix, prefix)
+    source -> adapt_update_source(fn_suffix, prefix, source)
+  }
 
   "// " <> prefix <> " — " <> route.module_path <> "\n"
   <> model_type <> "\n\n"
@@ -128,6 +135,57 @@ fn adapt_view_source(fn_suffix: String, prefix: String, source: String) -> Strin
   |> string.replace("fn view(model: Model)", "fn " <> fn_suffix <> "_view(model: " <> prefix <> "Model)")
   |> string.replace("fn view(_model: Model)", "fn " <> fn_suffix <> "_view(_model: " <> prefix <> "Model)")
   |> string.replace("Element(Msg)", "Element(" <> prefix <> "Msg)")
+}
+
+fn adapt_init_source(fn_suffix: String, prefix: String, source: String) -> String {
+  source
+  // Rename function: handle all init signature variations
+  |> string.replace("fn init(client_context: ClientContext)", "fn " <> fn_suffix <> "_init(client_context: ClientContext)")
+  |> string.replace("fn init(_client_context: ClientContext)", "fn " <> fn_suffix <> "_init(_client_context: ClientContext)")
+  |> string.replace("fn init(client_context: ClientContext, ", "fn " <> fn_suffix <> "_init(client_context: ClientContext, ")
+  |> string.replace("fn init(_client_context: ClientContext, ", "fn " <> fn_suffix <> "_init(_client_context: ClientContext, ")
+  |> string.replace("fn init()", "fn " <> fn_suffix <> "_init()")
+  // Prefix types in return type and body
+  |> prefix_page_types(prefix)
+}
+
+fn adapt_update_source(fn_suffix: String, prefix: String, source: String) -> String {
+  source
+  // Single-line signature variants
+  |> string.replace("fn update(client_context: ClientContext, model: Model, msg: Msg)", "fn " <> fn_suffix <> "_update(client_context: ClientContext, model: " <> prefix <> "Model, msg: " <> prefix <> "Msg)")
+  |> string.replace("fn update(_client_context: ClientContext, model: Model, msg: Msg)", "fn " <> fn_suffix <> "_update(_client_context: ClientContext, model: " <> prefix <> "Model, msg: " <> prefix <> "Msg)")
+  // Multi-line signature variants (params on separate lines)
+  |> string.replace("fn update(\n  client_context: ClientContext,\n  model: Model,\n  msg: Msg,\n)", "fn " <> fn_suffix <> "_update(\n  client_context: ClientContext,\n  model: " <> prefix <> "Model,\n  msg: " <> prefix <> "Msg,\n)")
+  |> string.replace("fn update(\n  _client_context: ClientContext,\n  model: Model,\n  msg: Msg,\n)", "fn " <> fn_suffix <> "_update(\n  _client_context: ClientContext,\n  model: " <> prefix <> "Model,\n  msg: " <> prefix <> "Msg,\n)")
+  // No client context
+  |> string.replace("fn update(model: Model, msg: Msg)", "fn " <> fn_suffix <> "_update(model: " <> prefix <> "Model, msg: " <> prefix <> "Msg)")
+  // Prefix types in return type and body
+  |> prefix_page_types(prefix)
+}
+
+/// Prefix page-local type references (Model, Msg, ToServer, ToClient) in
+/// function return types and bodies. The signature has already been rewritten
+/// by the caller, so this only handles the return type annotation and body.
+///
+/// Direct replacement is safe here because the patterns below (e.g. "#(Model,")
+/// cannot spuriously match inside an already-prefixed name like "HomeModel,"
+/// due to the preceding delimiter characters (#, space, comma, etc.).
+fn prefix_page_types(source: String, prefix: String) -> String {
+  source
+  // Return type and body tuples containing Model as type/constructor
+  |> string.replace("#(Model,", "#(" <> prefix <> "Model,")
+  |> string.replace("#(Model)", "#(" <> prefix <> "Model)")
+  |> string.replace(", Model)", ", " <> prefix <> "Model)")
+  // Model constructor with fields: Model(field: val)
+  |> string.replace("Model(", prefix <> "Model(")
+  // Effect(Msg) in return types
+  |> string.replace("Effect(Msg)", "Effect(" <> prefix <> "Msg)")
+  // GotServerMsg wrapping ToClient/ToServer
+  |> string.replace("GotServerMsg(ToClient)", "GotServerMsg(" <> prefix <> "ToClient)")
+  |> string.replace("GotServerMsg(ToServer)", "GotServerMsg(" <> prefix <> "ToServer)")
+  // ToClient/ToServer in type annotations like Effect(ToClient)
+  |> string.replace("(ToClient)", "(" <> prefix <> "ToClient)")
+  |> string.replace("(ToServer)", "(" <> prefix <> "ToServer)")
 }
 
 fn emit_client_init(fn_suffix: String, prefix: String, contract: PageContract, has_client_context: Bool) -> String {
