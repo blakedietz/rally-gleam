@@ -99,7 +99,7 @@ pub fn transport_gleam_snapshot_test() {
   let routes = basic_routes()
   let contracts = basic_contracts()
   let config = test_scan_config()
-  let files = client.generate_package(routes, contracts, config, "", "")
+  let files = client.generate_package(routes, contracts, config, "", "", False)
   // Find the transport.gleam file
   let transport = list.find(files, fn(f: client.GeneratedFile) {
     string.ends_with(f.path, "transport.gleam")
@@ -112,7 +112,7 @@ pub fn app_gleam_snapshot_test() {
   let routes = basic_routes()
   let contracts = basic_contracts()
   let config = test_scan_config()
-  let files = client.generate_package(routes, contracts, config, "", "")
+  let files = client.generate_package(routes, contracts, config, "", "", False)
   let app = list.find(files, fn(f: client.GeneratedFile) {
     string.ends_with(f.path, "app.gleam")
   })

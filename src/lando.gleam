@@ -183,8 +183,13 @@ fn run() -> Result(String, String) {
     })
 
   // 10. Generate client package (includes rpc_ffi.mjs and decoders_prelude.mjs)
+  let client_context_path = dirname(config.pages_root) <> "/client_context.gleam"
+  let has_client_context = case simplifile.read(client_context_path) {
+    Ok(_) -> True
+    Error(_) -> False
+  }
   let client_files =
-    client.generate_package(routes, contracts, config, rpc_ffi_content, decoders_prelude_content)
+    client.generate_package(routes, contracts, config, rpc_ffi_content, decoders_prelude_content, has_client_context)
   use _ <- result.try(write_generated_files(
     list.append(codec_files, client_files),
   ))

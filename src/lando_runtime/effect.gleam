@@ -46,6 +46,12 @@ pub fn broadcast_to_app(msg: a) -> Effect(b) {
   effect.none()
 }
 
+/// Send a ClientContextMsg from a page to update the client context.
+/// On the server, this is a no-op (client context is client-side only).
+pub fn send_to_client_context(_msg: a) -> Effect(b) {
+  effect.none()
+}
+
 /// Broadcast a message to all connections in the current browser session.
 pub fn broadcast_to_session(msg: a) -> Effect(b) {
   let page = get_ws_page()
