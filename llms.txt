@@ -122,6 +122,7 @@ Running `gleam run -m lando` produces:
 | Module | Role |
 |---|---|
 | `effect.gleam` | `send_to_server` (no-op on server), `send_to_client`/`broadcast` (ETF push frames via process dict) |
+| `topics.gleam` | Topic pub/sub using OTP `pg` process groups: join/leave/broadcast/receive for cross-process push delivery |
 | `wire.gleam` | ETF encode/decode, call envelope parsing, frame tagging, variant tagging, Dynamic coercion |
 | `codec.gleam` | Base64 ETF serialization for SSR flags |
 | `ssr.gleam` | HTML rendering via `element.to_document_string` |
@@ -131,6 +132,7 @@ Running `gleam run -m lando` produces:
 | `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect (1180 lines, from libero) |
 | `lando_runtime_ffi.erl` | Erlang FFI: encode/decode, process dict state for WS handler, push frame accumulator |
 | `lando_runtime_wire_ffi.erl` | Erlang FFI: `decode_call` envelope parser, `variant_tag` extraction |
+| `lando_runtime_topics_ffi.erl` | Erlang FFI: `pg`-based topic pub/sub (start, join, leave, members, broadcast, receive_frame) |
 
 ### Transport
 
@@ -181,6 +183,6 @@ The lando package path is resolved from `[dependencies].lando.path` in the consu
 ## Testing
 
 ```sh
-gleam test                    # 83 tests: scanner, generator, parser, wire, codec, snapshots
+gleam test                    # 92 tests: scanner, generator, parser, wire, codec, topics, snapshots
 gleam run -m birdie           # review snapshot changes
 ```
