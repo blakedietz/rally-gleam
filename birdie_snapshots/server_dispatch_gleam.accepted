@@ -67,7 +67,7 @@ pub fn init_server_model(
     "About" -> wire.coerce(pages_about.server_init(ctx))
     "ProductsNew" -> wire.coerce(pages_products_new.server_init(ctx))
     "ProductsId" -> wire.coerce(pages_products_id_.server_init(ctx))
-    _ -> dynamic.from(Nil)
+    _ -> dynamic.nil()
   }
 }
 

@@ -51,9 +51,11 @@ fn emit_views_gleam(
 //// Each page's types are replicated so the client can render them.
 
 import gleam/string
+import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/effect.{type Effect}
+import lustre/event
 import generated/types.{"
   <> emit_views_type_imports(contracts)
   <> "}\n\n"
@@ -107,30 +109,36 @@ fn emit_default_view(fn_suffix: String, prefix: String) -> String {
 }
 
 fn adapt_view_source(fn_suffix: String, prefix: String, source: String) -> String {
-  let replaced =
-    source
-    |> string.replace("pub fn view(model: Model)", "pub fn " <> fn_suffix <> "_view(model: " <> prefix <> "Model)")
-    |> string.replace("Element(Msg)", "Element(" <> prefix <> "Msg)")
-    |> string.replace("-> Element(Msg)", "-> Element(" <> prefix <> "Msg)")
-  replaced
+  // Replace type references in the view function signature and body.
+  // Model -> HomeModel (type), model.count stays (field access works).
+  source
+  |> string.replace("fn view(model: Model)", "fn " <> fn_suffix <> "_view(model: " <> prefix <> "Model)")
+  |> string.replace("fn view(_model: Model)", "fn " <> fn_suffix <> "_view(_model: " <> prefix <> "Model)")
+  |> string.replace("Element(Msg)", "Element(" <> prefix <> "Msg)")
+  |> string.replace("-> Element(Msg)", "-> Element(" <> prefix <> "Msg)")
+  |> string.replace("GotServerMsg(", "GotServerMsg(")
 }
 
 fn emit_client_init(fn_suffix: String, prefix: String, contract: PageContract) -> String {
-  let #(model_ctor, field_args) = case contract.model_variants {
-    [VariantInfo(name:, fields:), ..] -> {
-      let args =
-        fields
-        |> list.map(fn(f: VariantField) {
-          f.label <> ": " <> field_default_value(f.type_)
-        })
-        |> string.join(", ")
-      #(name, args)
+  let model_type_name = prefix <> "Model"
+  let field_args = case contract.model_variants {
+    [VariantInfo(_, fields), ..] -> {
+      fields
+      |> list.map(fn(f: VariantField) {
+        f.label <> ": " <> field_default_value(f.type_)
+      })
+      |> string.join(", ")
     }
-    [] -> #(prefix <> "Model", "")
+    [] -> ""
+  }
+
+  let ctor_call = case field_args {
+    "" -> model_type_name
+    _ -> model_type_name <> "(" <> field_args <> ")"
   }
 
   "pub fn " <> fn_suffix <> "_init() -> #(" <> prefix <> "Model, Effect(" <> prefix <> "Msg)) {\n"
-  <> "  #(" <> model_ctor <> "(" <> field_args <> "), effect.none())\n"
+  <> "  #(" <> ctor_call <> ", effect.none())\n"
   <> "}"
 }
 
@@ -415,14 +423,21 @@ fn emit_type_def(
     _ -> {
       let lines =
         list.map(variants, fn(v) {
+          let ctor_name = case v.name {
+            // Rename Model/Msg constructors to match the prefixed type name
+            // to avoid conflicts when multiple pages share the same module.
+            "Model" -> type_name
+            "Msg" -> type_name
+            other -> other
+          }
           case v.fields {
-            [] -> "  " <> v.name
+            [] -> "  " <> ctor_name
             fields -> {
               let field_strs =
                 list.map(fields, fn(f) {
                   f.label <> ": " <> rewrite_field_type(f.type_, prefix)
                 })
-              "  " <> v.name <> "(" <> string.join(field_strs, ", ") <> ")"
+              "  " <> ctor_name <> "(" <> string.join(field_strs, ", ") <> ")"
             }
           }
         })

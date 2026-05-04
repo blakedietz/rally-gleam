@@ -98,7 +98,7 @@ pub fn init_server_model(
 ) -> dynamic.Dynamic {
   case page {\n"
   <> arms
-  <> "\n    _ -> dynamic.from(Nil)\n  }\n}"
+  <> "\n    _ -> dynamic.nil()\n  }\n}"
 }
 
 fn module_to_alias(module_path: String) -> String {

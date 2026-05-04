@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+echo "==> Running lando codegen..."
+gleam run -m lando
+echo "==> Building client..."
+cd client && gleam build --target javascript && cd ..
+echo "==> Starting server on http://localhost:8080..."
+gleam run
