@@ -62,7 +62,7 @@ pub fn load(server_context: ServerContext) -> Result(Model, LoadError)  // optio
 
 Page modules import from `lando_runtime/effect`:
 
-- `send_to_server(variant)` — sends a `ToServer` message to the server over WebSocket. On the client, the generated transport module provides the real implementation via `rpc_ffi.mjs`. On the server this is a no-op.
+- `send_to_server(variant)` — sends a `ToServer` message to the server over WebSocket. On the client, the generated views.gleam contains per-page wrappers (e.g. `home_send_to_server`) that call `transport.send_to_server("Home", msg)` via `rpc_ffi.mjs`. The page's adapted `update` source has `lando_effect.send_to_server(` automatically rewritten to the page-specific wrapper. On the server this is a no-op.
 - `send_to_client(variant)` — encodes the `ToClient` message as an ETF push frame and queues it for the WebSocket handler to send. Uses process dictionary for handler state. Useful for sending initial state on connect (e.g. from `server_init`).
 - `broadcast_to_page(variant)` — broadcasts a `ToClient` push frame to ALL connections viewing the same page (via pg topic). Used for real-time updates that all viewers should see.
 - `send_to_client_context(variant)` — sends a `ClientContextMsg` from a page to update the shared `ClientContext`. Allows server responses to propagate to cross-page state.
@@ -98,9 +98,9 @@ Running `gleam run -m lando` produces:
 | `src/generated/server_dispatch.gleam` | `handle_message` dispatcher + `init_server_model` per-page init |
 | `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, embeds model as flags |
 | `src/generated/ws_handler.gleam` | WebSocket upgrade handler: ETF frame loop, session model storage, push frame delivery, topic auto-join (app/session/page), broadcast frame forwarding |
-| `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop (PageModel/PageMsg unions, init_page/update_page/render_page dispatch), WebSocket transport, modem-based route-change handling, push handler dispatch |
+| `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop (PageModel/PageMsg unions, init_page/update_page/render_page dispatch), WebSocket transport, modem-based route-change handling, push handler dispatch, optional layout wrapping (when any route has a layout_module) |
 | `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handler registration, ETF codec |
-| `client/src/generated/views.gleam` | Per-page Model/Msg types and adapted init/update/view functions with prefixed types |
+| `client/src/generated/views.gleam` | Per-page Model/Msg types, per-page `send_to_server` transport wrappers, and adapted init/update/view functions with prefixed types |
 | `client/src/generated/types.gleam` | Mirrored page ToServer/ToClient types for the client |
 | `client/src/generated/codec.gleam` | Typed encode/decode wrappers for page message types, push decoder FFI bindings |
 | `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types, push decoders per page |
@@ -118,7 +118,7 @@ Running `gleam run -m lando` produces:
 | `walker.gleam` | BFS type graph walker: discovers all reachable custom types from page message types (from libero) |
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
 | `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam (with per-page TEA loop: PageModel/PageMsg types, init_page/update_page/render_page dispatchers), rpc_ffi.mjs, decoders_prelude.mjs |
-| `generator/codec.gleam` | ETF codec generation: types.gleam (mirrored page types), codec.gleam (typed wrappers), codec_ffi.mjs (JS decoders), views.gleam (adapts real page init/update/view functions with prefixed types) |
+| `generator/codec.gleam` | ETF codec generation: types.gleam (mirrored page types), codec.gleam (typed wrappers), codec_ffi.mjs (JS decoders), views.gleam (adapts real page init/update/view functions with prefixed types, generates per-page `send_to_server` transport wrappers) |
 | `generator/server_dispatch.gleam` | Server dispatch: `handle_message` + `init_server_model` |
 | `generator/ssr_handler.gleam` | SSR handler |
 | `generator/ws_handler.gleam` | WebSocket frame loop: auto-joins pg topics (app, session, page), decodes call envelopes, dispatches to server_update, sends push frames, forwards broadcast frames via Mist selector |

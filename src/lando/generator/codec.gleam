@@ -65,6 +65,7 @@ import lustre/element/html
 import lustre/effect.{type Effect}
 import lustre/event
 import lando_runtime/effect as lando_effect
+import generated/transport
 "
   <> client_context_import
   <> "import generated/types.{"
@@ -112,12 +113,24 @@ fn emit_page_view_block(
     source -> adapt_update_source(fn_suffix, prefix, source)
   }
 
+  let send_to_server_fn = emit_send_to_server_wrapper(fn_suffix, prefix)
+
   "// " <> prefix <> " — " <> route.module_path <> "\n"
   <> model_type <> "\n\n"
   <> msg_type <> "\n\n"
+  <> send_to_server_fn <> "\n\n"
   <> init_fn <> "\n\n"
   <> update_fn <> "\n\n"
   <> view_fn
+}
+
+fn emit_send_to_server_wrapper(fn_suffix: String, prefix: String) -> String {
+  "fn " <> fn_suffix <> "_send_to_server(msg: a) -> Effect(b) {\n"
+  <> "  effect.from(fn(_dispatch) {\n"
+  <> "    transport.send_to_server(\"" <> prefix <> "\", msg)\n"
+  <> "    Nil\n"
+  <> "  })\n"
+  <> "}"
 }
 
 fn emit_default_view(fn_suffix: String, prefix: String) -> String {
@@ -145,6 +158,8 @@ fn adapt_init_source(fn_suffix: String, prefix: String, source: String) -> Strin
   |> string.replace("fn init(client_context: ClientContext, ", "fn " <> fn_suffix <> "_init(client_context: ClientContext, ")
   |> string.replace("fn init(_client_context: ClientContext, ", "fn " <> fn_suffix <> "_init(_client_context: ClientContext, ")
   |> string.replace("fn init()", "fn " <> fn_suffix <> "_init()")
+  // Replace send_to_server calls with per-page transport wrapper
+  |> string.replace("lando_effect.send_to_server(", fn_suffix <> "_send_to_server(")
   // Prefix types in return type and body
   |> prefix_page_types(prefix)
 }
@@ -159,6 +174,8 @@ fn adapt_update_source(fn_suffix: String, prefix: String, source: String) -> Str
   |> string.replace("fn update(\n  _client_context: ClientContext,\n  model: Model,\n  msg: Msg,\n)", "fn " <> fn_suffix <> "_update(\n  _client_context: ClientContext,\n  model: " <> prefix <> "Model,\n  msg: " <> prefix <> "Msg,\n)")
   // No client context
   |> string.replace("fn update(model: Model, msg: Msg)", "fn " <> fn_suffix <> "_update(model: " <> prefix <> "Model, msg: " <> prefix <> "Msg)")
+  // Replace send_to_server calls with per-page transport wrapper
+  |> string.replace("lando_effect.send_to_server(", fn_suffix <> "_send_to_server(")
   // Prefix types in return type and body
   |> prefix_page_types(prefix)
 }
