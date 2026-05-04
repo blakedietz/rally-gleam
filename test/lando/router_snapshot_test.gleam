@@ -93,7 +93,7 @@ pub fn server_dispatch_snapshot_test() {
 
 pub fn ssr_handler_snapshot_test() {
   let contracts = basic_contracts()
-  let output = ssr_handler.generate(contracts)
+  let output = ssr_handler.generate(contracts, False)
   birdie.snap(output, "ssr_handler_gleam")
 }
 

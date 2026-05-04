@@ -137,12 +137,19 @@ fn run() -> Result(String, String) {
   let dispatch_source = generator.generate_dispatch(routes)
   use _ <- result.try(write_file(config.output_dispatch, dispatch_source))
 
-  // 4. Generate server dispatch
+  // 4. Detect client_context.gleam (needed by SSR handler and client codegen)
+  let client_context_path = dirname(config.pages_root) <> "/client_context.gleam"
+  let has_client_context = case simplifile.read(client_context_path) {
+    Ok(_) -> True
+    Error(_) -> False
+  }
+
+  // 5. Generate server dispatch
   let sd_source = server_dispatch.generate(contracts)
   use _ <- result.try(write_file(config.output_server_dispatch, sd_source))
 
-  // 5. Generate SSR handler
-  let ssr_source = ssr_handler.generate(contracts)
+  // 6. Generate SSR handler
+  let ssr_source = ssr_handler.generate(contracts, has_client_context)
   use _ <- result.try(write_file(config.output_ssr, ssr_source))
 
   // 6. Generate WebSocket handler
@@ -184,13 +191,6 @@ fn run() -> Result(String, String) {
     })
   let discovered =
     walker.walk(seeds, page_file_paths, config.pages_root)
-
-  // 9. Detect client_context.gleam
-  let client_context_path = dirname(config.pages_root) <> "/client_context.gleam"
-  let has_client_context = case simplifile.read(client_context_path) {
-    Ok(_) -> True
-    Error(_) -> False
-  }
 
   // 10. Generate codec files for the client package
   let codec_files =
