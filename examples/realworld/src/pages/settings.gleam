@@ -248,7 +248,7 @@ pub fn server_update(
           let errors = validate_settings(username, email)
           case errors {
             [] -> {
-              let now = datetime.now_iso8601()
+              let now = datetime.now_unix()
               // Update with or without password change
               case string.is_empty(string.trim(password_text)) {
                 True -> {
@@ -261,7 +261,7 @@ pub fn server_update(
                         sqlight.text(username),
                         sqlight.text(bio),
                         sqlight.text(email),
-                        sqlight.text(now),
+                        sqlight.int(now),
                         sqlight.int(user_id),
                       ],
                       expecting: decode.success(Nil),
@@ -291,7 +291,7 @@ pub fn server_update(
                             sqlight.text(bio),
                             sqlight.text(email),
                             sqlight.text(hash),
-                            sqlight.text(now),
+                            sqlight.int(now),
                             sqlight.int(user_id),
                           ],
                           expecting: decode.success(Nil),

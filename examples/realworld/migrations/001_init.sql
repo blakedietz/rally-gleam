@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   bio TEXT NOT NULL DEFAULT '',
   image TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS articles (
@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS articles (
   description TEXT NOT NULL,
   body TEXT NOT NULL,
   author_id INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -48,13 +48,13 @@ CREATE TABLE IF NOT EXISTS comments (
   body TEXT NOT NULL,
   article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
   author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TEXT NOT NULL
+  created_at INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
   session_id TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TEXT NOT NULL
+  created_at INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_articles_author ON articles(author_id);

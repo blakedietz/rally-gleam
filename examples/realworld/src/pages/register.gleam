@@ -145,7 +145,7 @@ pub fn server_update(
       case errors {
         [] -> {
           let session_id = lando_effect.get_ws_session()
-          let now = datetime.now_iso8601()
+          let now = datetime.now_unix()
           let hash = password.hash(password_text)
           case
             sqlight.query(
@@ -157,8 +157,8 @@ pub fn server_update(
                 sqlight.text(username),
                 sqlight.text(email),
                 sqlight.text(hash),
-                sqlight.text(now),
-                sqlight.text(now),
+                sqlight.int(now),
+                sqlight.int(now),
               ],
               expecting: register_decoder(),
             )
@@ -171,7 +171,7 @@ pub fn server_update(
                   with: [
                     sqlight.text(session_id),
                     sqlight.int(id),
-                    sqlight.text(now),
+                    sqlight.int(now),
                   ],
                   expecting: decode.success(Nil),
                 )

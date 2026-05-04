@@ -33,7 +33,7 @@ pub type Article {
     title: String,
     description: String,
     body: String,
-    created_at: String,
+    created_at: Int,
     tags: List(String),
     author_username: String,
     author_image: String,
@@ -45,7 +45,7 @@ pub type Comment {
   Comment(
     id: Int,
     body: String,
-    created_at: String,
+    created_at: Int,
     username: String,
     image: String,
   )
@@ -252,7 +252,7 @@ fn article_meta(
         [attr.class("author"), attr.href("/profile/" <> article.author_username)],
         [html.text(article.author_username)],
       ),
-      html.span([attr.class("date")], [html.text(article.created_at)]),
+      html.span([attr.class("date")], [html.text(int.to_string(article.created_at))]),
     ]),
     html.button(
       [attr.class(follow_class), event.on_click(ClickedFollow(article.author_username))],
@@ -329,7 +329,7 @@ fn comment_card(comment: Comment) -> Element(Msg) {
         [attr.class("comment-author"), attr.href("/profile/" <> comment.username)],
         [html.text(comment.username)],
       ),
-      html.span([attr.class("date-posted")], [html.text(comment.created_at)]),
+      html.span([attr.class("date-posted")], [html.text(int.to_string(comment.created_at))]),
       html.span([attr.class("mod-options")], [
         html.i(
           [attr.class("ion-trash-a"), event.on_click(ClickedDeleteComment(comment.id))],
@@ -538,7 +538,7 @@ pub fn server_update(
               let session_id = lando_effect.get_ws_session()
               case get_user_id(server_context.db, session_id) {
                 Ok(user_id) -> {
-                  let now = datetime.now_iso8601()
+                  let now = datetime.now_unix()
                   case
                     sqlight.query(
                       "INSERT INTO comments (body, article_id, author_id, created_at)
@@ -548,7 +548,7 @@ pub fn server_update(
                         sqlight.text(body),
                         sqlight.int(article_id),
                         sqlight.int(user_id),
-                        sqlight.text(now),
+                        sqlight.int(now),
                       ],
                       expecting: int_decoder(),
                     )
@@ -792,7 +792,7 @@ type ArticleRow {
     title: String,
     description: String,
     body: String,
-    created_at: String,
+    created_at: Int,
     author_id: Int,
     author_username: String,
     author_image: String,
@@ -806,7 +806,7 @@ fn full_article_decoder() -> decode.Decoder(ArticleRow) {
   use title <- decode.field(2, decode.string)
   use description <- decode.field(3, decode.string)
   use body <- decode.field(4, decode.string)
-  use created_at <- decode.field(5, decode.string)
+  use created_at <- decode.field(5, decode.int)
   use author_id <- decode.field(6, decode.int)
   use author_username <- decode.field(7, decode.string)
   use author_image <- decode.field(8, decode.string)
@@ -828,7 +828,7 @@ fn full_article_decoder() -> decode.Decoder(ArticleRow) {
 fn comment_decoder() -> decode.Decoder(Comment) {
   use id <- decode.field(0, decode.int)
   use body <- decode.field(1, decode.string)
-  use created_at <- decode.field(2, decode.string)
+  use created_at <- decode.field(2, decode.int)
   use username <- decode.field(3, decode.string)
   use image <- decode.field(4, decode.string)
   decode.success(Comment(id:, body:, created_at:, username:, image:))

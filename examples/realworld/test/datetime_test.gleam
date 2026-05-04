@@ -1,20 +1,17 @@
-import gleam/string
 import gleeunit/should
 import datetime
 
-pub fn now_iso8601_format_test() {
-  let ts = datetime.now_iso8601()
+pub fn now_unix_returns_plausible_timestamp_test() {
+  let ts = datetime.now_unix()
 
-  // Should be exactly 20 chars: "YYYY-MM-DDTHH:MM:SSZ"
-  string.length(ts)
-  |> should.equal(20)
-
-  // Should end with Z
-  string.ends_with(ts, "Z")
+  // Should be a positive integer
+  { ts > 0 }
   |> should.be_true
 
-  // Should have T at position 10 (0-indexed)
-  let assert Ok(char) = string.first(string.drop_start(ts, 10))
-  char
-  |> should.equal("T")
+  // Should be after 2020-01-01 (1577836800) and before 2100-01-01 (4102444800)
+  { ts > 1_577_836_800 }
+  |> should.be_true
+
+  { ts < 4_102_444_800 }
+  |> should.be_true
 }

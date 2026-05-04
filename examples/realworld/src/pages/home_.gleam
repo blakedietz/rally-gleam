@@ -27,7 +27,7 @@ pub type ArticlePreview {
     slug: String,
     title: String,
     description: String,
-    created_at: String,
+    created_at: Int,
     author_username: String,
     author_image: String,
     favorites_count: Int,
@@ -197,7 +197,7 @@ fn article_preview(article: ArticlePreview) -> Element(Msg) {
           ],
           [html.text(article.author_username)],
         ),
-        html.span([attr.class("date")], [html.text(article.created_at)]),
+        html.span([attr.class("date")], [html.text(int.to_string(article.created_at))]),
       ]),
       html.button([attr.class("btn btn-outline-primary btn-sm pull-xs-right")], [
         html.i([attr.class("ion-heart")], []),
@@ -461,7 +461,7 @@ fn article_preview_decoder() -> decode.Decoder(ArticlePreview) {
   use slug <- decode.field(0, decode.string)
   use title <- decode.field(1, decode.string)
   use description <- decode.field(2, decode.string)
-  use created_at <- decode.field(3, decode.string)
+  use created_at <- decode.field(3, decode.int)
   use author_username <- decode.field(4, decode.string)
   use author_image <- decode.field(5, decode.string)
   use favorites_count <- decode.field(6, decode.int)

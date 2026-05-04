@@ -294,7 +294,7 @@ pub fn server_update(
           let errors = validate_article(title, body)
           case errors {
             [] -> {
-              let now = datetime.now_iso8601()
+              let now = datetime.now_unix()
               let new_slug = slug.from_title(title)
               let assert Ok(_) =
                 sqlight.query(
@@ -305,7 +305,7 @@ pub fn server_update(
                     sqlight.text(title),
                     sqlight.text(description),
                     sqlight.text(body),
-                    sqlight.text(now),
+                    sqlight.int(now),
                     sqlight.int(article_id),
                   ],
                   expecting: decode.success(Nil),

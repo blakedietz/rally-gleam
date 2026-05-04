@@ -151,7 +151,7 @@ pub fn server_update(
               case password.verify(password_text, password_hash) {
                 True -> {
                   let session_id = lando_effect.get_ws_session()
-                  let now = datetime.now_iso8601()
+                  let now = datetime.now_unix()
                   let assert Ok(_) =
                     sqlight.query(
                       "INSERT OR REPLACE INTO sessions (session_id, user_id, created_at) VALUES (?, ?, ?)",
@@ -159,7 +159,7 @@ pub fn server_update(
                       with: [
                         sqlight.text(session_id),
                         sqlight.int(id),
-                        sqlight.text(now),
+                        sqlight.int(now),
                       ],
                       expecting: decode.success(Nil),
                     )

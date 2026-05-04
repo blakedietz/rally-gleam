@@ -17,7 +17,7 @@ fn insert_user(db: sqlight.Connection, username: String, email: String) {
   let assert Ok(_) =
     sqlight.query(
       "INSERT INTO users (username, email, password_hash, created_at, updated_at)
-       VALUES (?, ?, 'hash123', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
+       VALUES (?, ?, 'hash123', 1735689600, 1735689600)
        RETURNING id, username, email, bio, image",
       on: db,
       with: [sqlight.text(username), sqlight.text(email)],
@@ -37,7 +37,7 @@ pub fn create_user_test() {
   let assert Ok(rows) =
     sqlight.query(
       "INSERT INTO users (username, email, password_hash, created_at, updated_at)
-       VALUES ('jake', 'jake@example.com', 'hash123', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
+       VALUES ('jake', 'jake@example.com', 'hash123', 1735689600, 1735689600)
        RETURNING id, username, email, bio, image",
       on: db,
       with: [],
@@ -59,7 +59,7 @@ pub fn unique_username_test() {
   let result =
     sqlight.query(
       "INSERT INTO users (username, email, password_hash, created_at, updated_at)
-       VALUES ('jake', 'other@example.com', 'hash456', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
+       VALUES ('jake', 'other@example.com', 'hash456', 1735689600, 1735689600)
        RETURNING id",
       on: db,
       with: [],
@@ -74,7 +74,7 @@ pub fn unique_email_test() {
   let result =
     sqlight.query(
       "INSERT INTO users (username, email, password_hash, created_at, updated_at)
-       VALUES ('other', 'jake@example.com', 'hash456', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
+       VALUES ('other', 'jake@example.com', 'hash456', 1735689600, 1735689600)
        RETURNING id",
       on: db,
       with: [],
@@ -89,7 +89,7 @@ pub fn create_article_test() {
   let assert Ok(rows) =
     sqlight.query(
       "INSERT INTO articles (slug, title, description, body, author_id, created_at, updated_at)
-       VALUES ('hello-world', 'Hello World', 'A description', 'Article body', 1, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
+       VALUES ('hello-world', 'Hello World', 'A description', 'Article body', 1, 1735689600, 1735689600)
        RETURNING id, slug, title, author_id",
       on: db,
       with: [],
@@ -110,7 +110,7 @@ pub fn favorite_toggle_test() {
   let assert Ok(Nil) =
     sqlight.exec(
       "INSERT INTO articles (slug, title, description, body, author_id, created_at, updated_at)
-       VALUES ('hello-world', 'Hello World', 'Desc', 'Body', 1, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')",
+       VALUES ('hello-world', 'Hello World', 'Desc', 'Body', 1, 1735689600, 1735689600)",
       on: db,
     )
 
@@ -181,14 +181,14 @@ pub fn comment_test() {
   let assert Ok(Nil) =
     sqlight.exec(
       "INSERT INTO articles (slug, title, description, body, author_id, created_at, updated_at)
-       VALUES ('hello-world', 'Hello World', 'Desc', 'Body', 1, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')",
+       VALUES ('hello-world', 'Hello World', 'Desc', 'Body', 1, 1735689600, 1735689600)",
       on: db,
     )
 
   let assert Ok(Nil) =
     sqlight.exec(
       "INSERT INTO comments (body, article_id, author_id, created_at)
-       VALUES ('Great article!', 1, 1, '2024-01-02T00:00:00Z')",
+       VALUES ('Great article!', 1, 1, 1735776000)",
       on: db,
     )
 
@@ -202,7 +202,7 @@ pub fn comment_test() {
       expecting: {
         use id <- decode.field(0, decode.int)
         use body <- decode.field(1, decode.string)
-        use created_at <- decode.field(2, decode.string)
+        use created_at <- decode.field(2, decode.int)
         use author <- decode.field(3, decode.string)
         decode.success(#(id, body, created_at, author))
       },
@@ -217,7 +217,7 @@ pub fn session_create_and_lookup_test() {
   let assert Ok(Nil) =
     sqlight.exec(
       "INSERT INTO sessions (session_id, user_id, created_at)
-       VALUES ('abc123', 1, '2024-01-01T00:00:00Z')",
+       VALUES ('abc123', 1, 1735689600)",
       on: db,
     )
 
@@ -245,19 +245,19 @@ pub fn cascade_delete_test() {
   let assert Ok(Nil) =
     sqlight.exec(
       "INSERT INTO articles (slug, title, description, body, author_id, created_at, updated_at)
-       VALUES ('hello-world', 'Hello World', 'Desc', 'Body', 1, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')",
+       VALUES ('hello-world', 'Hello World', 'Desc', 'Body', 1, 1735689600, 1735689600)",
       on: db,
     )
   let assert Ok(Nil) =
     sqlight.exec(
       "INSERT INTO comments (body, article_id, author_id, created_at)
-       VALUES ('A comment', 1, 1, '2024-01-01T00:00:00Z')",
+       VALUES ('A comment', 1, 1, 1735689600)",
       on: db,
     )
   let assert Ok(Nil) =
     sqlight.exec(
       "INSERT INTO sessions (session_id, user_id, created_at)
-       VALUES ('sess1', 1, '2024-01-01T00:00:00Z')",
+       VALUES ('sess1', 1, 1735689600)",
       on: db,
     )
   let assert Ok(Nil) =
@@ -295,7 +295,7 @@ pub fn tags_test() {
   let assert Ok(Nil) =
     sqlight.exec(
       "INSERT INTO articles (slug, title, description, body, author_id, created_at, updated_at)
-       VALUES ('hello-world', 'Hello World', 'Desc', 'Body', 1, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')",
+       VALUES ('hello-world', 'Hello World', 'Desc', 'Body', 1, 1735689600, 1735689600)",
       on: db,
     )
 

@@ -218,7 +218,7 @@ pub fn server_update(
           let session_id = lando_effect.get_ws_session()
           case get_user_id(server_context.db, session_id) {
             Ok(user_id) -> {
-              let now = datetime.now_iso8601()
+              let now = datetime.now_unix()
               let article_slug = slug.from_title(title)
               case
                 sqlight.query(
@@ -231,8 +231,8 @@ pub fn server_update(
                     sqlight.text(description),
                     sqlight.text(body),
                     sqlight.int(user_id),
-                    sqlight.text(now),
-                    sqlight.text(now),
+                    sqlight.int(now),
+                    sqlight.int(now),
                   ],
                   expecting: article_insert_decoder(),
                 )

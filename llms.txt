@@ -178,6 +178,7 @@ On WebSocket connect, the framework auto-subscribes to three implicit topics: `a
 - `mist` — HTTP/WebSocket server (BEAM)
 - `marmot` — SQL-to-Gleam codegen (introspects SQLite)
 - `sqlight` — SQLite NIF
+- `gleam_time` — Timestamps (unix seconds)
 - `glance` — Gleam AST parser
 - `tom` — TOML config parser
 - `simplifile` — Filesystem operations
@@ -204,7 +205,7 @@ The lando package path is resolved from `[dependencies].lando.path` in the consu
 ## Examples
 
 - `examples/likes/` — real-time broadcast with ClientContext and ServerContext, SQLite persistence, demonstrates `broadcast_to_page`, `send_to_client`, and `send_to_client_context`
-- `examples/realworld/` — RealWorld (Conduit) clone: full CRUD app with auth, articles, comments, tags, favorites, follows. Tests cover password hashing, slug generation, datetime formatting, and full schema validation with birdie snapshots
+- `examples/realworld/` — RealWorld (Conduit) clone: full CRUD app with auth, articles, comments, tags, favorites, follows. Uses `gleam_time` for unix-second integer timestamps. Tests cover password hashing, slug generation, timestamps, and full schema validation with birdie snapshots
 
 ## Prior art
 
