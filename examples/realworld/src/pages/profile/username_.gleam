@@ -1,8 +1,12 @@
 import client_context.{type ClientContext}
-import gleam/dynamic/decode
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
+import generated/sql/articles_sql
+import generated/sql/auth_sql
+import generated/sql/follows_sql
+import generated/sql/users_sql
 import lando_runtime/effect as lando_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
@@ -30,7 +34,7 @@ pub type ArticlePreview {
     slug: String,
     title: String,
     description: String,
-    created_at: String,
+    created_at: Int,
     author_username: String,
     author_image: String,
     favorites_count: Int,
@@ -200,7 +204,7 @@ fn article_preview(article: ArticlePreview) -> Element(Msg) {
           [attr.class("author"), attr.href("/profile/" <> article.author_username)],
           [html.text(article.author_username)],
         ),
-        html.span([attr.class("date")], [html.text(article.created_at)]),
+        html.span([attr.class("date")], [html.text(int.to_string(article.created_at))]),
       ]),
       html.button([attr.class("btn btn-outline-primary btn-sm pull-xs-right")], [
         html.i([attr.class("ion-heart")], []),
@@ -232,21 +236,14 @@ pub fn server_update(
     LoadProfile(username) -> {
       let session_id = lando_effect.get_ws_session()
       let maybe_user_id = get_user_id(server_context.db, session_id)
-      case
-        sqlight.query(
-          "SELECT id, username, bio, image FROM users WHERE username = ?",
-          on: server_context.db,
-          with: [sqlight.text(username)],
-          expecting: profile_user_decoder(),
-        )
-      {
-        Ok([#(profile_user_id, uname, bio, image)]) -> {
-          let profile = Profile(username: uname, bio:, image:)
-          let articles = fetch_user_articles(server_context.db, profile_user_id)
+      case users_sql.get_by_username(db: server_context.db, username:) {
+        Ok([row]) -> {
+          let profile = Profile(username: row.username, bio: row.bio, image: row.image)
+          let articles = fetch_user_articles(server_context.db, row.id)
           let is_following =
-            get_follow_status(server_context.db, profile_user_id, maybe_user_id)
+            get_follow_status(server_context.db, row.id, maybe_user_id)
           #(
-            ServerModel(profile_user_id:),
+            ServerModel(profile_user_id: row.id),
             lando_effect.send_to_client(ProfileData(
               profile:,
               articles:,
@@ -264,34 +261,31 @@ pub fn server_update(
           let session_id = lando_effect.get_ws_session()
           case get_user_id(server_context.db, session_id) {
             Ok(user_id) -> {
-              let assert Ok(existing) =
-                sqlight.query(
-                  "SELECT COUNT(*) FROM follows WHERE follower_id = ? AND followed_id = ?",
-                  on: server_context.db,
-                  with: [sqlight.int(user_id), sqlight.int(profile_user_id)],
-                  expecting: int_decoder(),
+              let assert Ok([existing]) =
+                follows_sql.is_following(
+                  db: server_context.db,
+                  follower_id: user_id,
+                  followed_id: profile_user_id,
                 )
-              case existing {
-                [count] if count > 0 -> {
+              case existing.count > 0 {
+                True -> {
                   let assert Ok(_) =
-                    sqlight.query(
-                      "DELETE FROM follows WHERE follower_id = ? AND followed_id = ?",
-                      on: server_context.db,
-                      with: [sqlight.int(user_id), sqlight.int(profile_user_id)],
-                      expecting: decode.success(Nil),
+                    follows_sql.remove(
+                      db: server_context.db,
+                      follower_id: user_id,
+                      followed_id: profile_user_id,
                     )
                   #(
                     model,
                     lando_effect.send_to_client(FollowUpdated(False)),
                   )
                 }
-                _ -> {
+                False -> {
                   let assert Ok(_) =
-                    sqlight.query(
-                      "INSERT INTO follows (follower_id, followed_id) VALUES (?, ?)",
-                      on: server_context.db,
-                      with: [sqlight.int(user_id), sqlight.int(profile_user_id)],
-                      expecting: decode.success(Nil),
+                    follows_sql.add(
+                      db: server_context.db,
+                      follower_id: user_id,
+                      followed_id: profile_user_id,
                     )
                   #(
                     model,
@@ -324,15 +318,8 @@ pub fn server_update(
 // --- Helpers ---
 
 fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
-  case
-    sqlight.query(
-      "SELECT u.id FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.session_id = ?",
-      on: db,
-      with: [sqlight.text(session_id)],
-      expecting: int_decoder(),
-    )
-  {
-    Ok([id]) -> Ok(id)
+  case auth_sql.find_user_by_session(db:, session_id: Some(session_id)) {
+    Ok([row]) -> Ok(row.id)
     _ -> Error(Nil)
   }
 }
@@ -344,20 +331,19 @@ fn get_follow_status(
 ) -> Bool {
   case maybe_user_id {
     Ok(user_id) -> {
-      let assert Ok(rows) =
-        sqlight.query(
-          "SELECT COUNT(*) FROM follows WHERE follower_id = ? AND followed_id = ?",
-          on: db,
-          with: [sqlight.int(user_id), sqlight.int(followed_id)],
-          expecting: int_decoder(),
-        )
-      case rows {
-        [c] if c > 0 -> True
-        _ -> False
-      }
+      let assert Ok([row]) =
+        follows_sql.is_following(db:, follower_id: user_id, followed_id:)
+      row.count > 0
     }
     Error(_) -> False
   }
+}
+
+fn fav_count_to_int(fav_count: Option(String)) -> Int {
+  fav_count
+  |> option.unwrap("0")
+  |> int.parse
+  |> result.unwrap(0)
 }
 
 fn fetch_user_articles(
@@ -365,18 +351,18 @@ fn fetch_user_articles(
   user_id: Int,
 ) -> List(ArticlePreview) {
   let assert Ok(rows) =
-    sqlight.query(
-      "SELECT a.slug, a.title, a.description, a.created_at,
-              u.username, u.image,
-              (SELECT COUNT(*) FROM favorites WHERE article_id = a.id) as fav_count
-       FROM articles a JOIN users u ON a.author_id = u.id
-       WHERE a.author_id = ?
-       ORDER BY a.created_at DESC LIMIT 20",
-      on: db,
-      with: [sqlight.int(user_id)],
-      expecting: article_preview_decoder(),
+    articles_sql.list_by_author(db:, author_id: user_id)
+  list.map(rows, fn(r) {
+    ArticlePreview(
+      slug: r.slug,
+      title: r.title,
+      description: r.description,
+      created_at: r.created_at,
+      author_username: r.username,
+      author_image: r.image,
+      favorites_count: fav_count_to_int(r.fav_count),
     )
-  rows
+  })
 }
 
 fn fetch_favorited_articles(
@@ -384,51 +370,16 @@ fn fetch_favorited_articles(
   user_id: Int,
 ) -> List(ArticlePreview) {
   let assert Ok(rows) =
-    sqlight.query(
-      "SELECT a.slug, a.title, a.description, a.created_at,
-              u.username, u.image,
-              (SELECT COUNT(*) FROM favorites WHERE article_id = a.id) as fav_count
-       FROM articles a JOIN users u ON a.author_id = u.id
-       JOIN favorites f ON f.article_id = a.id
-       WHERE f.user_id = ?
-       ORDER BY a.created_at DESC LIMIT 20",
-      on: db,
-      with: [sqlight.int(user_id)],
-      expecting: article_preview_decoder(),
+    articles_sql.list_favorited_by_user(db:, user_id:)
+  list.map(rows, fn(r) {
+    ArticlePreview(
+      slug: r.slug,
+      title: r.title,
+      description: r.description,
+      created_at: r.created_at,
+      author_username: r.username,
+      author_image: r.image,
+      favorites_count: fav_count_to_int(r.fav_count),
     )
-  rows
-}
-
-// --- Decoders ---
-
-fn profile_user_decoder() -> decode.Decoder(#(Int, String, String, String)) {
-  use id <- decode.field(0, decode.int)
-  use username <- decode.field(1, decode.string)
-  use bio <- decode.field(2, decode.string)
-  use image <- decode.field(3, decode.string)
-  decode.success(#(id, username, bio, image))
-}
-
-fn article_preview_decoder() -> decode.Decoder(ArticlePreview) {
-  use slug <- decode.field(0, decode.string)
-  use title <- decode.field(1, decode.string)
-  use description <- decode.field(2, decode.string)
-  use created_at <- decode.field(3, decode.string)
-  use author_username <- decode.field(4, decode.string)
-  use author_image <- decode.field(5, decode.string)
-  use favorites_count <- decode.field(6, decode.int)
-  decode.success(ArticlePreview(
-    slug:,
-    title:,
-    description:,
-    created_at:,
-    author_username:,
-    author_image:,
-    favorites_count:,
-  ))
-}
-
-fn int_decoder() -> decode.Decoder(Int) {
-  use val <- decode.field(0, decode.int)
-  decode.success(val)
+  })
 }

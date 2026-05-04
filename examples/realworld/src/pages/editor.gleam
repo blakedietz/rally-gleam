@@ -1,7 +1,10 @@
 import client_context.{type ClientContext}
 import datetime
-import gleam/dynamic/decode
+import generated/sql/articles_sql
+import generated/sql/auth_sql
+import generated/sql/tags_sql
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
 import lando_runtime/effect as lando_effect
 import lustre/attribute as attr
@@ -216,33 +219,33 @@ pub fn server_update(
       case errors {
         [] -> {
           let session_id = lando_effect.get_ws_session()
-          case get_user_id(server_context.db, session_id) {
-            Ok(user_id) -> {
+          case
+            auth_sql.find_user_by_session(
+              db: server_context.db,
+              session_id: Some(session_id),
+            )
+          {
+            Ok([user]) -> {
               let now = datetime.now_unix()
               let article_slug = slug.from_title(title)
               case
-                sqlight.query(
-                  "INSERT INTO articles (slug, title, description, body, author_id, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id, slug",
-                  on: server_context.db,
-                  with: [
-                    sqlight.text(article_slug),
-                    sqlight.text(title),
-                    sqlight.text(description),
-                    sqlight.text(body),
-                    sqlight.int(user_id),
-                    sqlight.int(now),
-                    sqlight.int(now),
-                  ],
-                  expecting: article_insert_decoder(),
+                articles_sql.create(
+                  db: server_context.db,
+                  slug: article_slug,
+                  title:,
+                  description:,
+                  body:,
+                  author_id: user.id,
+                  created_at: now,
+                  updated_at: now,
                 )
               {
-                Ok([#(article_id, returned_slug)]) -> {
-                  save_tags(server_context.db, article_id, tags)
+                Ok([row]) -> {
+                  save_tags(server_context.db, row.id, tags)
                   #(
                     ServerModel,
                     lando_effect.send_to_client(ArticlePublished(
-                      slug: returned_slug,
+                      slug: row.slug,
                     )),
                   )
                 }
@@ -254,7 +257,7 @@ pub fn server_update(
                 )
               }
             }
-            Error(_) -> #(
+            _ -> #(
               ServerModel,
               lando_effect.send_to_client(EditorErrors([
                 "You must be logged in to publish",
@@ -283,51 +286,9 @@ fn validate_article(title: String, body: String) -> List(String) {
 
 fn save_tags(db: sqlight.Connection, article_id: Int, tags: List(String)) -> Nil {
   list.each(tags, fn(tag) {
+    let assert Ok(_) = tags_sql.create_or_ignore(db:, name: tag)
+    let assert Ok([row]) = tags_sql.get_id_by_name(db:, name: tag)
     let assert Ok(_) =
-      sqlight.query(
-        "INSERT OR IGNORE INTO tags (name) VALUES (?)",
-        on: db,
-        with: [sqlight.text(tag)],
-        expecting: decode.success(Nil),
-      )
-    let assert Ok([tag_id]) =
-      sqlight.query(
-        "SELECT id FROM tags WHERE name = ?",
-        on: db,
-        with: [sqlight.text(tag)],
-        expecting: int_decoder(),
-      )
-    let assert Ok(_) =
-      sqlight.query(
-        "INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)",
-        on: db,
-        with: [sqlight.int(article_id), sqlight.int(tag_id)],
-        expecting: decode.success(Nil),
-      )
+      tags_sql.link_to_article(db:, article_id:, tag_id: row.id)
   })
-}
-
-fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
-  case
-    sqlight.query(
-      "SELECT u.id FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.session_id = ?",
-      on: db,
-      with: [sqlight.text(session_id)],
-      expecting: int_decoder(),
-    )
-  {
-    Ok([id]) -> Ok(id)
-    _ -> Error(Nil)
-  }
-}
-
-fn article_insert_decoder() -> decode.Decoder(#(Int, String)) {
-  use id <- decode.field(0, decode.int)
-  use s <- decode.field(1, decode.string)
-  decode.success(#(id, s))
-}
-
-fn int_decoder() -> decode.Decoder(Int) {
-  use val <- decode.field(0, decode.int)
-  decode.success(val)
 }

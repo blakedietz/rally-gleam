@@ -105,7 +105,6 @@ fn run() -> Result(String, String) {
   // 2. Parse each page module for its contract
   let contracts =
     list.filter_map(routes, fn(route) {
-      // Derive the file path from the module path
       let file_path =
         config.pages_root
         <> "/"
@@ -115,10 +114,20 @@ fn run() -> Result(String, String) {
         Ok(source) -> {
           case parser.parse_page(source) {
             Ok(contract) -> Ok(#(route, contract))
-            Error(_) -> Error(Nil)
+            Error(_) -> {
+              io.println_error(
+                "warning: failed to parse " <> file_path <> ", skipping",
+              )
+              Error(Nil)
+            }
           }
         }
-        Error(_) -> Error(Nil)
+        Error(_) -> {
+          io.println_error(
+            "warning: cannot read " <> file_path <> ", skipping",
+          )
+          Error(Nil)
+        }
       }
     })
 

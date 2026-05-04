@@ -109,7 +109,14 @@ fn get_current_version(
       |> result.map_error(fn(e) { VersionInitFailed(message: e.message) })
       |> result.map(fn(_) { 0 })
     }
-    Ok(_) -> Ok(0)
+    Ok(_multiple) -> {
+      let _ =
+        sqlight.exec(
+          "DELETE FROM schema_migrations; INSERT INTO schema_migrations (last_migration) VALUES (0);",
+          on: conn,
+        )
+      Ok(0)
+    }
     Error(e) -> Error(VersionQueryFailed(message: e.message))
   }
 }
@@ -140,25 +147,37 @@ fn run_pending(
       )
 
       use _ <- result.try(
-        sqlight.exec(sql, on: conn)
+        sqlight.exec("BEGIN", on: conn)
         |> result.map_error(fn(e) {
           MigrationFailed(filename: file, message: e.message)
         }),
       )
 
-      use _ <- result.try(
-        sqlight.exec(
-          "UPDATE schema_migrations SET last_migration = "
-            <> int.to_string(num)
-            <> ";",
-          on: conn,
-        )
-        |> result.map_error(fn(e) {
-          VersionUpdateFailed(message: e.message)
-        }),
-      )
-
-      run_pending(conn, dir, rest)
+      case sqlight.exec(sql, on: conn) {
+        Ok(_) -> {
+          case
+            sqlight.exec(
+              "UPDATE schema_migrations SET last_migration = "
+                <> int.to_string(num)
+                <> ";",
+              on: conn,
+            )
+          {
+            Ok(_) -> {
+              let assert Ok(_) = sqlight.exec("COMMIT", on: conn)
+              run_pending(conn, dir, rest)
+            }
+            Error(e) -> {
+              let _ = sqlight.exec("ROLLBACK", on: conn)
+              Error(VersionUpdateFailed(message: e.message))
+            }
+          }
+        }
+        Error(e) -> {
+          let _ = sqlight.exec("ROLLBACK", on: conn)
+          Error(MigrationFailed(filename: file, message: e.message))
+        }
+      }
     }
   }
 }

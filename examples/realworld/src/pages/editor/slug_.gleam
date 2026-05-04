@@ -1,7 +1,10 @@
 import client_context.{type ClientContext}
 import datetime
-import gleam/dynamic/decode
+import generated/sql/articles_sql
+import generated/sql/auth_sql
+import generated/sql/tags_sql
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
 import lando_runtime/effect as lando_effect
 import lustre/attribute as attr
@@ -238,26 +241,34 @@ pub fn server_update(
   case msg {
     LoadArticle(article_slug) -> {
       let session_id = lando_effect.get_ws_session()
-      case get_user_id(server_context.db, session_id) {
-        Ok(user_id) -> {
+      case
+        auth_sql.find_user_by_session(
+          db: server_context.db,
+          session_id: Some(session_id),
+        )
+      {
+        Ok([user]) -> {
           case
-            sqlight.query(
-              "SELECT id, title, description, body, author_id FROM articles WHERE slug = ?",
-              on: server_context.db,
-              with: [sqlight.text(article_slug)],
-              expecting: article_loader_decoder(),
-            )
+            articles_sql.get_for_edit(db: server_context.db, slug: article_slug)
           {
-            Ok([#(article_id, title, description, body, author_id)]) -> {
-              case author_id == user_id {
+            Ok([article]) -> {
+              case article.author_id == user.id {
                 True -> {
-                  let tags = fetch_article_tags(server_context.db, article_id)
+                  let assert Ok(tag_rows) =
+                    tags_sql.list_by_article(
+                      db: server_context.db,
+                      article_id: article.id,
+                    )
+                  let tags = list.map(tag_rows, fn(row) { row.name })
                   #(
-                    ServerModel(article_id:, author_id:),
+                    ServerModel(
+                      article_id: article.id,
+                      author_id: article.author_id,
+                    ),
                     lando_effect.send_to_client(ArticleLoaded(
-                      title:,
-                      description:,
-                      body:,
+                      title: article.title,
+                      description: article.description,
+                      body: article.body,
                       tags:,
                     )),
                   )
@@ -276,7 +287,7 @@ pub fn server_update(
             )
           }
         }
-        Error(_) -> #(
+        _ -> #(
           ServerModelEmpty,
           lando_effect.send_to_client(EditorErrors([
             "You must be logged in to edit",
@@ -297,26 +308,19 @@ pub fn server_update(
               let now = datetime.now_unix()
               let new_slug = slug.from_title(title)
               let assert Ok(_) =
-                sqlight.query(
-                  "UPDATE articles SET slug = ?, title = ?, description = ?, body = ?, updated_at = ? WHERE id = ?",
-                  on: server_context.db,
-                  with: [
-                    sqlight.text(new_slug),
-                    sqlight.text(title),
-                    sqlight.text(description),
-                    sqlight.text(body),
-                    sqlight.int(now),
-                    sqlight.int(article_id),
-                  ],
-                  expecting: decode.success(Nil),
+                articles_sql.update(
+                  db: server_context.db,
+                  slug: new_slug,
+                  title:,
+                  description:,
+                  body:,
+                  now:,
+                  article_id:,
                 )
-              // Clear old tags and re-save
               let assert Ok(_) =
-                sqlight.query(
-                  "DELETE FROM article_tags WHERE article_id = ?",
-                  on: server_context.db,
-                  with: [sqlight.int(article_id)],
-                  expecting: decode.success(Nil),
+                tags_sql.unlink_from_article(
+                  db: server_context.db,
+                  article_id:,
                 )
               save_tags(server_context.db, article_id, tags)
               #(
@@ -350,70 +354,9 @@ fn validate_article(title: String, body: String) -> List(String) {
 
 fn save_tags(db: sqlight.Connection, article_id: Int, tags: List(String)) -> Nil {
   list.each(tags, fn(tag) {
+    let assert Ok(_) = tags_sql.create_or_ignore(db:, name: tag)
+    let assert Ok([row]) = tags_sql.get_id_by_name(db:, name: tag)
     let assert Ok(_) =
-      sqlight.query(
-        "INSERT OR IGNORE INTO tags (name) VALUES (?)",
-        on: db,
-        with: [sqlight.text(tag)],
-        expecting: decode.success(Nil),
-      )
-    let assert Ok([tag_id]) =
-      sqlight.query(
-        "SELECT id FROM tags WHERE name = ?",
-        on: db,
-        with: [sqlight.text(tag)],
-        expecting: int_decoder(),
-      )
-    let assert Ok(_) =
-      sqlight.query(
-        "INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)",
-        on: db,
-        with: [sqlight.int(article_id), sqlight.int(tag_id)],
-        expecting: decode.success(Nil),
-      )
+      tags_sql.link_to_article(db:, article_id:, tag_id: row.id)
   })
-}
-
-fn fetch_article_tags(db: sqlight.Connection, article_id: Int) -> List(String) {
-  let assert Ok(rows) =
-    sqlight.query(
-      "SELECT t.name FROM tags t JOIN article_tags at ON t.id = at.tag_id WHERE at.article_id = ?",
-      on: db,
-      with: [sqlight.int(article_id)],
-      expecting: string_decoder(),
-    )
-  rows
-}
-
-fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
-  case
-    sqlight.query(
-      "SELECT u.id FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.session_id = ?",
-      on: db,
-      with: [sqlight.text(session_id)],
-      expecting: int_decoder(),
-    )
-  {
-    Ok([id]) -> Ok(id)
-    _ -> Error(Nil)
-  }
-}
-
-fn article_loader_decoder() -> decode.Decoder(#(Int, String, String, String, Int)) {
-  use id <- decode.field(0, decode.int)
-  use title <- decode.field(1, decode.string)
-  use description <- decode.field(2, decode.string)
-  use body <- decode.field(3, decode.string)
-  use author_id <- decode.field(4, decode.int)
-  decode.success(#(id, title, description, body, author_id))
-}
-
-fn int_decoder() -> decode.Decoder(Int) {
-  use val <- decode.field(0, decode.int)
-  decode.success(val)
-}
-
-fn string_decoder() -> decode.Decoder(String) {
-  use val <- decode.field(0, decode.string)
-  decode.success(val)
 }

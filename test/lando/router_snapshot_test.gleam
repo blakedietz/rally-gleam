@@ -10,7 +10,7 @@ import lando/generator/ssr_handler
 import gleam/option.{None}
 import lando/types.{
   IntParam, PageContract, type PageContract, type ScannedRoute, ScannedRoute,
-  type ScanConfig, ScanConfig, StaticSegment, VariantField, VariantInfo,
+  type ScanConfig, ScanConfig, DynamicSegment, StaticSegment, VariantField, VariantInfo,
 }
 
 fn basic_routes() -> List(ScannedRoute) {
@@ -34,7 +34,7 @@ fn basic_routes() -> List(ScannedRoute) {
       layout_module: None, module_path: "pages/products/new",
     ),
     ScannedRoute(
-      segments: [StaticSegment("products"), StaticSegment("id")],
+      segments: [StaticSegment("products"), DynamicSegment("id", IntParam)],
       variant_name: "ProductsId",
       params: [#("id", IntParam)],
       layout_module: None, module_path: "pages/products/id_",

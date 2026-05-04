@@ -9,7 +9,7 @@
 //// lines with RPC error responses. Unique enough for debugging;
 //// not cryptographically random.
 ////
-//// **Logging is intentionally not part of this module.** Libero stays
+//// **Logging is intentionally not part of this module.** Lando stays
 //// free of wisp/logging dependencies so it can be used in any
 //// Erlang-target consumer. The generated dispatch code uses
 //// `io.println_error` as a default logger; consumers that want
@@ -39,7 +39,7 @@ fn unique_id() -> String
 // Note: there's no catch_panic convenience wrapper here. The
 // generated dispatch code handles panics inline by calling
 // `try_call` + `new_trace_id` and bubbling a `PanicInfo` value up
-// through its return type. This keeps libero free of any logging
+// through its return type. This keeps lando free of any logging
 // dependency. Consumers decide what to do with panic info in their
 // WebSocket handler, not in library code.
 

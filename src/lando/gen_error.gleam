@@ -24,7 +24,7 @@ pub fn print_error(err: GenError) -> Nil {
   io.println_error(to_string(err))
 }
 
-/// Format a structured error as the boxed message libero prints to the
+/// Format a structured error as the boxed message lando prints to the
 /// terminal. `title` is the one-line headline, `path` is the source file
 /// or context the error refers to (rendered after `┌─`), `body_lines`
 /// are the explanation lines (each prefixed with `│`), and `hint` is an
@@ -122,7 +122,7 @@ fn to_string(err: GenError) -> String {
         path: module_path <> ".gleam",
         body_lines: ["Type `" <> type_name <> "` was not found in this module"],
         hint: Some(
-          "The type may be private (add `pub`) or the module path may be\n        incorrect. Libero scans for custom types, not type aliases.",
+          "The type may be private (add `pub`) or the module path may be\n        incorrect. Lando scans for custom types, not type aliases.",
         ),
       )
 
@@ -136,7 +136,7 @@ fn to_string(err: GenError) -> String {
           "#(Result(_, _), HandlerContext).",
         ],
         hint: Some(
-          "Add at least one handler function before running `libero gen`.",
+          "Add at least one handler function before running `gleam run -m lando`.",
         ),
       )
 

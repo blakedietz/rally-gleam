@@ -5,6 +5,13 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import generated/sql/articles_sql
+import generated/sql/auth_sql
+import generated/sql/comments_sql
+import generated/sql/favorites_sql
+import generated/sql/follows_sql
+import generated/sql/tags_sql
+import generated/sql/users_sql
 import lando_runtime/effect as lando_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
@@ -79,6 +86,7 @@ pub type ToClient {
     favorites_count: Int,
   )
   FavoriteUpdated(count: Int, is_favorited: Bool)
+  FavoriteCountUpdated(count: Int)
   FollowUpdated(is_following: Bool)
   CommentAdded(Comment)
   CommentRemoved(id: Int)
@@ -145,6 +153,10 @@ pub fn update(
     )
     GotServerMsg(FavoriteUpdated(count, is_favorited)) -> #(
       Model(..model, favorites_count: count, is_favorited:),
+      effect.none(),
+    )
+    GotServerMsg(FavoriteCountUpdated(count)) -> #(
+      Model(..model, favorites_count: count),
       effect.none(),
     )
     GotServerMsg(FollowUpdated(is_following)) -> #(
@@ -357,19 +369,11 @@ pub fn server_update(
     LoadArticle(article_slug) -> {
       let session_id = lando_effect.get_ws_session()
       let maybe_user_id = get_user_id(server_context.db, session_id)
-      case
-        sqlight.query(
-          "SELECT a.id, a.slug, a.title, a.description, a.body, a.created_at, a.author_id,
-                  u.username, u.image, u.bio
-           FROM articles a JOIN users u ON a.author_id = u.id
-           WHERE a.slug = ?",
-          on: server_context.db,
-          with: [sqlight.text(article_slug)],
-          expecting: full_article_decoder(),
-        )
-      {
+      case articles_sql.get_by_slug(db: server_context.db, slug: article_slug) {
         Ok([row]) -> {
-          let tags = fetch_article_tags(server_context.db, row.id)
+          let assert Ok(tag_rows) =
+            tags_sql.list_by_article(db: server_context.db, article_id: row.id)
+          let tags = list.map(tag_rows, fn(r) { r.name })
           let article =
             Article(
               id: row.id,
@@ -379,11 +383,22 @@ pub fn server_update(
               body: row.body,
               created_at: row.created_at,
               tags:,
-              author_username: row.author_username,
-              author_image: row.author_image,
-              author_bio: row.author_bio,
+              author_username: row.username,
+              author_image: row.image,
+              author_bio: row.bio,
             )
-          let comments = fetch_comments(server_context.db, row.id)
+          let assert Ok(comment_rows) =
+            comments_sql.list_by_article(db: server_context.db, article_id: row.id)
+          let comments =
+            list.map(comment_rows, fn(c) {
+              Comment(
+                id: c.id,
+                body: c.body,
+                created_at: c.created_at,
+                username: c.username,
+                image: c.image,
+              )
+            })
           let #(is_favorited, favorites_count) =
             get_favorite_info(server_context.db, row.id, maybe_user_id)
           let is_following =
@@ -415,47 +430,53 @@ pub fn server_update(
           let session_id = lando_effect.get_ws_session()
           case get_user_id(server_context.db, session_id) {
             Ok(user_id) -> {
-              // Check if already favorited
-              let assert Ok(existing) =
-                sqlight.query(
-                  "SELECT COUNT(*) FROM favorites WHERE user_id = ? AND article_id = ?",
-                  on: server_context.db,
-                  with: [sqlight.int(user_id), sqlight.int(article_id)],
-                  expecting: int_decoder(),
+              let assert Ok([row]) =
+                favorites_sql.is_favorited(
+                  db: server_context.db,
+                  user_id:,
+                  article_id:,
                 )
-              case existing {
-                [count] if count > 0 -> {
+              case row.count > 0 {
+                True -> {
                   let assert Ok(_) =
-                    sqlight.query(
-                      "DELETE FROM favorites WHERE user_id = ? AND article_id = ?",
-                      on: server_context.db,
-                      with: [sqlight.int(user_id), sqlight.int(article_id)],
-                      expecting: decode.success(Nil),
+                    favorites_sql.remove(
+                      db: server_context.db,
+                      user_id:,
+                      article_id:,
                     )
                   let new_count = get_favorites_count(server_context.db, article_id)
                   #(
                     model,
-                    lando_effect.broadcast_to_page(FavoriteUpdated(
-                      count: new_count,
-                      is_favorited: False,
-                    )),
+                    effect.batch([
+                      lando_effect.send_to_client(FavoriteUpdated(
+                        count: new_count,
+                        is_favorited: False,
+                      )),
+                      lando_effect.broadcast_to_page(FavoriteCountUpdated(
+                        count: new_count,
+                      )),
+                    ]),
                   )
                 }
-                _ -> {
+                False -> {
                   let assert Ok(_) =
-                    sqlight.query(
-                      "INSERT INTO favorites (user_id, article_id) VALUES (?, ?)",
-                      on: server_context.db,
-                      with: [sqlight.int(user_id), sqlight.int(article_id)],
-                      expecting: decode.success(Nil),
+                    favorites_sql.add(
+                      db: server_context.db,
+                      user_id:,
+                      article_id:,
                     )
                   let new_count = get_favorites_count(server_context.db, article_id)
                   #(
                     model,
-                    lando_effect.broadcast_to_page(FavoriteUpdated(
-                      count: new_count,
-                      is_favorited: True,
-                    )),
+                    effect.batch([
+                      lando_effect.send_to_client(FavoriteUpdated(
+                        count: new_count,
+                        is_favorited: True,
+                      )),
+                      lando_effect.broadcast_to_page(FavoriteCountUpdated(
+                        count: new_count,
+                      )),
+                    ]),
                   )
                 }
               }
@@ -472,36 +493,34 @@ pub fn server_update(
       let session_id = lando_effect.get_ws_session()
       case get_user_id(server_context.db, session_id) {
         Ok(user_id) -> {
-          case get_user_id_by_username(server_context.db, username) {
-            Ok(followed_id) -> {
-              let assert Ok(existing) =
-                sqlight.query(
-                  "SELECT COUNT(*) FROM follows WHERE follower_id = ? AND followed_id = ?",
-                  on: server_context.db,
-                  with: [sqlight.int(user_id), sqlight.int(followed_id)],
-                  expecting: int_decoder(),
+          case users_sql.get_id_by_username(db: server_context.db, username:) {
+            Ok([row]) -> {
+              let followed_id = row.id
+              let assert Ok([existing]) =
+                follows_sql.is_following(
+                  db: server_context.db,
+                  follower_id: user_id,
+                  followed_id:,
                 )
-              case existing {
-                [count] if count > 0 -> {
+              case existing.count > 0 {
+                True -> {
                   let assert Ok(_) =
-                    sqlight.query(
-                      "DELETE FROM follows WHERE follower_id = ? AND followed_id = ?",
-                      on: server_context.db,
-                      with: [sqlight.int(user_id), sqlight.int(followed_id)],
-                      expecting: decode.success(Nil),
+                    follows_sql.remove(
+                      db: server_context.db,
+                      follower_id: user_id,
+                      followed_id:,
                     )
                   #(
                     model,
                     lando_effect.send_to_client(FollowUpdated(is_following: False)),
                   )
                 }
-                _ -> {
+                False -> {
                   let assert Ok(_) =
-                    sqlight.query(
-                      "INSERT INTO follows (follower_id, followed_id) VALUES (?, ?)",
-                      on: server_context.db,
-                      with: [sqlight.int(user_id), sqlight.int(followed_id)],
-                      expecting: decode.success(Nil),
+                    follows_sql.add(
+                      db: server_context.db,
+                      follower_id: user_id,
+                      followed_id:,
                     )
                   #(
                     model,
@@ -510,7 +529,7 @@ pub fn server_update(
                 }
               }
             }
-            Error(_) -> #(
+            _ -> #(
               model,
               lando_effect.send_to_client(ArticleError("User not found")),
             )
@@ -540,34 +559,27 @@ pub fn server_update(
                 Ok(user_id) -> {
                   let now = datetime.now_unix()
                   case
-                    sqlight.query(
-                      "INSERT INTO comments (body, article_id, author_id, created_at)
-                       VALUES (?, ?, ?, ?) RETURNING id",
-                      on: server_context.db,
-                      with: [
-                        sqlight.text(body),
-                        sqlight.int(article_id),
-                        sqlight.int(user_id),
-                        sqlight.int(now),
-                      ],
-                      expecting: int_decoder(),
+                    comments_sql.create(
+                      db: server_context.db,
+                      body:,
+                      article_id:,
+                      author_id: user_id,
+                      created_at: now,
                     )
                   {
-                    Ok([comment_id]) -> {
+                    Ok([row]) -> {
                       let assert Ok([user_row]) =
-                        sqlight.query(
-                          "SELECT username, image FROM users WHERE id = ?",
-                          on: server_context.db,
-                          with: [sqlight.int(user_id)],
-                          expecting: user_info_decoder(),
+                        users_sql.get_info(
+                          db: server_context.db,
+                          user_id:,
                         )
                       let comment =
                         Comment(
-                          id: comment_id,
+                          id: row.id,
                           body:,
                           created_at: now,
-                          username: user_row.0,
-                          image: user_row.1,
+                          username: user_row.username,
+                          image: user_row.image,
                         )
                       #(model, lando_effect.broadcast_to_page(CommentAdded(comment)))
                     }
@@ -591,15 +603,26 @@ pub fn server_update(
       let session_id = lando_effect.get_ws_session()
       case get_user_id(server_context.db, session_id) {
         Ok(user_id) -> {
-          // Only delete if the user owns the comment
           let assert Ok(_) =
-            sqlight.query(
-              "DELETE FROM comments WHERE id = ? AND author_id = ?",
-              on: server_context.db,
-              with: [sqlight.int(id), sqlight.int(user_id)],
-              expecting: decode.success(Nil),
+            comments_sql.delete_own(
+              db: server_context.db,
+              id:,
+              author_id: user_id,
             )
-          #(model, lando_effect.broadcast_to_page(CommentRemoved(id:)))
+          let assert Ok([deleted_count]) =
+            sqlight.query(
+              "SELECT changes()",
+              on: server_context.db,
+              with: [],
+              expecting: {
+                use val <- decode.field(0, decode.int)
+                decode.success(val)
+              },
+            )
+          case deleted_count > 0 {
+            True -> #(model, lando_effect.broadcast_to_page(CommentRemoved(id:)))
+            False -> #(model, effect.none())
+          }
         }
         Error(_) -> #(
           model,
@@ -620,32 +643,9 @@ pub fn server_update(
               case user_id == author_id {
                 True -> {
                   let assert Ok(_) =
-                    sqlight.query(
-                      "DELETE FROM article_tags WHERE article_id = ?",
-                      on: server_context.db,
-                      with: [sqlight.int(article_id)],
-                      expecting: decode.success(Nil),
-                    )
-                  let assert Ok(_) =
-                    sqlight.query(
-                      "DELETE FROM comments WHERE article_id = ?",
-                      on: server_context.db,
-                      with: [sqlight.int(article_id)],
-                      expecting: decode.success(Nil),
-                    )
-                  let assert Ok(_) =
-                    sqlight.query(
-                      "DELETE FROM favorites WHERE article_id = ?",
-                      on: server_context.db,
-                      with: [sqlight.int(article_id)],
-                      expecting: decode.success(Nil),
-                    )
-                  let assert Ok(_) =
-                    sqlight.query(
-                      "DELETE FROM articles WHERE id = ?",
-                      on: server_context.db,
-                      with: [sqlight.int(article_id)],
-                      expecting: decode.success(Nil),
+                    articles_sql.delete(
+                      db: server_context.db,
+                      article_id:,
                     )
                   #(ServerModelEmpty, lando_effect.send_to_client(ArticleDeleted))
                 }
@@ -669,59 +669,10 @@ pub fn server_update(
 // --- Helpers ---
 
 fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
-  case
-    sqlight.query(
-      "SELECT u.id FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.session_id = ?",
-      on: db,
-      with: [sqlight.text(session_id)],
-      expecting: int_decoder(),
-    )
-  {
-    Ok([id]) -> Ok(id)
+  case auth_sql.find_user_by_session(db:, session_id: Some(session_id)) {
+    Ok([row]) -> Ok(row.id)
     _ -> Error(Nil)
   }
-}
-
-fn get_user_id_by_username(
-  db: sqlight.Connection,
-  username: String,
-) -> Result(Int, Nil) {
-  case
-    sqlight.query(
-      "SELECT id FROM users WHERE username = ?",
-      on: db,
-      with: [sqlight.text(username)],
-      expecting: int_decoder(),
-    )
-  {
-    Ok([id]) -> Ok(id)
-    _ -> Error(Nil)
-  }
-}
-
-fn fetch_article_tags(db: sqlight.Connection, article_id: Int) -> List(String) {
-  let assert Ok(rows) =
-    sqlight.query(
-      "SELECT t.name FROM tags t JOIN article_tags at ON t.id = at.tag_id WHERE at.article_id = ?",
-      on: db,
-      with: [sqlight.int(article_id)],
-      expecting: string_decoder(),
-    )
-  rows
-}
-
-fn fetch_comments(db: sqlight.Connection, article_id: Int) -> List(Comment) {
-  let assert Ok(rows) =
-    sqlight.query(
-      "SELECT c.id, c.body, c.created_at, u.username, u.image
-       FROM comments c JOIN users u ON c.author_id = u.id
-       WHERE c.article_id = ?
-       ORDER BY c.created_at ASC",
-      on: db,
-      with: [sqlight.int(article_id)],
-      expecting: comment_decoder(),
-    )
-  rows
 }
 
 fn get_favorite_info(
@@ -732,17 +683,9 @@ fn get_favorite_info(
   let count = get_favorites_count(db, article_id)
   let is_favorited = case maybe_user_id {
     Ok(user_id) -> {
-      let assert Ok(rows) =
-        sqlight.query(
-          "SELECT COUNT(*) FROM favorites WHERE user_id = ? AND article_id = ?",
-          on: db,
-          with: [sqlight.int(user_id), sqlight.int(article_id)],
-          expecting: int_decoder(),
-        )
-      case rows {
-        [c] if c > 0 -> True
-        _ -> False
-      }
+      let assert Ok([row]) =
+        favorites_sql.is_favorited(db:, user_id:, article_id:)
+      row.count > 0
     }
     Error(_) -> False
   }
@@ -750,14 +693,9 @@ fn get_favorite_info(
 }
 
 fn get_favorites_count(db: sqlight.Connection, article_id: Int) -> Int {
-  let assert Ok([count]) =
-    sqlight.query(
-      "SELECT COUNT(*) FROM favorites WHERE article_id = ?",
-      on: db,
-      with: [sqlight.int(article_id)],
-      expecting: int_decoder(),
-    )
-  count
+  let assert Ok([row]) =
+    favorites_sql.count_for_article(db:, article_id:)
+  row.count
 }
 
 fn get_follow_status(
@@ -767,85 +705,10 @@ fn get_follow_status(
 ) -> Bool {
   case maybe_user_id {
     Ok(user_id) -> {
-      let assert Ok(rows) =
-        sqlight.query(
-          "SELECT COUNT(*) FROM follows WHERE follower_id = ? AND followed_id = ?",
-          on: db,
-          with: [sqlight.int(user_id), sqlight.int(followed_id)],
-          expecting: int_decoder(),
-        )
-      case rows {
-        [c] if c > 0 -> True
-        _ -> False
-      }
+      let assert Ok([row]) =
+        follows_sql.is_following(db:, follower_id: user_id, followed_id:)
+      row.count > 0
     }
     Error(_) -> False
   }
-}
-
-// --- Decoders ---
-
-type ArticleRow {
-  ArticleRow(
-    id: Int,
-    slug: String,
-    title: String,
-    description: String,
-    body: String,
-    created_at: Int,
-    author_id: Int,
-    author_username: String,
-    author_image: String,
-    author_bio: String,
-  )
-}
-
-fn full_article_decoder() -> decode.Decoder(ArticleRow) {
-  use id <- decode.field(0, decode.int)
-  use article_slug <- decode.field(1, decode.string)
-  use title <- decode.field(2, decode.string)
-  use description <- decode.field(3, decode.string)
-  use body <- decode.field(4, decode.string)
-  use created_at <- decode.field(5, decode.int)
-  use author_id <- decode.field(6, decode.int)
-  use author_username <- decode.field(7, decode.string)
-  use author_image <- decode.field(8, decode.string)
-  use author_bio <- decode.field(9, decode.string)
-  decode.success(ArticleRow(
-    id:,
-    slug: article_slug,
-    title:,
-    description:,
-    body:,
-    created_at:,
-    author_id:,
-    author_username:,
-    author_image:,
-    author_bio:,
-  ))
-}
-
-fn comment_decoder() -> decode.Decoder(Comment) {
-  use id <- decode.field(0, decode.int)
-  use body <- decode.field(1, decode.string)
-  use created_at <- decode.field(2, decode.int)
-  use username <- decode.field(3, decode.string)
-  use image <- decode.field(4, decode.string)
-  decode.success(Comment(id:, body:, created_at:, username:, image:))
-}
-
-fn user_info_decoder() -> decode.Decoder(#(String, String)) {
-  use username <- decode.field(0, decode.string)
-  use image <- decode.field(1, decode.string)
-  decode.success(#(username, image))
-}
-
-fn int_decoder() -> decode.Decoder(Int) {
-  use val <- decode.field(0, decode.int)
-  decode.success(val)
-}
-
-fn string_decoder() -> decode.Decoder(String) {
-  use val <- decode.field(0, decode.string)
-  decode.success(val)
 }

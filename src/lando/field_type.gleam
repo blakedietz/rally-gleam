@@ -1,23 +1,16 @@
-//// The structured Gleam type representation libero uses for both
-//// shared-type discovery (walker) and handler signature scanning
-//// (scanner). Lifting it out of either module lets both produce and
-//// consume the same shape, and lets codegen pattern-match structurally
-//// instead of re-parsing strings.
+//// Structured Gleam type representation used by the walker and scanner.
 
 import gleam/bool
 import gleam/list
 import gleam/string
 
-/// Names of Gleam types that libero treats as builtin: not user-defined,
-/// not requiring atom registration, and not from the shared/ tree. Both
-/// the scanner and the walker consult this list, so they agree on what
-/// counts as a primitive across the codegen pipeline.
+/// Names of Gleam types treated as builtin (not user-defined).
 pub const builtin_type_names = [
   "Int", "Float", "String", "Bool", "Nil", "BitArray", "List", "Result",
   "Option", "Dict",
 ]
 
-/// True if `name` is one of the builtin Gleam type names libero recognises.
+/// True if `name` is one of the builtin Gleam type names.
 pub fn is_builtin(name: String) -> Bool {
   list.contains(builtin_type_names, name)
 }

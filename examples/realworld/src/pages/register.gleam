@@ -1,7 +1,8 @@
 import client_context.{type ClientContext, SignedIn, User}
 import datetime
-import gleam/dynamic/decode
+import generated/sql/auth_sql
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
 import lando_runtime/effect as lando_effect
 import lustre/attribute as attr
@@ -11,7 +12,6 @@ import lustre/element/html
 import lustre/event
 import password
 import server_context.{type ServerContext}
-import sqlight
 
 pub type Model {
   Model(username: String, email: String, password: String, errors: List(String))
@@ -148,38 +148,30 @@ pub fn server_update(
           let now = datetime.now_unix()
           let hash = password.hash(password_text)
           case
-            sqlight.query(
-              "INSERT INTO users (username, email, password_hash, bio, image, created_at, updated_at)
-               VALUES (?, ?, ?, '', '', ?, ?)
-               RETURNING id, username, image",
-              on: server_context.db,
-              with: [
-                sqlight.text(username),
-                sqlight.text(email),
-                sqlight.text(hash),
-                sqlight.int(now),
-                sqlight.int(now),
-              ],
-              expecting: register_decoder(),
+            auth_sql.register_user(
+              db: server_context.db,
+              username:,
+              email:,
+              password_hash: hash,
+              bio: "",
+              image: "",
+              created_at: now,
+              updated_at: now,
             )
           {
-            Ok([#(id, uname, image)]) -> {
+            Ok([user]) -> {
               let assert Ok(_) =
-                sqlight.query(
-                  "INSERT OR REPLACE INTO sessions (session_id, user_id, created_at) VALUES (?, ?, ?)",
-                  on: server_context.db,
-                  with: [
-                    sqlight.text(session_id),
-                    sqlight.int(id),
-                    sqlight.int(now),
-                  ],
-                  expecting: decode.success(Nil),
+                auth_sql.create_session(
+                  db: server_context.db,
+                  session_id: Some(session_id),
+                  user_id: user.id,
+                  created_at: now,
                 )
               #(
                 ServerModel,
                 lando_effect.send_to_client(Registered(
-                  username: uname,
-                  image: image,
+                  username: user.username,
+                  image: user.image,
                 )),
               )
             }
@@ -216,11 +208,4 @@ fn validate_register(
     False -> errors
   }
   errors
-}
-
-fn register_decoder() -> decode.Decoder(#(Int, String, String)) {
-  use id <- decode.field(0, decode.int)
-  use username <- decode.field(1, decode.string)
-  use image <- decode.field(2, decode.string)
-  decode.success(#(id, username, image))
 }

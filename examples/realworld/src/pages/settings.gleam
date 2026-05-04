@@ -1,7 +1,8 @@
 import client_context.{type ClientContext, SignedIn, SignedOut, User}
 import datetime
-import gleam/dynamic/decode
+import generated/sql/auth_sql
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
 import lando_runtime/effect as lando_effect
 import lustre/attribute as attr
@@ -11,7 +12,6 @@ import lustre/element/html
 import lustre/event
 import password
 import server_context.{type ServerContext}
-import sqlight
 
 pub type Model {
   Model(
@@ -209,29 +209,32 @@ pub fn server_init(
   server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
   let session_id = lando_effect.get_ws_session()
-  case get_user_id(server_context.db, session_id) {
-    Ok(user_id) -> {
+  case
+    auth_sql.find_user_by_session(
+      db: server_context.db,
+      session_id: Some(session_id),
+    )
+  {
+    Ok([user]) -> {
       case
-        sqlight.query(
-          "SELECT image, username, bio, email FROM users WHERE id = ?",
-          on: server_context.db,
-          with: [sqlight.int(user_id)],
-          expecting: settings_decoder(),
+        auth_sql.get_user_settings(
+          db: server_context.db,
+          user_id: user.id,
         )
       {
-        Ok([#(image, username, bio, email)]) -> #(
+        Ok([settings]) -> #(
           ServerModel,
           lando_effect.send_to_client(SettingsLoaded(
-            image:,
-            username:,
-            bio:,
-            email:,
+            image: settings.image,
+            username: settings.username,
+            bio: settings.bio,
+            email: settings.email,
           )),
         )
         _ -> #(ServerModel, effect.none())
       }
     }
-    Error(_) -> #(ServerModel, effect.none())
+    _ -> #(ServerModel, effect.none())
   }
 }
 
@@ -243,8 +246,13 @@ pub fn server_update(
   case msg {
     UpdateSettings(image, username, bio, email, password_text) -> {
       let session_id = lando_effect.get_ws_session()
-      case get_user_id(server_context.db, session_id) {
-        Ok(user_id) -> {
+      case
+        auth_sql.find_user_by_session(
+          db: server_context.db,
+          session_id: Some(session_id),
+        )
+      {
+        Ok([user]) -> {
           let errors = validate_settings(username, email)
           case errors {
             [] -> {
@@ -253,18 +261,14 @@ pub fn server_update(
               case string.is_empty(string.trim(password_text)) {
                 True -> {
                   let assert Ok(_) =
-                    sqlight.query(
-                      "UPDATE users SET image = ?, username = ?, bio = ?, email = ?, updated_at = ? WHERE id = ?",
-                      on: server_context.db,
-                      with: [
-                        sqlight.text(image),
-                        sqlight.text(username),
-                        sqlight.text(bio),
-                        sqlight.text(email),
-                        sqlight.int(now),
-                        sqlight.int(user_id),
-                      ],
-                      expecting: decode.success(Nil),
+                    auth_sql.update_user(
+                      db: server_context.db,
+                      image:,
+                      username:,
+                      bio:,
+                      email:,
+                      now:,
+                      user_id: user.id,
                     )
                   #(
                     ServerModel,
@@ -282,19 +286,15 @@ pub fn server_update(
                     False -> {
                       let hash = password.hash(password_text)
                       let assert Ok(_) =
-                        sqlight.query(
-                          "UPDATE users SET image = ?, username = ?, bio = ?, email = ?, password_hash = ?, updated_at = ? WHERE id = ?",
-                          on: server_context.db,
-                          with: [
-                            sqlight.text(image),
-                            sqlight.text(username),
-                            sqlight.text(bio),
-                            sqlight.text(email),
-                            sqlight.text(hash),
-                            sqlight.int(now),
-                            sqlight.int(user_id),
-                          ],
-                          expecting: decode.success(Nil),
+                        auth_sql.update_user_with_password(
+                          db: server_context.db,
+                          image:,
+                          username:,
+                          bio:,
+                          email:,
+                          password_hash: hash,
+                          now:,
+                          user_id: user.id,
                         )
                       #(
                         ServerModel,
@@ -311,7 +311,7 @@ pub fn server_update(
             )
           }
         }
-        Error(_) -> #(
+        _ -> #(
           ServerModel,
           lando_effect.send_to_client(SettingsError(["You must be logged in"])),
         )
@@ -320,11 +320,9 @@ pub fn server_update(
     Logout -> {
       let session_id = lando_effect.get_ws_session()
       let assert Ok(_) =
-        sqlight.query(
-          "DELETE FROM sessions WHERE session_id = ?",
-          on: server_context.db,
-          with: [sqlight.text(session_id)],
-          expecting: decode.success(Nil),
+        auth_sql.delete_session(
+          db: server_context.db,
+          session_id: Some(session_id),
         )
       #(ServerModel, lando_effect.send_to_client(LoggedOut))
     }
@@ -342,31 +340,4 @@ fn validate_settings(username: String, email: String) -> List(String) {
     False -> errors
   }
   errors
-}
-
-fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
-  case
-    sqlight.query(
-      "SELECT u.id FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.session_id = ?",
-      on: db,
-      with: [sqlight.text(session_id)],
-      expecting: int_decoder(),
-    )
-  {
-    Ok([id]) -> Ok(id)
-    _ -> Error(Nil)
-  }
-}
-
-fn settings_decoder() -> decode.Decoder(#(String, String, String, String)) {
-  use image <- decode.field(0, decode.string)
-  use username <- decode.field(1, decode.string)
-  use bio <- decode.field(2, decode.string)
-  use email <- decode.field(3, decode.string)
-  decode.success(#(image, username, bio, email))
-}
-
-fn int_decoder() -> decode.Decoder(Int) {
-  use val <- decode.field(0, decode.int)
-  decode.success(val)
 }

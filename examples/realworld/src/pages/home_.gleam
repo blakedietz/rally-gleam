@@ -1,8 +1,11 @@
 import client_context.{type ClientContext}
-import gleam/dynamic/decode
+import generated/sql/articles_sql
+import generated/sql/auth_sql
+import generated/sql/tags_sql
 import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/result
 import lando_runtime/effect as lando_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
@@ -267,9 +270,17 @@ fn pagination(current_page: Int, total: Int) -> Element(Msg) {
 pub fn server_init(
   server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
-  let articles = fetch_global_articles(server_context.db, 10, 0)
-  let tags = fetch_popular_tags(server_context.db)
-  let total = count_global_articles(server_context.db)
+  let assert Ok(rows) =
+    articles_sql.list_global(db: server_context.db, limit: 10, offset: 0)
+  let articles = list.map(rows, fn(r) { to_preview(r.slug, r.title, r.description, r.created_at, r.username, r.image, r.fav_count) })
+
+  let assert Ok(tag_rows) = tags_sql.list_popular(db: server_context.db)
+  let tags = list.map(tag_rows, fn(r) { r.name })
+
+  let assert Ok([count_row]) =
+    articles_sql.count_global(db: server_context.db)
+  let total = count_row.count
+
   #(ServerModel, lando_effect.send_to_client(HomeData(articles:, tags:, total:)))
 }
 
@@ -309,21 +320,35 @@ fn fetch_tab_articles(
     "feed" -> {
       let session_id = lando_effect.get_ws_session()
       case get_user_id(db, session_id) {
-        Ok(user_id) -> #(
-          fetch_feed_articles(db, user_id, 10, offset),
-          count_feed_articles(db, user_id),
-        )
+        Ok(user_id) -> {
+          let assert Ok(rows) =
+            articles_sql.list_feed(
+              db:,
+              user_id:,
+              limit: 10,
+              offset:,
+            )
+          let assert Ok([count_row]) =
+            articles_sql.count_feed(db:, user_id:)
+          #(list.map(rows, fn(r) { to_preview(r.slug, r.title, r.description, r.created_at, r.username, r.image, r.fav_count) }), count_row.count)
+        }
         Error(_) -> #([], 0)
       }
     }
-    "tag" -> #(
-      fetch_tag_articles(db, tag, 10, offset),
-      count_tag_articles(db, tag),
-    )
-    _ -> #(
-      fetch_global_articles(db, 10, offset),
-      count_global_articles(db),
-    )
+    "tag" -> {
+      let assert Ok(rows) =
+        articles_sql.list_by_tag(db:, tag:, limit: 10, offset:)
+      let assert Ok([count_row]) =
+        articles_sql.count_by_tag(db:, tag:)
+      #(list.map(rows, fn(r) { to_preview(r.slug, r.title, r.description, r.created_at, r.username, r.image, r.fav_count) }), count_row.count)
+    }
+    _ -> {
+      let assert Ok(rows) =
+        articles_sql.list_global(db:, limit: 10, offset:)
+      let assert Ok([count_row]) =
+        articles_sql.count_global(db:)
+      #(list.map(rows, fn(r) { to_preview(r.slug, r.title, r.description, r.created_at, r.username, r.image, r.fav_count) }), count_row.count)
+    }
   }
 }
 
@@ -332,156 +357,32 @@ fn get_user_id(
   session_id: String,
 ) -> Result(Int, Nil) {
   case
-    sqlight.query(
-      "SELECT u.id FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.session_id = ?",
-      on: db,
-      with: [sqlight.text(session_id)],
-      expecting: int_decoder(),
-    )
+    auth_sql.find_user_by_session(db:, session_id: Some(session_id))
   {
-    Ok([id]) -> Ok(id)
+    Ok([user]) -> Ok(user.id)
     _ -> Error(Nil)
   }
 }
 
-fn fetch_global_articles(
-  db: sqlight.Connection,
-  limit: Int,
-  offset: Int,
-) -> List(ArticlePreview) {
-  let assert Ok(rows) =
-    sqlight.query(
-      "SELECT a.slug, a.title, a.description, a.created_at,
-              u.username, u.image,
-              (SELECT COUNT(*) FROM favorites WHERE article_id = a.id) as fav_count
-       FROM articles a JOIN users u ON a.author_id = u.id
-       ORDER BY a.created_at DESC LIMIT ? OFFSET ?",
-      on: db,
-      with: [sqlight.int(limit), sqlight.int(offset)],
-      expecting: article_preview_decoder(),
-    )
-  rows
-}
-
-fn fetch_feed_articles(
-  db: sqlight.Connection,
-  user_id: Int,
-  limit: Int,
-  offset: Int,
-) -> List(ArticlePreview) {
-  let assert Ok(rows) =
-    sqlight.query(
-      "SELECT a.slug, a.title, a.description, a.created_at,
-              u.username, u.image,
-              (SELECT COUNT(*) FROM favorites WHERE article_id = a.id) as fav_count
-       FROM articles a JOIN users u ON a.author_id = u.id
-       WHERE a.author_id IN (SELECT followed_id FROM follows WHERE follower_id = ?)
-       ORDER BY a.created_at DESC LIMIT ? OFFSET ?",
-      on: db,
-      with: [sqlight.int(user_id), sqlight.int(limit), sqlight.int(offset)],
-      expecting: article_preview_decoder(),
-    )
-  rows
-}
-
-fn fetch_tag_articles(
-  db: sqlight.Connection,
-  tag: String,
-  limit: Int,
-  offset: Int,
-) -> List(ArticlePreview) {
-  let assert Ok(rows) =
-    sqlight.query(
-      "SELECT a.slug, a.title, a.description, a.created_at,
-              u.username, u.image,
-              (SELECT COUNT(*) FROM favorites WHERE article_id = a.id) as fav_count
-       FROM articles a JOIN users u ON a.author_id = u.id
-       JOIN article_tags at ON a.id = at.article_id
-       JOIN tags t ON at.tag_id = t.id
-       WHERE t.name = ?
-       ORDER BY a.created_at DESC LIMIT ? OFFSET ?",
-      on: db,
-      with: [sqlight.text(tag), sqlight.int(limit), sqlight.int(offset)],
-      expecting: article_preview_decoder(),
-    )
-  rows
-}
-
-fn count_global_articles(db: sqlight.Connection) -> Int {
-  let assert Ok([count]) =
-    sqlight.query(
-      "SELECT COUNT(*) as count FROM articles",
-      on: db,
-      with: [],
-      expecting: int_decoder(),
-    )
-  count
-}
-
-fn count_feed_articles(db: sqlight.Connection, user_id: Int) -> Int {
-  let assert Ok([count]) =
-    sqlight.query(
-      "SELECT COUNT(*) as count FROM articles a
-       WHERE a.author_id IN (SELECT followed_id FROM follows WHERE follower_id = ?)",
-      on: db,
-      with: [sqlight.int(user_id)],
-      expecting: int_decoder(),
-    )
-  count
-}
-
-fn count_tag_articles(db: sqlight.Connection, tag: String) -> Int {
-  let assert Ok([count]) =
-    sqlight.query(
-      "SELECT COUNT(*) as count FROM articles a
-       JOIN article_tags at ON a.id = at.article_id
-       JOIN tags t ON at.tag_id = t.id
-       WHERE t.name = ?",
-      on: db,
-      with: [sqlight.text(tag)],
-      expecting: int_decoder(),
-    )
-  count
-}
-
-fn fetch_popular_tags(db: sqlight.Connection) -> List(String) {
-  let assert Ok(rows) =
-    sqlight.query(
-      "SELECT t.name FROM tags t
-       JOIN article_tags at ON t.id = at.tag_id
-       GROUP BY t.id ORDER BY COUNT(*) DESC LIMIT 10",
-      on: db,
-      with: [],
-      expecting: string_decoder(),
-    )
-  rows
-}
-
-fn article_preview_decoder() -> decode.Decoder(ArticlePreview) {
-  use slug <- decode.field(0, decode.string)
-  use title <- decode.field(1, decode.string)
-  use description <- decode.field(2, decode.string)
-  use created_at <- decode.field(3, decode.int)
-  use author_username <- decode.field(4, decode.string)
-  use author_image <- decode.field(5, decode.string)
-  use favorites_count <- decode.field(6, decode.int)
-  decode.success(ArticlePreview(
+fn to_preview(
+  slug: String,
+  title: String,
+  description: String,
+  created_at: Int,
+  username: String,
+  image: String,
+  fav_count: option.Option(String),
+) -> ArticlePreview {
+  ArticlePreview(
     slug:,
     title:,
     description:,
     created_at:,
-    author_username:,
-    author_image:,
-    favorites_count:,
-  ))
-}
-
-fn int_decoder() -> decode.Decoder(Int) {
-  use val <- decode.field(0, decode.int)
-  decode.success(val)
-}
-
-fn string_decoder() -> decode.Decoder(String) {
-  use val <- decode.field(0, decode.string)
-  decode.success(val)
+    author_username: username,
+    author_image: image,
+    favorites_count: fav_count
+      |> option.unwrap("0")
+      |> int.parse
+      |> result.unwrap(0),
+  )
 }

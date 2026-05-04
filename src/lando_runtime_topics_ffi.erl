@@ -33,5 +33,5 @@ receive_frame(TimeoutMs) ->
     receive
         {lando_push, Frame} -> {ok, Frame}
     after TimeoutMs ->
-        {error, timeout}
+        {error, nil}
     end.

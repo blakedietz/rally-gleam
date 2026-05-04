@@ -2,10 +2,10 @@ import gleam/string
 import gleeunit/should
 import password
 
-pub fn hash_produces_prefixed_string_test() {
+pub fn hash_produces_argon2_string_test() {
   let hashed = password.hash("mysecret")
   hashed
-  |> string.starts_with("pbkdf2_sha256$")
+  |> string.starts_with("$argon2")
   |> should.be_true
 }
 

@@ -118,7 +118,7 @@ Running `gleam run -m lando` produces:
 | `lando.gleam` | CLI entry point, reads `[tools.lando]` from gleam.toml, runs pipeline |
 | `scanner.gleam` | Recursively walks pages directory, produces `List(ScannedRoute)` |
 | `parser.gleam` | Glance AST parser: extracts ToServer/ToClient types with full field info, detects function signatures |
-| `walker.gleam` | BFS type graph walker: discovers all reachable custom types from page message types (from libero) |
+| `walker.gleam` | BFS type graph walker: discovers all reachable custom types from page message types |
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
 | `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam (with per-page TEA loop: PageModel/PageMsg types, init_page/update_page/render_page dispatchers), rpc_ffi.mjs, decoders_prelude.mjs |
 | `generator/codec.gleam` | ETF codec generation: types.gleam (mirrored page types), codec.gleam (typed wrappers), codec_ffi.mjs (JS decoders), views.gleam (adapts real page init/update/view functions with prefixed types, generates per-page `send_to_server` transport wrappers) |
@@ -126,23 +126,23 @@ Running `gleam run -m lando` produces:
 | `generator/ssr_handler.gleam` | SSR handler |
 | `generator/ws_handler.gleam` | WebSocket frame loop: auto-joins pg topics (app, session, page), decodes call envelopes, dispatches to server_update, sends push frames, forwards broadcast frames via Mist selector |
 | `format.gleam` | `gleam format` runner for generated code |
-| `field_type.gleam` | Type representation (from libero) |
-| `gen_error.gleam` | Terminal error formatting (from libero) |
+| `field_type.gleam` | Type representation |
+| `gen_error.gleam` | Terminal error formatting |
 
 ### Runtime library (`src/lando_runtime/`)
 
 | Module | Role |
 |---|---|
 | `effect.gleam` | `send_to_server`, `send_to_client`, `broadcast_to_page`/`broadcast_to_app`/`broadcast_to_session` (ETF push via process dict + pg), `send_to_client_context` (page-to-context messaging), `navigate` (client-side URL push via modem) |
-| `session.gleam` | Session cookie generation and extraction (`generate_id`, `extract_session_id`, `set_cookie_header`) |
+| `session.gleam` | Session cookie generation (crypto-random 128-bit hex) and extraction, `set_cookie_header` (HttpOnly, SameSite=Lax, Secure) |
 | `topics.gleam` | Topic pub/sub using OTP `pg` process groups: join/leave/broadcast/receive for cross-process push delivery |
 | `wire.gleam` | ETF encode/decode, call envelope parsing, frame tagging, variant tagging, Dynamic coercion |
 | `codec.gleam` | Base64 ETF serialization for SSR flags |
 | `ssr.gleam` | HTML rendering via `element.to_document_string` |
 | `remote_data.gleam` | Typed async state (`NotAsked`/`Loading`/`Failure`/`Success`) |
 | `error.gleam` | RPC error types |
-| `trace.gleam` | Panic catching + trace IDs (from libero) |
-| `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect (1180 lines, from libero) |
+| `trace.gleam` | Panic catching + trace IDs |
+| `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect |
 | `lando_effect_ffi.mjs` | JS FFI for client-side effects: `navigate` (pushState + popstate dispatch) |
 | `lando_runtime_ffi.erl` | Erlang FFI: encode/decode, process dict state for WS handler, push frame accumulator |
 | `lando_runtime_wire_ffi.erl` | Erlang FFI: `decode_call` envelope parser, `variant_tag` extraction |
@@ -167,7 +167,7 @@ On WebSocket connect, the framework auto-subscribes to three implicit topics: `a
 - **Call envelope:** `{module_name, request_id, msg}` for client→server messages
 - **Response frame:** `<<0x00, request_id:32, response_etf>>` — sent after each dispatch so the client's request/response matching doesn't timeout
 - **Push frame:** `<<0x01, {module_name, msg}_etf>>` — server→client push messages (from `send_to_client`/`broadcast`)
-- **Transport:** WebSocket with auto-reconnect (via `rpc_ffi.mjs`, from libero)
+- **Transport:** WebSocket with auto-reconnect (via `rpc_ffi.mjs`)
 - **SSR:** First request renders HTML with serialized model embedded as flags
 - **Hydration:** Client reads flags, boots Lustre, takes over as SPA
 - **Server effects:** `send_to_client` encodes and queues push frames in the process dictionary. The WS handler drains and sends them after each dispatch via `mist.send_binary_frame`. `broadcast` sends push frames to all connections in a topic via pg groups; the WS handler's Mist selector catches these messages and forwards them as `Custom` frames.
@@ -204,14 +204,13 @@ The lando package path is resolved from `[dependencies].lando.path` in the consu
 
 ## Examples
 
-- `examples/likes/` — real-time broadcast with ClientContext and ServerContext, SQLite persistence, demonstrates `broadcast_to_page`, `send_to_client`, and `send_to_client_context`
-- `examples/realworld/` — RealWorld (Conduit) clone: full CRUD app with auth, articles, comments, tags, favorites, follows. Uses `gleam_time` for unix-second integer timestamps. Tests cover password hashing, slug generation, timestamps, and full schema validation with birdie snapshots
+- `examples/realworld/` — RealWorld (Conduit) clone: full CRUD app with auth, articles, comments, tags, favorites, follows. Uses marmot for all SQL queries, `gleam_time` for unix-second integer timestamps, `gleam_crypto` for session tokens and password verification. Tests cover password hashing, slug generation, timestamps, and full schema validation with birdie snapshots
 
 ## Prior art
 
 - elm-land: file-based routing conventions
 - Lamdera: explicit `ToServer`/`ToClient` message types as client-server contract
-- libero: ETF wire protocol, codegen architecture, SSR patterns
+- libero: ETF wire protocol, codegen architecture
 - marmot: SQL-first codegen with live SQLite introspection
 
 ## Testing

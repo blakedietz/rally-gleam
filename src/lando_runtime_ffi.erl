@@ -1,4 +1,4 @@
-%% Libero RPC panic-catching FFI.
+%% Lando runtime FFI.
 %%
 %% try_call(F) runs the zero-arg function F and returns {ok, Result}
 %% on success, or {error, ReasonBinary} if the function panics or
@@ -28,7 +28,7 @@ decode_safe(Bin) ->
             {error, {decode_error, Msg}}
     end.
 
-%% Install signal handlers so libero exits cleanly when its parent
+%% Install signal handlers so lando exits cleanly when its parent
 %% build script is killed (Ctrl-C, SIGTERM from sandbox, etc.).
 %% Without this, a stuck or in-progress libero process can survive
 %% its parent and spin at 99% CPU.

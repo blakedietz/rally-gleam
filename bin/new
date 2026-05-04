@@ -12,6 +12,15 @@ LANDO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "Creating new lando project: $PROJECT_NAME at $PROJECT_PATH"
 
+# .gitignore
+cat > "$PROJECT_PATH/.gitignore" <<'GITIGNORE'
+build/
+app.db
+erl_crash.dump
+*.bak
+.DS_Store
+GITIGNORE
+
 mkdir -p "$PROJECT_PATH/src/pages"
 mkdir -p "$PROJECT_PATH/src/sql"
 mkdir -p "$PROJECT_PATH/src/generated"
@@ -36,6 +45,13 @@ sqlight = ">= 1.0.0 and < 2.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
+birdie = ">= 2.0.0 and < 3.0.0"
+glinter = ">= 2.16.0 and < 3.0.0"
+
+[tools.glinter]
+stats = true
+warnings_as_errors = true
+exclude = ["src/generated/"]
 
 [tools.lando]
 pages_root = "src/pages"

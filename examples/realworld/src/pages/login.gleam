@@ -1,7 +1,8 @@
 import client_context.{type ClientContext, SignedIn, User}
 import datetime
-import gleam/dynamic/decode
+import generated/sql/auth_sql
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
 import lando_runtime/effect as lando_effect
 import lustre/attribute as attr
@@ -11,7 +12,6 @@ import lustre/element/html
 import lustre/event
 import password
 import server_context.{type ServerContext}
-import sqlight
 
 pub type Model {
   Model(email: String, password: String, errors: List(String))
@@ -140,34 +140,25 @@ pub fn server_update(
       case errors {
         [] -> {
           case
-            sqlight.query(
-              "SELECT id, username, password_hash, image FROM users WHERE email = ?",
-              on: server_context.db,
-              with: [sqlight.text(email)],
-              expecting: login_decoder(),
-            )
+            auth_sql.find_user_by_email(db: server_context.db, email:)
           {
-            Ok([#(id, username, password_hash, image)]) -> {
-              case password.verify(password_text, password_hash) {
+            Ok([user]) -> {
+              case password.verify(password_text, user.password_hash) {
                 True -> {
                   let session_id = lando_effect.get_ws_session()
                   let now = datetime.now_unix()
                   let assert Ok(_) =
-                    sqlight.query(
-                      "INSERT OR REPLACE INTO sessions (session_id, user_id, created_at) VALUES (?, ?, ?)",
-                      on: server_context.db,
-                      with: [
-                        sqlight.text(session_id),
-                        sqlight.int(id),
-                        sqlight.int(now),
-                      ],
-                      expecting: decode.success(Nil),
+                    auth_sql.create_session(
+                      db: server_context.db,
+                      session_id: Some(session_id),
+                      user_id: user.id,
+                      created_at: now,
                     )
                   #(
                     ServerModel,
                     lando_effect.send_to_client(Authenticated(
-                      username:,
-                      image:,
+                      username: user.username,
+                      image: user.image,
                     )),
                   )
                 }
@@ -206,10 +197,3 @@ fn validate_login(email: String, password_text: String) -> List(String) {
   errors
 }
 
-fn login_decoder() -> decode.Decoder(#(Int, String, String, String)) {
-  use id <- decode.field(0, decode.int)
-  use username <- decode.field(1, decode.string)
-  use password_hash <- decode.field(2, decode.string)
-  use image <- decode.field(3, decode.string)
-  decode.success(#(id, username, password_hash, image))
-}

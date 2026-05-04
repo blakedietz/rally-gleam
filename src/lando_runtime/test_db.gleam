@@ -1,4 +1,3 @@
-import gleam/result
 import lando_runtime/migrate
 import sqlight
 

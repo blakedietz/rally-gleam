@@ -26,5 +26,7 @@ pub fn extract_session_empty_test() {
 
 pub fn set_cookie_header_test() {
   session.set_cookie_header("abc123")
-  |> should.equal("lando_session=abc123; Path=/; HttpOnly; SameSite=Lax")
+  |> should.equal(
+    "lando_session=abc123; Path=/; HttpOnly; SameSite=Lax; Secure",
+  )
 }
