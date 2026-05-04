@@ -60,6 +60,10 @@ fn current_url() -> String
 @external(javascript, \"./router_ffi.mjs\", \"navigate\")
 pub fn navigate(path: String) -> Nil
 
+/// Register a callback for browser back/forward navigation.
+@external(javascript, \"./router_ffi.mjs\", \"onPopstate\")
+pub fn on_popstate(callback: fn() -> Nil) -> Nil
+
 /// Parse the current browser URL into a Route.
 pub fn parse_route_from_url() -> Route {
   let url = current_url()
@@ -264,6 +268,7 @@ fn init_transport() -> Effect(Msg) {
     let _ = transport.init(\"/ws\")
     let _ = transport.register_on_connect(fn() { dispatch(TransportConnected) })
     let _ = transport.register_on_disconnect(fn(reason) { dispatch(TransportDisconnected(reason)) })
+    let _ = router.on_popstate(fn() { dispatch(UrlChanged(router.parse_route_from_url())) })
     Nil
   })
 }
@@ -388,6 +393,10 @@ export function currentUrl() {
 export function navigate(path) {
   globalThis.history?.pushState(null, \"\", path);
   globalThis.dispatchEvent(new Event(\"popstate\"));
+}
+
+export function onPopstate(callback) {
+  globalThis.addEventListener(\"popstate\", () => callback());
 }
 "
 }

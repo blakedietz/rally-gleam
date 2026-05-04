@@ -111,7 +111,7 @@ pub fn put_ws_session(session_id: String) -> Nil {
 }
 
 @external(erlang, "lando_runtime_ffi", "get_ws_session")
-fn get_ws_session() -> String {
+pub fn get_ws_session() -> String {
   panic as "get_ws_session: server-side only"
 }
 
