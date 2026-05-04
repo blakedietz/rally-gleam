@@ -11,7 +11,8 @@ import gleam/result
 import gleam/string
 import lando/field_type.{type FieldType}
 import lando/types.{
-  type PageContract, type VariantInfo, PageContract, VariantField, VariantInfo,
+  type ClientContextContract, type PageContract, type VariantInfo,
+  ClientContextContract, PageContract, VariantField, VariantInfo,
 }
 
 /// Parse a page module source to extract the contract.
@@ -78,6 +79,48 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
     has_model:,
     param_names:,
     view_source:,
+  ))
+}
+
+/// Parse a client_context.gleam source to extract the contract.
+pub fn parse_client_context(
+  source: String,
+) -> Result(ClientContextContract, String) {
+  use ast <- result.try(
+    glance.module(source)
+    |> result.map_error(fn(e) { "Parse error: " <> string.inspect(e) }),
+  )
+
+  let type_imports = build_type_import_map(ast.imports)
+  let alias_map = build_alias_resolution_map(ast.imports)
+  let type_alias_originals = build_type_alias_originals(ast.imports)
+
+  let context_variants =
+    extract_variants(
+      ast: ast,
+      type_name: "ClientContext",
+      type_imports: type_imports,
+      alias_map: alias_map,
+      type_alias_originals: type_alias_originals,
+    )
+  let msg_variants =
+    extract_variants(
+      ast: ast,
+      type_name: "ClientContextMsg",
+      type_imports: type_imports,
+      alias_map: alias_map,
+      type_alias_originals: type_alias_originals,
+    )
+
+  let functions_list = ast.functions
+  let has_init = has_function(functions_list, "init")
+  let has_update = has_function(functions_list, "update")
+
+  Ok(ClientContextContract(
+    context_variants:,
+    msg_variants:,
+    has_init:,
+    has_update:,
   ))
 }
 

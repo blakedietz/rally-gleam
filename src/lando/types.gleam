@@ -45,6 +45,15 @@ pub type VariantInfo {
   VariantInfo(name: String, fields: List(VariantField))
 }
 
+pub type ClientContextContract {
+  ClientContextContract(
+    context_variants: List(VariantInfo),
+    msg_variants: List(VariantInfo),
+    has_init: Bool,
+    has_update: Bool,
+  )
+}
+
 pub type PageContract {
   PageContract(
     to_server_variants: List(VariantInfo),
