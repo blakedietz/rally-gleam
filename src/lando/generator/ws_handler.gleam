@@ -13,11 +13,11 @@ pub fn generate(
 fn generate_init() -> String {
   "pub fn on_init(
   conn: WebsocketConnection,
-  ctx: ServerContext,
+  server_context: ServerContext,
   session_id: String,
 ) {
   topics.start()
-  let _ = effect.put_ws_state(conn, ctx, \"\")
+  let _ = effect.put_ws_state(conn, server_context, \"\")
   let _ = effect.put_ws_session(session_id)
   topics.join(\"app\")
   topics.join(\"session:\" <> session_id)

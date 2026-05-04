@@ -17,11 +17,11 @@ import server_context.{type ServerContext}
 
 pub fn handle_request(
   route: router.Route,
-  ctx: ServerContext,
+  server_context: ServerContext,
 ) -> response.Response(ResponseData) {
   case route {
     router.Home -> {
-      let model = pages/home_.load(ctx)
+      let model = pages/home_.load(server_context)
           let html = element.to_document_string(pages/home_.view(model))
       let flags = codec.encode_flags(model)
       let full_html = html <> "<script>window.__LANDO_FLAGS__='" <> flags <> "'</script>"
@@ -29,7 +29,7 @@ pub fn handle_request(
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
     }
     router.About -> {
-      let model = pages/about.load(ctx)
+      let model = pages/about.load(server_context)
           let html = element.to_document_string(pages/about.view(model))
       let flags = codec.encode_flags(model)
       let full_html = html <> "<script>window.__LANDO_FLAGS__='" <> flags <> "'</script>"
@@ -37,7 +37,7 @@ pub fn handle_request(
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
     }
     router.ProductsNew -> {
-      let model = pages/products/new.load(ctx)
+      let model = pages/products/new.load(server_context)
           let html = element.to_document_string(pages/products/new.view(model))
       let flags = codec.encode_flags(model)
       let full_html = html <> "<script>window.__LANDO_FLAGS__='" <> flags <> "'</script>"
@@ -45,7 +45,7 @@ pub fn handle_request(
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
     }
     router.ProductsId(id) -> {
-      let model = pages/products/id_.load(id, ctx)
+      let model = pages/products/id_.load(id, server_context)
           let html = element.to_document_string(pages/products/id_.view(model))
       let flags = codec.encode_flags(model)
       let full_html = html <> "<script>window.__LANDO_FLAGS__='" <> flags <> "'</script>"

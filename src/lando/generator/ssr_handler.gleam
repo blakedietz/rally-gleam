@@ -17,7 +17,7 @@ pub fn generate(
   <> "
 pub fn handle_request(
   route: router.Route,
-  ctx: ServerContext,
+  server_context: ServerContext,
 ) -> response.Response(ResponseData) {
   case route {\n"
   <> load_arms
@@ -82,8 +82,8 @@ fn generate_load_arms(
           |> string.join(", ")
         let has_params = route.params != []
         let ctx_arg = case has_params {
-          True -> ", ctx"
-          False -> "ctx"
+          True -> ", server_context"
+          False -> "server_context"
         }
         let view_expr = case route.layout_module {
           None ->

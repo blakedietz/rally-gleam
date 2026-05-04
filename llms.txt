@@ -26,14 +26,14 @@ Trailing underscore marks a dynamic segment. Names ending in `_id` become `Int` 
 ### What a page exports
 
 ```gleam
-// src/pages/counter.gleam
+// src/pages/home_.gleam
 
 // -- Types --
-pub type Model { Model(count: Int) }
-pub type Msg { UserClickedIncrement; GotServerMsg(ToClient) }
-pub type ToServer { Increment; Decrement }
-pub type ToClient { CounterNewValue(Int) }
-pub type ServerModel { ServerModel(count: Int) }
+pub type Model { Model }
+pub type Msg { SmashedLikeButton; GotServerMsg(ToClient) }
+pub type ToServer { SmashLike }
+pub type ToClient { NewSmashedLikes(count: Int) }
+pub type ServerModel { ServerModel }
 
 // -- Client functions (with ClientContext) --
 pub fn init(ctx: ClientContext) -> #(Model, Effect(Msg))
@@ -192,7 +192,6 @@ The lando package path is resolved from `[dependencies].lando.path` in the consu
 
 ## Examples
 
-- `examples/counter/` — basic counter with server-side state, demonstrates ToServer/ToClient round-trip
 - `examples/likes/` — real-time broadcast with ClientContext and ServerContext, SQLite persistence, demonstrates `broadcast_to_page`, `send_to_client`, and `send_to_client_context`
 
 ## Prior art

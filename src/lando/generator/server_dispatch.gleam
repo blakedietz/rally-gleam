@@ -43,7 +43,7 @@ fn generate_handler(
             <> "      let page_msg = wire.coerce(msg)\n"
             <> "      let #(new_model, effects) = "
             <> alias
-            <> ".server_update(page_model, page_msg, ctx)\n"
+            <> ".server_update(page_model, page_msg, server_context)\n"
             <> "      #(wire.coerce(new_model), wire.coerce(effects))\n"
             <> "    }",
           )
@@ -60,7 +60,7 @@ pub fn handle_message(
   model: dynamic.Dynamic,
   page: String,
   msg: dynamic.Dynamic,
-  ctx: ServerContext,
+  server_context: ServerContext,
 ) -> #(dynamic.Dynamic, effect.Effect(dynamic.Dynamic)) {
   case page {\n"
   <> arms
@@ -84,7 +84,7 @@ fn generate_init_model(
             <> "\" -> {\n"
             <> "      let #(model, effects) = "
             <> alias
-            <> ".server_init(ctx)\n"
+            <> ".server_init(server_context)\n"
             <> "      #(wire.coerce(model), wire.coerce(effects))\n"
             <> "    }",
           )
@@ -97,7 +97,7 @@ fn generate_init_model(
 /// Returns #(Nil, none) for pages without a server_init function.
 pub fn init_server_model(
   page: String,
-  ctx: ServerContext,
+  server_context: ServerContext,
 ) -> #(dynamic.Dynamic, effect.Effect(dynamic.Dynamic)) {
   case page {\n"
   <> arms

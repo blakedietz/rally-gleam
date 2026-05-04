@@ -25,31 +25,31 @@ pub fn handle_message(
   model: dynamic.Dynamic,
   page: String,
   msg: dynamic.Dynamic,
-  ctx: ServerContext,
+  server_context: ServerContext,
 ) -> #(dynamic.Dynamic, effect.Effect(dynamic.Dynamic)) {
   case page {
     "Home" -> {
       let page_model = wire.coerce(model)
       let page_msg = wire.coerce(msg)
-      let #(new_model, effects) = pages_home_.server_update(page_model, page_msg, ctx)
+      let #(new_model, effects) = pages_home_.server_update(page_model, page_msg, server_context)
       #(wire.coerce(new_model), wire.coerce(effects))
     }
     "About" -> {
       let page_model = wire.coerce(model)
       let page_msg = wire.coerce(msg)
-      let #(new_model, effects) = pages_about.server_update(page_model, page_msg, ctx)
+      let #(new_model, effects) = pages_about.server_update(page_model, page_msg, server_context)
       #(wire.coerce(new_model), wire.coerce(effects))
     }
     "ProductsNew" -> {
       let page_model = wire.coerce(model)
       let page_msg = wire.coerce(msg)
-      let #(new_model, effects) = pages_products_new.server_update(page_model, page_msg, ctx)
+      let #(new_model, effects) = pages_products_new.server_update(page_model, page_msg, server_context)
       #(wire.coerce(new_model), wire.coerce(effects))
     }
     "ProductsId" -> {
       let page_model = wire.coerce(model)
       let page_msg = wire.coerce(msg)
-      let #(new_model, effects) = pages_products_id_.server_update(page_model, page_msg, ctx)
+      let #(new_model, effects) = pages_products_id_.server_update(page_model, page_msg, server_context)
       #(wire.coerce(new_model), wire.coerce(effects))
     }
     _ -> #(model, effect.none())
@@ -60,23 +60,23 @@ pub fn handle_message(
 /// Returns #(Nil, none) for pages without a server_init function.
 pub fn init_server_model(
   page: String,
-  ctx: ServerContext,
+  server_context: ServerContext,
 ) -> #(dynamic.Dynamic, effect.Effect(dynamic.Dynamic)) {
   case page {
     "Home" -> {
-      let #(model, effects) = pages_home_.server_init(ctx)
+      let #(model, effects) = pages_home_.server_init(server_context)
       #(wire.coerce(model), wire.coerce(effects))
     }
     "About" -> {
-      let #(model, effects) = pages_about.server_init(ctx)
+      let #(model, effects) = pages_about.server_init(server_context)
       #(wire.coerce(model), wire.coerce(effects))
     }
     "ProductsNew" -> {
-      let #(model, effects) = pages_products_new.server_init(ctx)
+      let #(model, effects) = pages_products_new.server_init(server_context)
       #(wire.coerce(model), wire.coerce(effects))
     }
     "ProductsId" -> {
-      let #(model, effects) = pages_products_id_.server_init(ctx)
+      let #(model, effects) = pages_products_id_.server_init(server_context)
       #(wire.coerce(model), wire.coerce(effects))
     }
     _ -> #(dynamic.nil(), effect.none())

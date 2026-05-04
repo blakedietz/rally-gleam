@@ -30,12 +30,12 @@ pub type ServerModel {
   ServerModel
 }
 
-pub fn init(_ctx: ClientContext) -> #(Model, Effect(Msg)) {
+pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
   #(Model, effect.none())
 }
 
 pub fn update(
-  _ctx: ClientContext,
+  _client_context: ClientContext,
   model: Model,
   msg: Msg,
 ) -> #(Model, Effect(Msg)) {
@@ -48,7 +48,7 @@ pub fn update(
   }
 }
 
-pub fn view(ctx: ClientContext, _model: Model) -> Element(Msg) {
+pub fn view(client_context: ClientContext, _model: Model) -> Element(Msg) {
   html.div(
     [
       attr.styles([#("text-align", "center")]),
@@ -85,26 +85,26 @@ pub fn view(ctx: ClientContext, _model: Model) -> Element(Msg) {
             #("cursor", "pointer"),
           ]),
         ],
-        [html.text("\u{1F44D} " <> int.to_string(ctx.smashed_likes))],
+        [html.text("\u{1F44D} " <> int.to_string(client_context.smashed_likes))],
       ),
     ],
   )
 }
 
-pub fn server_init(ctx: ServerContext) -> #(ServerModel, Effect(ToClient)) {
-  let assert Ok([row]) = home_sql.get_likes(db: ctx.db)
+pub fn server_init(server_context: ServerContext) -> #(ServerModel, Effect(ToClient)) {
+  let assert Ok([row]) = home_sql.get_likes(db: server_context.db)
   #(ServerModel, lando_effect.send_to_client(NewSmashedLikes(row.count)))
 }
 
 pub fn server_update(
   _model: ServerModel,
   msg: ToServer,
-  ctx: ServerContext,
+  server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
   case msg {
     SmashLike -> {
-      let assert Ok(_) = home_sql.increment_likes(db: ctx.db)
-      let assert Ok([row]) = home_sql.get_likes(db: ctx.db)
+      let assert Ok(_) = home_sql.increment_likes(db: server_context.db)
+      let assert Ok([row]) = home_sql.get_likes(db: server_context.db)
       #(ServerModel, lando_effect.broadcast_to_page(NewSmashedLikes(row.count)))
     }
   }

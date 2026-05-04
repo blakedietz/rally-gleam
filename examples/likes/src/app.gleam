@@ -18,7 +18,7 @@ const client_build_root = "client/build/dev/javascript"
 
 pub fn main() {
   let db = start_db()
-  let ctx = ServerContext(db:)
+  let server_context = ServerContext(db:)
 
   let handler = fn(req: Request(Connection)) -> Response(ResponseData) {
     let Request(path: path, method: method, ..) = req
@@ -35,7 +35,7 @@ pub fn main() {
         mist.websocket(
           req,
           ws_handler.handler,
-          fn(conn) { ws_handler.on_init(conn, ctx, session_id) },
+          fn(conn) { ws_handler.on_init(conn, server_context, session_id) },
           ws_handler.on_close,
         )
       }
@@ -46,7 +46,7 @@ pub fn main() {
             case method {
               Get -> {
                 let route = router.parse_route(request.to_uri(req))
-                let resp = ssr_handler.handle_request(route, ctx)
+                let resp = ssr_handler.handle_request(route, server_context)
                 case request.get_header(req, "cookie") {
                   Ok(cookie) ->
                     case session.extract_session_id(cookie) {

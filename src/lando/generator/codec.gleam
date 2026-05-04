@@ -121,10 +121,10 @@ fn emit_default_view(fn_suffix: String, prefix: String) -> String {
 
 fn adapt_view_source(fn_suffix: String, prefix: String, source: String) -> String {
   source
-  |> string.replace("fn view(ctx: ClientContext, model: Model)", "fn " <> fn_suffix <> "_view(ctx: ClientContext, model: " <> prefix <> "Model)")
-  |> string.replace("fn view(ctx: ClientContext, _model: Model)", "fn " <> fn_suffix <> "_view(ctx: ClientContext, _model: " <> prefix <> "Model)")
-  |> string.replace("fn view(_ctx: ClientContext, model: Model)", "fn " <> fn_suffix <> "_view(_ctx: ClientContext, model: " <> prefix <> "Model)")
-  |> string.replace("fn view(_ctx: ClientContext, _model: Model)", "fn " <> fn_suffix <> "_view(_ctx: ClientContext, _model: " <> prefix <> "Model)")
+  |> string.replace("fn view(client_context: ClientContext, model: Model)", "fn " <> fn_suffix <> "_view(client_context: ClientContext, model: " <> prefix <> "Model)")
+  |> string.replace("fn view(client_context: ClientContext, _model: Model)", "fn " <> fn_suffix <> "_view(client_context: ClientContext, _model: " <> prefix <> "Model)")
+  |> string.replace("fn view(_client_context: ClientContext, model: Model)", "fn " <> fn_suffix <> "_view(_client_context: ClientContext, model: " <> prefix <> "Model)")
+  |> string.replace("fn view(_client_context: ClientContext, _model: Model)", "fn " <> fn_suffix <> "_view(_client_context: ClientContext, _model: " <> prefix <> "Model)")
   |> string.replace("fn view(model: Model)", "fn " <> fn_suffix <> "_view(model: " <> prefix <> "Model)")
   |> string.replace("fn view(_model: Model)", "fn " <> fn_suffix <> "_view(_model: " <> prefix <> "Model)")
   |> string.replace("Element(Msg)", "Element(" <> prefix <> "Msg)")
@@ -149,7 +149,7 @@ fn emit_client_init(fn_suffix: String, prefix: String, contract: PageContract, h
   }
 
   let params = case has_client_context {
-    True -> "_ctx: ClientContext"
+    True -> "_client_context: ClientContext"
     False -> ""
   }
 

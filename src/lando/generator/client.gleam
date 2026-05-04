@@ -164,8 +164,8 @@ fn app_gleam(
 
   let ctx_init = case has_client_context {
     True ->
-      "  let #(ctx, ctx_effects) = client_context.init()
-  #(Model(route:, connection: Disconnected, loading: False, toasts: [], client_context: ctx),
+      "  let #(client_context, ctx_effects) = client_context.init()
+  #(Model(route:, connection: Disconnected, loading: False, toasts: [], client_context:),
     effect.batch([init_transport(), effect.map(ctx_effects, ClientContextUpdate)]))"
     False ->
       "  #(Model(route:, connection: Disconnected, loading: False, toasts: []),
@@ -188,7 +188,7 @@ fn app_gleam(
   }
 
   let render_page_sig = case has_client_context {
-    True -> "fn render_page(route: router.Route, ctx: client_context.ClientContext) -> Element(Msg) {"
+    True -> "fn render_page(route: router.Route, client_context: client_context.ClientContext) -> Element(Msg) {"
     False -> "fn render_page(route: router.Route) -> Element(Msg) {"
   }
 
@@ -402,8 +402,8 @@ fn generate_route_view_arms(
     case has_client_context {
       True ->
         "    router." <> route.variant_name <> " -> {"
-        <> " let #(model, _) = views." <> fn_suffix <> "_init(ctx)"
-        <> " element.map(views." <> fn_suffix <> "_view(ctx, model), fn(_) { Noop })"
+        <> " let #(model, _) = views." <> fn_suffix <> "_init(client_context)"
+        <> " element.map(views." <> fn_suffix <> "_view(client_context, model), fn(_) { Noop })"
         <> " }"
       False ->
         "    router." <> route.variant_name <> " -> {"
