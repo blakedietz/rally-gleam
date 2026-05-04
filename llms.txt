@@ -75,7 +75,8 @@ Page modules import from `lando_runtime/effect`:
 my_app/
 ├── src/
 │   ├── app.gleam           # server entry point (generated once, customizable)
-│   ├── app_config.gleam    # Context type, DB setup
+│   ├── server_context.gleam # ServerContext type (DB, secrets)
+│   ├── client_context.gleam # ClientContext type (cross-page client state)
 │   ├── pages/              # route = filesystem
 │   ├── sql/                # marmot .sql files
 │   └── generated/          # lando codegen output (never edit)
@@ -123,7 +124,8 @@ Running `gleam run -m lando` produces:
 
 | Module | Role |
 |---|---|
-| `effect.gleam` | `send_to_server` (no-op on server), `send_to_client`/`broadcast` (ETF push frames via process dict) |
+| `effect.gleam` | `send_to_server`, `send_to_client`, `broadcast_to_page`/`broadcast_to_app`/`broadcast_to_session` (ETF push via process dict + pg), `send_to_client_context` (page-to-context messaging) |
+| `session.gleam` | Session cookie generation and extraction (`generate_id`, `extract_session_id`, `set_cookie_header`) |
 | `topics.gleam` | Topic pub/sub using OTP `pg` process groups: join/leave/broadcast/receive for cross-process push delivery |
 | `wire.gleam` | ETF encode/decode, call envelope parsing, frame tagging, variant tagging, Dynamic coercion |
 | `codec.gleam` | Base64 ETF serialization for SSR flags |
@@ -135,6 +137,19 @@ Running `gleam run -m lando` produces:
 | `lando_runtime_ffi.erl` | Erlang FFI: encode/decode, process dict state for WS handler, push frame accumulator |
 | `lando_runtime_wire_ffi.erl` | Erlang FFI: `decode_call` envelope parser, `variant_tag` extraction |
 | `lando_runtime_topics_ffi.erl` | Erlang FFI: `pg`-based topic pub/sub (start, join, leave, members, broadcast, receive_frame) |
+
+### Broadcast and Topics
+
+Four-level server-to-client messaging using OTP `pg` process groups:
+
+| Effect | Scope | pg topic |
+|---|---|---|
+| `broadcast_to_app(msg)` | Every connection | `"app"` |
+| `broadcast_to_page(msg)` | Every connection on the current page | `"page:<page_name>"` |
+| `broadcast_to_session(msg)` | Every connection in the same browser session | `"session:<session_id>"` |
+| `send_to_client(msg)` | One specific connection | Direct (process dict queue) |
+
+On WebSocket connect, the framework auto-subscribes to three implicit topics: `app`, `page:<name>`, `session:<id>`. Session is cookie-based (not auth/user-based). Custom topics can be added via `topics.join`/`topics.leave`/`topics.broadcast`.
 
 ### Transport
 
@@ -190,6 +205,6 @@ The lando package path is resolved from `[dependencies].lando.path` in the consu
 ## Testing
 
 ```sh
-gleam test                    # 100 tests: scanner, generator, parser, wire, codec, topics, snapshots
+gleam test                    # 103 tests: scanner, generator, parser, wire, codec, topics, session, broadcast, snapshots
 gleam run -m birdie           # review snapshot changes
 ```
