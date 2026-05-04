@@ -163,6 +163,7 @@ import gleam/http.{Get}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
 import lando_runtime/db
+import lando_runtime/system
 import simplifile
 import sqlight
 import generated/router
@@ -171,6 +172,7 @@ import generated/ws_handler
 
 pub fn main() {
   let db = start_db()
+  system.start("system.db")
   let ctx = Context(db:)
 
   let handler = fn(req: Request(Connection)) -> Response(ResponseData) {

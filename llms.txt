@@ -134,6 +134,8 @@ Running `gleam run -m lando` produces:
 | Module | Role |
 |---|---|
 | `effect.gleam` | `send_to_server`, `send_to_client`, `broadcast_to_page`/`broadcast_to_app`/`broadcast_to_session` (ETF push via process dict + pg), `send_to_client_context` (page-to-context messaging), `navigate` (client-side URL push via modem) |
+| `db.gleam` | SQLite helpers: `open` (WAL/busy/FK), `query` (timed wrapper with debug logging), `one` (List to Option), `bool_to_int`, `nullable_text`, `transaction` (nestable via SAVEPOINTs) |
+| `system.gleam` | Framework-owned system DB (separate from app DB): message logging for all ToServer/ToClient/broadcast messages, global connection via `global_value`. Future: background job queue, scheduled tasks |
 | `session.gleam` | Session cookie generation (crypto-random 128-bit hex) and extraction, `set_cookie_header` (HttpOnly, SameSite=Lax, Secure) |
 | `topics.gleam` | Topic pub/sub using OTP `pg` process groups: join/leave/broadcast/receive for cross-process push delivery |
 | `wire.gleam` | ETF encode/decode, call envelope parsing, frame tagging, variant tagging, Dynamic coercion |
@@ -147,6 +149,7 @@ Running `gleam run -m lando` produces:
 | `lando_runtime_ffi.erl` | Erlang FFI: encode/decode, process dict state for WS handler, push frame accumulator |
 | `lando_runtime_wire_ffi.erl` | Erlang FFI: `decode_call` envelope parser, `variant_tag` extraction |
 | `lando_runtime_topics_ffi.erl` | Erlang FFI: `pg`-based topic pub/sub (start, join, leave, members, broadcast, receive_frame) |
+| `lando_runtime_db_ffi.erl` | Erlang FFI: per-request query timing accumulator (process dictionary) |
 
 ### Broadcast and Topics
 
@@ -178,10 +181,12 @@ On WebSocket connect, the framework auto-subscribes to three implicit topics: `a
 - `mist` — HTTP/WebSocket server (BEAM)
 - `marmot` — SQL-to-Gleam codegen (introspects SQLite)
 - `sqlight` — SQLite NIF
-- `gleam_time` — Timestamps (unix seconds)
+- `gleam_time` — Timestamps (unix seconds), query timing
 - `glance` — Gleam AST parser
 - `tom` — TOML config parser
 - `simplifile` — Filesystem operations
+- `logging` — Structured logging (debug query logs, system DB status)
+- `global_value` — Global persistent storage (system DB connection)
 - `modem` — client-side URL routing for Lustre (generated client dependency)
 
 ## Configuration

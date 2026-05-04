@@ -105,9 +105,9 @@ pub fn update(
         tags: model.tags,
       )),
     )
-    GotServerMsg(ArticlePublished(_slug)) -> #(
+    GotServerMsg(ArticlePublished(slug)) -> #(
       Model(..model, errors: []),
-      effect.none(),
+      lando_effect.navigate("/article/" <> slug),
     )
     GotServerMsg(EditorErrors(errors)) -> #(
       Model(..model, errors:),
@@ -228,7 +228,7 @@ pub fn server_update(
           {
             Ok([user]) -> {
               let now = datetime.now_unix()
-              let article_slug = slug.from_title(title)
+              let article_slug = slug.unique_from_title(server_context.db, title)
               case
                 articles_sql.create(
                   db: server_context.db,

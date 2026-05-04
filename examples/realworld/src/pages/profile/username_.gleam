@@ -261,6 +261,10 @@ pub fn server_update(
         ServerModel(profile_user_id) -> {
           let session_id = lando_effect.get_ws_session()
           case get_user_id(server_context.db, session_id) {
+            Ok(user_id) if user_id == profile_user_id -> #(
+              model,
+              effect.none(),
+            )
             Ok(user_id) -> {
               let assert Ok([existing]) =
                 follows_sql.is_following(

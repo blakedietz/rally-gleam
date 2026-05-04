@@ -101,7 +101,11 @@ put_ws_session(SessionId) ->
     put(lando_ws_session, SessionId),
     nil.
 
-get_ws_session() -> get(lando_ws_session).
+get_ws_session() ->
+    case get(lando_ws_session) of
+        undefined -> <<>>;
+        Val -> Val
+    end.
 
 %% Decode a {lando_push, Frame} message from broadcast delivery.
 decode_lando_push(Msg) ->

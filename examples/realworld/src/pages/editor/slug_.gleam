@@ -307,7 +307,7 @@ pub fn server_update(
           case errors {
             [] -> {
               let now = datetime.now_unix()
-              let new_slug = slug.from_title(title)
+              let new_slug = slug.unique_from_title_excluding(server_context.db, title, article_id)
               let assert Ok(_) =
                 articles_sql.update(
                   db: server_context.db,
