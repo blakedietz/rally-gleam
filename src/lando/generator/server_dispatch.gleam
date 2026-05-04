@@ -81,9 +81,12 @@ fn generate_init_model(
           Ok(
             "    \""
             <> route.variant_name
-            <> "\" -> wire.coerce("
+            <> "\" -> {\n"
+            <> "      let #(model, effects) = "
             <> alias
-            <> ".server_init(ctx))",
+            <> ".server_init(ctx)\n"
+            <> "      #(wire.coerce(model), wire.coerce(effects))\n"
+            <> "    }",
           )
         }
       }
@@ -91,14 +94,14 @@ fn generate_init_model(
     |> string.join("\n")
 
   "/// Get the initial server model for a page.
-/// Returns Nil for pages without a server_init function.
+/// Returns #(Nil, none) for pages without a server_init function.
 pub fn init_server_model(
   page: String,
   ctx: ServerContext,
-) -> dynamic.Dynamic {
+) -> #(dynamic.Dynamic, effect.Effect(dynamic.Dynamic)) {
   case page {\n"
   <> arms
-  <> "\n    _ -> dynamic.nil()\n  }\n}"
+  <> "\n    _ -> #(dynamic.nil(), effect.none())\n  }\n}"
 }
 
 fn module_to_alias(module_path: String) -> String {

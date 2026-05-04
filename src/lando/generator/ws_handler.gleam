@@ -45,7 +45,11 @@ pub fn handler(
         Ok(#(page, request_id, value)) -> {
           let model = case dict.get(state, page) {
             Ok(m) -> m
-            Error(_) -> server_dispatch.init_server_model(page, effect.get_stored_ctx())
+            Error(_) -> {
+              let _ = effect.put_ws_state(conn, effect.get_stored_ctx(), page)
+              let #(m, _effects) = server_dispatch.init_server_model(page, effect.get_stored_ctx())
+              m
+            }
           }
           let #(new_model, _effects) =
             server_dispatch.handle_message(model, page, value, effect.get_stored_ctx())

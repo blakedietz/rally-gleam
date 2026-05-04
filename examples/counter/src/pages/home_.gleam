@@ -53,6 +53,6 @@ pub fn server_update(
   }
 }
 
-pub fn server_init(_ctx: ServerContext) -> ServerModel {
-  ServerModel(count: 0)
+pub fn server_init(_ctx: ServerContext) -> #(ServerModel, Effect(ToClient)) {
+  #(ServerModel(count: 0), effect.none())
 }
