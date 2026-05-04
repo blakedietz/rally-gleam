@@ -245,6 +245,7 @@ pub fn server_update(
         auth_sql.find_user_by_session(
           db: server_context.db,
           session_id: Some(session_id),
+          now: datetime.now_unix(),
         )
       {
         Ok([user]) -> {

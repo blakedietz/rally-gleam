@@ -1,4 +1,5 @@
 import client_context.{type ClientContext}
+import datetime
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -318,8 +319,17 @@ pub fn server_update(
 // --- Helpers ---
 
 fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
-  case auth_sql.find_user_by_session(db:, session_id: Some(session_id)) {
-    Ok([row]) -> Ok(row.id)
+  let now = datetime.now_unix()
+  case auth_sql.find_user_by_session(db:, session_id: Some(session_id), now:) {
+    Ok([row]) -> {
+      let _ =
+        auth_sql.extend_session(
+          db:,
+          expires_at: now + datetime.session_ttl_seconds,
+          session_id: Some(session_id),
+        )
+      Ok(row.id)
+    }
     _ -> Error(Nil)
   }
 }

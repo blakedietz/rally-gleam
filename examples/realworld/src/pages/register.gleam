@@ -166,6 +166,7 @@ pub fn server_update(
                   session_id: Some(session_id),
                   user_id: user.id,
                   created_at: now,
+                  expires_at: now + datetime.session_ttl_seconds,
                 )
               #(
                 ServerModel,

@@ -1066,6 +1066,11 @@ function ensureSocket(url) {
   });
 
   ws.addEventListener("close", () => {
+    if (!ws) {
+      // error handler already ran cleanup, just reconnect
+      scheduleReconnect();
+      return;
+    }
     ws = null;
     clearAllPending("WebSocket connection closed");
     for (const listener of onDisconnectListeners) {

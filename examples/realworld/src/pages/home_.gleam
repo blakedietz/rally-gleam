@@ -1,4 +1,5 @@
 import client_context.{type ClientContext}
+import datetime
 import generated/sql/articles_sql
 import generated/sql/auth_sql
 import generated/sql/tags_sql
@@ -356,10 +357,17 @@ fn get_user_id(
   db: sqlight.Connection,
   session_id: String,
 ) -> Result(Int, Nil) {
-  case
-    auth_sql.find_user_by_session(db:, session_id: Some(session_id))
-  {
-    Ok([user]) -> Ok(user.id)
+  let now = datetime.now_unix()
+  case auth_sql.find_user_by_session(db:, session_id: Some(session_id), now:) {
+    Ok([user]) -> {
+      let _ =
+        auth_sql.extend_session(
+          db:,
+          expires_at: now + datetime.session_ttl_seconds,
+          session_id: Some(session_id),
+        )
+      Ok(user.id)
+    }
     _ -> Error(Nil)
   }
 }

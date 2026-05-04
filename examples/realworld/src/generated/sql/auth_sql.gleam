@@ -7,14 +7,16 @@ pub fn create_session(
   session_id session_id: Option(String),
   user_id user_id: Int,
   created_at created_at: Int,
+  expires_at expires_at: Int,
 ) -> Result(List(Nil), sqlight.Error) {
   sqlight.query(
-    "INSERT OR REPLACE INTO sessions (session_id, user_id, created_at) VALUES (:session_id, :user_id, :now)",
+    "INSERT OR REPLACE INTO sessions (session_id, user_id, created_at, expires_at) VALUES (:session_id, :user_id, :now, :expires_at)",
     on: db,
     with: [
       sqlight.nullable(sqlight.text, session_id),
       sqlight.int(user_id),
       sqlight.int(created_at),
+      sqlight.int(expires_at),
     ],
     expecting: decode.success(Nil),
   )
@@ -28,6 +30,19 @@ pub fn delete_session(
     "DELETE FROM sessions WHERE session_id = :session_id",
     on: db,
     with: [sqlight.nullable(sqlight.text, session_id)],
+    expecting: decode.success(Nil),
+  )
+}
+
+pub fn extend_session(
+  db db: sqlight.Connection,
+  expires_at expires_at: Int,
+  session_id session_id: Option(String),
+) -> Result(List(Nil), sqlight.Error) {
+  sqlight.query(
+    "UPDATE sessions SET expires_at = :expires_at WHERE session_id = :session_id",
+    on: db,
+    with: [sqlight.int(expires_at), sqlight.nullable(sqlight.text, session_id)],
     expecting: decode.success(Nil),
   )
 }
@@ -83,11 +98,12 @@ pub type FindUserBySessionRow {
 pub fn find_user_by_session(
   db db: sqlight.Connection,
   session_id session_id: Option(String),
+  now now: Int,
 ) -> Result(List(FindUserBySessionRow), sqlight.Error) {
   sqlight.query(
-    "SELECT u.id, u.username, u.email, u.bio, u.image FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.session_id = :session_id",
+    "SELECT u.id, u.username, u.email, u.bio, u.image FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.session_id = :session_id AND s.expires_at > :now",
     on: db,
-    with: [sqlight.nullable(sqlight.text, session_id)],
+    with: [sqlight.nullable(sqlight.text, session_id), sqlight.int(now)],
     expecting: {
       use id <- decode.field(0, decode.int)
       use username <- decode.field(1, decode.string)
