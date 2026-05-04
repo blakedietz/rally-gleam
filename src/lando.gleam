@@ -176,22 +176,31 @@ fn run() -> Result(String, String) {
   let discovered =
     walker.walk(seeds, page_file_paths, config.pages_root)
 
-  // 9. Generate codec files for the client package
-  let codec_files =
-    list.map(codec.generate(contracts, discovered), fn(f: codec.CodecFile) {
-      client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
-    })
-
-  // 10. Generate client package (includes rpc_ffi.mjs and decoders_prelude.mjs)
+  // 9. Detect client_context.gleam
   let client_context_path = dirname(config.pages_root) <> "/client_context.gleam"
   let has_client_context = case simplifile.read(client_context_path) {
     Ok(_) -> True
     Error(_) -> False
   }
+
+  // 10. Generate codec files for the client package
+  let codec_files =
+    list.map(codec.generate(contracts, discovered, has_client_context), fn(f: codec.CodecFile) {
+      client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
+    })
+
+  // 11. Generate client package (includes rpc_ffi.mjs and decoders_prelude.mjs)
   let client_files =
     client.generate_package(routes, contracts, config, rpc_ffi_content, decoders_prelude_content, has_client_context)
+  let client_context_files = case has_client_context {
+    True -> {
+      let assert Ok(cc_source) = simplifile.read(client_context_path)
+      [client.GeneratedFile(config.client_root <> "/src/client_context.gleam", cc_source)]
+    }
+    False -> []
+  }
   use _ <- result.try(write_generated_files(
-    list.append(codec_files, client_files),
+    list.flatten([codec_files, client_files, client_context_files]),
   ))
 
   // 11. Run marmot for SQL query generation

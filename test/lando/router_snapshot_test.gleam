@@ -122,7 +122,7 @@ pub fn app_gleam_snapshot_test() {
 
 pub fn types_gleam_snapshot_test() {
   let contracts = basic_contracts()
-  let files = codec.generate(contracts, [])
+  let files = codec.generate(contracts, [], False)
   let types = list.find(files, fn(f: codec.CodecFile) {
     string.ends_with(f.path, "types.gleam")
   })
@@ -132,7 +132,7 @@ pub fn types_gleam_snapshot_test() {
 
 pub fn codec_gleam_snapshot_test() {
   let contracts = basic_contracts()
-  let files = codec.generate(contracts, [])
+  let files = codec.generate(contracts, [], False)
   let codec_file = list.find(files, fn(f: codec.CodecFile) {
     string.ends_with(f.path, "codec.gleam")
   })
