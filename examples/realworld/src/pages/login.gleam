@@ -53,10 +53,11 @@ pub fn update(
       model,
       lando_effect.send_to_server(SubmitLogin(model.email, model.password)),
     )
-    GotServerMsg(Authenticated(username, image)) -> #(
-      Model(..model, errors: []),
-      lando_effect.send_to_client_context(SignedIn(User(username:, image:))),
-    )
+    GotServerMsg(Authenticated(username, image)) -> #(model,
+      effect.batch([
+        lando_effect.send_to_client_context(SignedIn(User(username:, image:))),
+        lando_effect.navigate("/"),
+      ]))
     GotServerMsg(AuthError(errors)) -> #(
       Model(..model, errors:),
       effect.none(),

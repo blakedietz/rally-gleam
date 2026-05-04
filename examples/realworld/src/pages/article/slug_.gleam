@@ -93,8 +93,7 @@ pub type ServerModel {
 
 // --- Client ---
 
-pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
-  // TODO: Client should send LoadArticle(slug) once URL parsing is wired in.
+pub fn init(_client_context: ClientContext, slug: String) -> #(Model, Effect(Msg)) {
   #(
     Model(
       article: None,
@@ -105,7 +104,7 @@ pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
       comment_body: "",
       errors: [],
     ),
-    effect.none(),
+    lando_effect.send_to_server(LoadArticle(slug)),
   )
 }
 
@@ -346,8 +345,6 @@ fn comment_card(comment: Comment) -> Element(Msg) {
 pub fn server_init(
   _server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
-  // TODO: Route params not available in server_init yet.
-  // The client must send LoadArticle(slug) to populate the page.
   #(ServerModelEmpty, effect.none())
 }
 

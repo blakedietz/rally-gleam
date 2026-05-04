@@ -71,8 +71,7 @@ pub type ServerModel {
 
 // --- Client ---
 
-pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
-  // TODO: Client should send LoadProfile(username) once URL parsing is wired in.
+pub fn init(_client_context: ClientContext, username: String) -> #(Model, Effect(Msg)) {
   #(
     Model(
       profile: None,
@@ -80,7 +79,7 @@ pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
       active_tab: MyArticles,
       is_following: False,
     ),
-    effect.none(),
+    lando_effect.send_to_server(LoadProfile(username)),
   )
 }
 
@@ -221,8 +220,6 @@ fn article_preview(article: ArticlePreview) -> Element(Msg) {
 pub fn server_init(
   _server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
-  // TODO: Route params not available in server_init yet.
-  // The client must send LoadProfile(username) to populate the page.
   #(ServerModelEmpty, effect.none())
 }
 

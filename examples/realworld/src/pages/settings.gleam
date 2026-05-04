@@ -107,10 +107,11 @@ pub fn update(
       Model(..model, errors:),
       effect.none(),
     )
-    GotServerMsg(LoggedOut) -> #(
-      model,
-      lando_effect.send_to_client_context(SignedOut),
-    )
+    GotServerMsg(LoggedOut) -> #(model,
+      effect.batch([
+        lando_effect.send_to_client_context(SignedOut),
+        lando_effect.navigate("/"),
+      ]))
   }
 }
 
