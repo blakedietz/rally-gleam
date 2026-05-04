@@ -52,6 +52,21 @@ pub fn send_to_client_context(_msg: a) -> Effect(b) {
   effect.none()
 }
 
+/// Navigate to a new URL path. Pushes a new history entry and triggers
+/// a route change via modem's popstate listener.
+/// On the server, this is a no-op.
+pub fn navigate(path: String) -> Effect(a) {
+  effect.from(fn(_dispatch) {
+    do_navigate(path)
+    Nil
+  })
+}
+
+@external(javascript, "./lando_effect_ffi.mjs", "navigate")
+fn do_navigate(_path: String) -> Nil {
+  Nil
+}
+
 /// Broadcast a message to all connections in the current browser session.
 pub fn broadcast_to_session(msg: a) -> Effect(b) {
   let page = get_ws_page()

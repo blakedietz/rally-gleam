@@ -10,6 +10,7 @@ import lustre/attribute as attr
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/effect.{type Effect}
+import modem
 import generated/codec
 import generated/router
 import generated/transport
@@ -60,7 +61,7 @@ fn init(_flags: Nil) -> #(Model, Effect(Msg)) {
   let route = router.parse_route_from_url()
   let #(page_model, page_effects) = init_page(route)
   #(Model(route:, page_model:, connection: Disconnected),
-    effect.batch([init_transport(), page_effects]))
+    effect.batch([init_transport(), modem.init(fn(uri) { UrlChanged(router.parse_route(uri)) }), page_effects]))
 }
 
 fn init_transport() -> Effect(Msg) {
@@ -68,7 +69,6 @@ fn init_transport() -> Effect(Msg) {
     let _ = transport.init("/ws")
     let _ = transport.register_on_connect(fn() { dispatch(TransportConnected) })
     let _ = transport.register_on_disconnect(fn(reason) { dispatch(TransportDisconnected(reason)) })
-    let _ = router.on_popstate(fn() { dispatch(UrlChanged(router.parse_route_from_url())) })
     let _ = transport.register_push_handler("Home", fn(raw) {
       dispatch(PageMsg(HomePageMsg(views.HomeGotServerMsg(codec.decode_push_home(raw)))))
     })

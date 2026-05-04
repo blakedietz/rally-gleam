@@ -50,7 +50,7 @@ pub fn load(server_context: ServerContext) -> Result(Model, LoadError)  // optio
 - `init`/`update`/`view` — standard Lustre TEA (The Elm Architecture); receive `ClientContext` as first arg when a `client_context.gleam` module exists
 - `ToServer` — messages the client sends to the server over WebSocket
 - `ToClient` — messages the server sends back to the client
-- `GotServerMsg(ToClient)` — the single Msg variant that handles ALL server responses
+- `GotServerMsg(ToClient)` — the single Msg variant that handles ALL server responses. In the generated client views.gleam, the constructor is prefixed per page (e.g. `HomeGotServerMsg(HomeToClient)`) to avoid name collisions
 - `server_update` — runs on the BEAM, has access to DB/session via `ServerContext`
 - `server_init` — returns the initial `ServerModel` + optional initial effect (e.g. sending current state to client)
 - `ServerModel` — per-session server state
@@ -66,6 +66,7 @@ Page modules import from `lando_runtime/effect`:
 - `send_to_client(variant)` — encodes the `ToClient` message as an ETF push frame and queues it for the WebSocket handler to send. Uses process dictionary for handler state. Useful for sending initial state on connect (e.g. from `server_init`).
 - `broadcast_to_page(variant)` — broadcasts a `ToClient` push frame to ALL connections viewing the same page (via pg topic). Used for real-time updates that all viewers should see.
 - `send_to_client_context(variant)` — sends a `ClientContextMsg` from a page to update the shared `ClientContext`. Allows server responses to propagate to cross-page state.
+- `navigate(path)` — pushes a new browser history entry and triggers a route change via modem's popstate listener. On the server this is a no-op.
 - `get_ws_session()` — returns the session ID for the current WebSocket connection (server-side only, from process dictionary). Used by pages to look up the authenticated user.
 - `effect.none()` — no-op effect
 - `effect.from(fn)` — create a custom effect
@@ -97,11 +98,12 @@ Running `gleam run -m lando` produces:
 | `src/generated/server_dispatch.gleam` | `handle_message` dispatcher + `init_server_model` per-page init |
 | `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, embeds model as flags |
 | `src/generated/ws_handler.gleam` | WebSocket upgrade handler: ETF frame loop, session model storage, push frame delivery, topic auto-join (app/session/page), broadcast frame forwarding |
-| `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop (PageModel/PageMsg unions, init_page/update_page/render_page dispatch), WebSocket transport, route-change handling |
+| `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop (PageModel/PageMsg unions, init_page/update_page/render_page dispatch), WebSocket transport, modem-based route-change handling, push handler dispatch |
 | `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handler registration, ETF codec |
 | `client/src/generated/views.gleam` | Per-page Model/Msg types and adapted init/update/view functions with prefixed types |
 | `client/src/generated/types.gleam` | Mirrored page ToServer/ToClient types for the client |
-| `client/src/generated/codec.gleam` | Typed encode/decode wrappers for page message types |
+| `client/src/generated/codec.gleam` | Typed encode/decode wrappers for page message types, push decoder FFI bindings |
+| `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types, push decoders per page |
 | `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from lando_runtime) |
 
 ## Architecture
@@ -128,7 +130,7 @@ Running `gleam run -m lando` produces:
 
 | Module | Role |
 |---|---|
-| `effect.gleam` | `send_to_server`, `send_to_client`, `broadcast_to_page`/`broadcast_to_app`/`broadcast_to_session` (ETF push via process dict + pg), `send_to_client_context` (page-to-context messaging) |
+| `effect.gleam` | `send_to_server`, `send_to_client`, `broadcast_to_page`/`broadcast_to_app`/`broadcast_to_session` (ETF push via process dict + pg), `send_to_client_context` (page-to-context messaging), `navigate` (client-side URL push via modem) |
 | `session.gleam` | Session cookie generation and extraction (`generate_id`, `extract_session_id`, `set_cookie_header`) |
 | `topics.gleam` | Topic pub/sub using OTP `pg` process groups: join/leave/broadcast/receive for cross-process push delivery |
 | `wire.gleam` | ETF encode/decode, call envelope parsing, frame tagging, variant tagging, Dynamic coercion |
@@ -138,6 +140,7 @@ Running `gleam run -m lando` produces:
 | `error.gleam` | RPC error types |
 | `trace.gleam` | Panic catching + trace IDs (from libero) |
 | `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect (1180 lines, from libero) |
+| `lando_effect_ffi.mjs` | JS FFI for client-side effects: `navigate` (pushState + popstate dispatch) |
 | `lando_runtime_ffi.erl` | Erlang FFI: encode/decode, process dict state for WS handler, push frame accumulator |
 | `lando_runtime_wire_ffi.erl` | Erlang FFI: `decode_call` envelope parser, `variant_tag` extraction |
 | `lando_runtime_topics_ffi.erl` | Erlang FFI: `pg`-based topic pub/sub (start, join, leave, members, broadcast, receive_frame) |
@@ -175,6 +178,7 @@ On WebSocket connect, the framework auto-subscribes to three implicit topics: `a
 - `glance` — Gleam AST parser
 - `tom` — TOML config parser
 - `simplifile` — Filesystem operations
+- `modem` — client-side URL routing for Lustre (generated client dependency)
 
 ## Configuration
 
