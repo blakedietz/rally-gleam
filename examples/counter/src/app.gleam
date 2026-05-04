@@ -1,15 +1,16 @@
 import app_config.{Context}
 import mist.{type Connection, type ResponseData}
 import gleam/bytes_tree
+import gleam/dict
 import gleam/erlang/process
 import gleam/http.{Get}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
+import gleam/option.{None}
 import simplifile
 import sqlight
 import generated/router
 import generated/ssr_handler
-import generated/ws_handler
 
 pub fn main() {
   let db = start_db()
@@ -20,9 +21,9 @@ pub fn main() {
     case path {
       "/ws" -> mist.websocket(
         req,
-        fn(conn) { ws_handler.on_init(conn, ctx) },
-        ws_handler.on_close,
-        fn(state, msg, conn) { ws_handler.handler(state, msg, conn, ctx) },
+        fn(state, _msg, _conn) { mist.continue(state) },
+        fn(_conn) { #(dict.new(), None) },
+        fn(_state) { Nil },
       )
       "/client.js" -> serve_client_js()
       _ -> {
