@@ -5,7 +5,7 @@ import lustre/element/html
 pub fn layout(content: Element(msg)) -> Element(msg) {
   html.div(
     [
-      attr.style([
+      attr.styles([
         #("min-height", "100vh"),
         #("display", "flex"),
         #("flex-direction", "column"),

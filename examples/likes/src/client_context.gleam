@@ -13,7 +13,7 @@ pub fn init() -> #(ClientContext, Effect(ClientContextMsg)) {
 }
 
 pub fn update(
-  model: ClientContext,
+  _model: ClientContext,
   msg: ClientContextMsg,
 ) -> #(ClientContext, Effect(ClientContextMsg)) {
   case msg {

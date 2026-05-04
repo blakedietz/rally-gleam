@@ -22,7 +22,7 @@ fn generate_init() -> String {
   topics.join(\"app\")
   topics.join(\"session:\" <> session_id)
   let selector = process.new_selector()
-    |> process.selecting_anything(fn(msg) { msg })
+    |> process.select_other(fn(msg) { msg })
   #(dict.new(), Some(selector))
 }
 
