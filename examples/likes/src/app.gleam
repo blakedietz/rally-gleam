@@ -6,6 +6,7 @@ import gleam/erlang/process
 import gleam/http.{Get}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
+import lando_runtime/migrate
 import lando_runtime/session
 import mist.{type Connection, type ResponseData}
 import server_context.{ServerContext}
@@ -93,5 +94,6 @@ fn serve_client_js() -> Response(ResponseData) {
 
 fn start_db() -> sqlight.Connection {
   let assert Ok(conn) = sqlight.open("app.db")
+  let assert Ok(_) = migrate.run(conn:, dir: "migrations")
   conn
 }

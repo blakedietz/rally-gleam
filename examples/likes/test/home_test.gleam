@@ -1,10 +1,11 @@
 import client_context.{ClientContext}
+import generated/sql/likes_sql
 import gleam/list
 import gleam/string
 import gleeunit/should
 import lando_runtime/effect as lando_effect
+import lando_runtime/migrate
 import lando_runtime/topics
-import likes_db
 import lustre/element
 import pages/home_.{Model, ServerModel, SmashLike}
 import server_context.{type ServerContext, ServerContext}
@@ -12,7 +13,7 @@ import sqlight
 
 fn with_server_ctx(f: fn(ServerContext) -> Nil) -> Nil {
   let assert Ok(db) = sqlight.open(":memory:")
-  likes_db.ensure_table(db)
+  let assert Ok(_) = migrate.run(conn: db, dir: "migrations")
   let ctx = ServerContext(db:)
   topics.start()
   lando_effect.put_ws_state(Nil, ctx, "Home")
@@ -52,8 +53,8 @@ pub fn server_init_returns_current_count_test() {
 
 pub fn server_init_after_increments_test() {
   use ctx <- with_server_ctx()
-  let _ = likes_db.increment_likes(ctx.db)
-  let _ = likes_db.increment_likes(ctx.db)
+  let assert Ok(_) = likes_sql.increment_likes(db: ctx.db)
+  let assert Ok(_) = likes_sql.increment_likes(db: ctx.db)
   let #(_model, _effects) = home_.server_init(ctx)
   let frames = lando_effect.drain_outgoing_frames()
   list.is_empty(frames) |> should.be_false()
@@ -66,7 +67,8 @@ pub fn server_update_smash_like_increments_test() {
 
   let #(new_model, _effects) = home_.server_update(model, SmashLike, ctx)
   new_model |> should.equal(ServerModel)
-  likes_db.get_likes(ctx.db) |> should.equal(1)
+  let assert Ok([row]) = likes_sql.get_likes(db: ctx.db)
+  row.count |> should.equal(1)
 
   let frames = lando_effect.drain_outgoing_frames()
   list.is_empty(frames) |> should.be_false()
@@ -84,5 +86,6 @@ pub fn server_update_multiple_smashes_test() {
   let #(_m4, _) = home_.server_update(m3, SmashLike, ctx)
   let _ = lando_effect.drain_outgoing_frames()
 
-  likes_db.get_likes(ctx.db) |> should.equal(3)
+  let assert Ok([row]) = likes_sql.get_likes(db: ctx.db)
+  row.count |> should.equal(3)
 }

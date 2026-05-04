@@ -1,0 +1,173 @@
+import gleam/dynamic/decode
+import gleam/int
+import gleam/io
+import gleam/list
+import gleam/result
+import gleam/string
+import simplifile
+import sqlight
+
+pub type MigrationError {
+  TableCreateFailed(message: String)
+  VersionQueryFailed(message: String)
+  VersionInitFailed(message: String)
+  DirReadFailed(message: String)
+  FileReadFailed(filename: String, message: String)
+  MigrationFailed(filename: String, message: String)
+  VersionUpdateFailed(message: String)
+  FilenameParseFailed(filename: String)
+}
+
+pub fn error_to_string(error: MigrationError) -> String {
+  case error {
+    TableCreateFailed(message:) ->
+      "Failed to create schema_migrations: " <> message
+    VersionQueryFailed(message:) ->
+      "Failed to get migration version: " <> message
+    VersionInitFailed(message:) ->
+      "Failed to init schema_migrations: " <> message
+    DirReadFailed(message:) ->
+      "Failed to read migrations directory: " <> message
+    FileReadFailed(filename:, message:) ->
+      "Failed to read " <> filename <> ": " <> message
+    MigrationFailed(filename:, message:) ->
+      "Migration " <> filename <> " failed: " <> message
+    VersionUpdateFailed(message:) ->
+      "Failed to update migration version: " <> message
+    FilenameParseFailed(filename:) ->
+      "Invalid migration filename (expected NNN_name.sql): " <> filename
+  }
+}
+
+pub fn run(
+  conn conn: sqlight.Connection,
+  dir dir: String,
+) -> Result(Nil, MigrationError) {
+  use _ <- result.try(
+    sqlight.exec(
+      "CREATE TABLE IF NOT EXISTS schema_migrations (
+        last_migration INTEGER NOT NULL
+      );",
+      on: conn,
+    )
+    |> result.map_error(fn(e) { TableCreateFailed(message: e.message) }),
+  )
+
+  use current <- result.try(get_current_version(conn))
+
+  use files <- result.try(
+    simplifile.read_directory(at: dir)
+    |> result.map_error(fn(e) {
+      DirReadFailed(message: simplifile.describe_error(e))
+    }),
+  )
+
+  let pending =
+    files
+    |> list.filter(fn(f) { string.ends_with(f, ".sql") })
+    |> list.sort(string.compare)
+    |> list.filter(fn(f) {
+      case parse_number(f) {
+        Ok(num) -> num > current
+        Error(_) -> False
+      }
+    })
+
+  case pending {
+    [] -> {
+      io.println(
+        "  migrations: up to date (v" <> int.to_string(current) <> ")",
+      )
+      Ok(Nil)
+    }
+    _ -> run_pending(conn, dir, pending)
+  }
+}
+
+fn get_current_version(
+  conn: sqlight.Connection,
+) -> Result(Int, MigrationError) {
+  let decoder = {
+    use version <- decode.field(0, decode.int)
+    decode.success(version)
+  }
+
+  case
+    sqlight.query(
+      "SELECT last_migration FROM schema_migrations LIMIT 1",
+      on: conn,
+      with: [],
+      expecting: decoder,
+    )
+  {
+    Ok([version]) -> Ok(version)
+    Ok([]) -> {
+      sqlight.exec(
+        "INSERT INTO schema_migrations (last_migration) VALUES (0);",
+        on: conn,
+      )
+      |> result.map_error(fn(e) { VersionInitFailed(message: e.message) })
+      |> result.map(fn(_) { 0 })
+    }
+    Ok(_) -> Ok(0)
+    Error(e) -> Error(VersionQueryFailed(message: e.message))
+  }
+}
+
+fn run_pending(
+  conn: sqlight.Connection,
+  dir: String,
+  files: List(String),
+) -> Result(Nil, MigrationError) {
+  case files {
+    [] -> Ok(Nil)
+    [file, ..rest] -> {
+      use num <- result.try(parse_number(file))
+      let path = dir <> "/" <> file
+
+      use sql <- result.try(
+        simplifile.read(path)
+        |> result.map_error(fn(e) {
+          FileReadFailed(
+            filename: file,
+            message: simplifile.describe_error(e),
+          )
+        }),
+      )
+
+      io.println(
+        "  migration " <> int.to_string(num) <> ": " <> file,
+      )
+
+      use _ <- result.try(
+        sqlight.exec(sql, on: conn)
+        |> result.map_error(fn(e) {
+          MigrationFailed(filename: file, message: e.message)
+        }),
+      )
+
+      use _ <- result.try(
+        sqlight.exec(
+          "UPDATE schema_migrations SET last_migration = "
+            <> int.to_string(num)
+            <> ";",
+          on: conn,
+        )
+        |> result.map_error(fn(e) {
+          VersionUpdateFailed(message: e.message)
+        }),
+      )
+
+      run_pending(conn, dir, rest)
+    }
+  }
+}
+
+fn parse_number(filename: String) -> Result(Int, MigrationError) {
+  case string.split(filename, "_") {
+    [num_str, ..] ->
+      int.parse(num_str)
+      |> result.replace_error(FilenameParseFailed(filename:))
+    _ -> Error(FilenameParseFailed(filename:))
+  }
+}
