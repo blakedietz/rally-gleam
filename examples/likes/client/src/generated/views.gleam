@@ -12,7 +12,7 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 
-// Home — pages/home/index
+// Home — pages/home_
 pub type HomeModel {
   HomeModel
 }

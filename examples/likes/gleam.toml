@@ -8,7 +8,7 @@ gleam_http = ">= 4.0.0 and < 5.0.0"
 gleam_stdlib = ">= 0.60.0 and < 2.0.0"
 lando = { path = "../.." }
 lustre = ">= 5.6.0 and < 7.0.0"
-marmot = ">= 1.0.0 and < 2.0.0"
+marmot = { path = "../../../marmot" }
 mist = ">= 6.0.0 and < 7.0.0"
 sqlight = ">= 1.0.0 and < 2.0.0"
 simplifile = ">= 2.0.0 and < 3.0.0"

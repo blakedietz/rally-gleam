@@ -5,7 +5,7 @@ import lando_runtime/effect
 import lando_runtime/wire
 import server_context.{type ServerContext}
 
-import pages/home/index as pages_home_index
+import pages/home_ as pages_home_
 
 /// Handle an incoming WebSocket message.
 /// Dispatches to the correct page's server_update.
@@ -22,7 +22,7 @@ pub fn handle_message(
       let page_model = wire.coerce(model)
       let page_msg = wire.coerce(msg)
       let #(new_model, effects) =
-        pages_home_index.server_update(page_model, page_msg, ctx)
+        pages_home_.server_update(page_model, page_msg, ctx)
       #(wire.coerce(new_model), wire.coerce(effects))
     }
     _ -> #(model, effect.none())
@@ -37,7 +37,7 @@ pub fn init_server_model(
 ) -> #(dynamic.Dynamic, effect.Effect(dynamic.Dynamic)) {
   case page {
     "Home" -> {
-      let #(model, effects) = pages_home_index.server_init(ctx)
+      let #(model, effects) = pages_home_.server_init(ctx)
       #(wire.coerce(model), wire.coerce(effects))
     }
     _ -> #(dynamic.nil(), effect.none())

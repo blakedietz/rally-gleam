@@ -1,4 +1,4 @@
-import generated/sql/pages/home_sql
+import generated/sql/home_sql
 import gleeunit/should
 import lando_runtime/migrate
 import sqlight

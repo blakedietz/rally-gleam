@@ -1,6 +1,6 @@
 import gleam/int
 import client_context.{type ClientContext, UpdateLikes}
-import generated/sql/pages/home_sql
+import generated/sql/home_sql
 import lando_runtime/effect as lando_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
