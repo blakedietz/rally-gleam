@@ -7,7 +7,7 @@
 %% Erlang term shapes.
 
 -module(lando_runtime_ffi).
--export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0, unique_id/0, put_ws_state/3, get_ws_conn/0, get_ws_page/0, get_stored_ctx/0, push_outgoing_frame/1, drain_outgoing_frames/0]).
+-export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0, unique_id/0, put_ws_state/3, get_ws_conn/0, get_ws_page/0, get_stored_ctx/0, push_outgoing_frame/1, drain_outgoing_frames/0, put_ws_session/1, get_ws_session/0, decode_lando_push/1]).
 
 identity(X) -> X.
 
@@ -94,4 +94,18 @@ drain_outgoing_frames() ->
     case get(lando_outgoing_frames) of
         undefined -> [];
         Frames -> put(lando_outgoing_frames, []), lists:reverse(Frames)
+    end.
+
+%% Session ID stored in the process dictionary for broadcast_to_session.
+put_ws_session(SessionId) ->
+    put(lando_ws_session, SessionId),
+    nil.
+
+get_ws_session() -> get(lando_ws_session).
+
+%% Decode a {lando_push, Frame} message from broadcast delivery.
+decode_lando_push(Msg) ->
+    case Msg of
+        {lando_push, Frame} -> {ok, Frame};
+        _ -> {error, nil}
     end.

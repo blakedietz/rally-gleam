@@ -1,4 +1,5 @@
 import lustre/effect
+import lando_runtime/topics
 import lando_runtime/wire
 
 pub type Effect(a) =
@@ -27,10 +28,31 @@ pub fn send_to_client(msg: a) -> Effect(b) {
   effect.none()
 }
 
-/// Broadcast a ToClient variant to all clients on a page.
-/// Currently queues a push to the single connected client.
-pub fn broadcast(msg: a) -> Effect(b) {
-  do_push(msg)
+/// Broadcast a message to all connections viewing the current page.
+pub fn broadcast_to_page(msg: a) -> Effect(b) {
+  let page = get_ws_page()
+  let frame = wire.tag_push(page, msg)
+  topics.broadcast("page:" <> page, frame)
+  push_outgoing_frame(frame)
+  effect.none()
+}
+
+/// Broadcast a message to every connection in the app.
+pub fn broadcast_to_app(msg: a) -> Effect(b) {
+  let page = get_ws_page()
+  let frame = wire.tag_push(page, msg)
+  topics.broadcast("app", frame)
+  push_outgoing_frame(frame)
+  effect.none()
+}
+
+/// Broadcast a message to all connections in the current browser session.
+pub fn broadcast_to_session(msg: a) -> Effect(b) {
+  let page = get_ws_page()
+  let session = get_ws_session()
+  let frame = wire.tag_push(page, msg)
+  topics.broadcast("session:" <> session, frame)
+  push_outgoing_frame(frame)
   effect.none()
 }
 
@@ -74,4 +96,21 @@ fn push_outgoing_frame(frame: a) -> Nil {
 @external(erlang, "lando_runtime_ffi", "drain_outgoing_frames")
 pub fn drain_outgoing_frames() -> List(a) {
   panic as "drain_outgoing_frames: server-side only"
+}
+
+@external(erlang, "lando_runtime_ffi", "put_ws_session")
+pub fn put_ws_session(session_id: String) -> Nil {
+  let _ = session_id
+  panic as "put_ws_session: server-side only"
+}
+
+@external(erlang, "lando_runtime_ffi", "get_ws_session")
+fn get_ws_session() -> String {
+  panic as "get_ws_session: server-side only"
+}
+
+@external(erlang, "lando_runtime_ffi", "decode_lando_push")
+pub fn decode_lando_push(msg: a) -> Result(BitArray, Nil) {
+  let _ = msg
+  panic as "decode_lando_push: server-side only"
 }
