@@ -2,6 +2,7 @@ import gleam/list
 import gleam/string
 import lando/generator
 import lando/types.{type ScannedRoute, type PageContract, type ScanConfig}
+import lando/walker
 
 pub type GeneratedFile {
   GeneratedFile(path: String, content: String)
@@ -154,6 +155,7 @@ import lustre/effect.{type Effect}
 import lustre/event
 import generated/router
 import generated/transport
+import generated/views
 
 pub type Model {
   Model(
@@ -337,7 +339,15 @@ export function navigate(path) {
 fn generate_route_view_arms(routes: List(ScannedRoute)) -> String {
   routes
   |> list.map(fn(route) {
-    "    router." <> route.variant_name <> " -> html.div([], [html.text(\"" <> route.variant_name <> "\")])"
+    let fn_suffix = to_snake_case(route.variant_name)
+    "    router." <> route.variant_name <> " -> {"
+    <> " let #(model, _) = views." <> fn_suffix <> "_init()"
+    <> " element.map(views." <> fn_suffix <> "_view(model), fn(_) { Noop })"
+    <> " }"
   })
   |> string.join("\n")
+}
+
+fn to_snake_case(name: String) -> String {
+  walker.to_snake_case(name)
 }

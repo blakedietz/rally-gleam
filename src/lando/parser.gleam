@@ -40,6 +40,20 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
     alias_map: alias_map,
     type_alias_originals: type_alias_originals,
   )
+  let model_variants = extract_variants(
+    ast: ast,
+    type_name: "Model",
+    type_imports: type_imports,
+    alias_map: alias_map,
+    type_alias_originals: type_alias_originals,
+  )
+  let msg_variants = extract_variants(
+    ast: ast,
+    type_name: "Msg",
+    type_imports: type_imports,
+    alias_map: alias_map,
+    type_alias_originals: type_alias_originals,
+  )
 
   let functions_list = ast.functions
   let has_server_update = has_function(functions_list, "server_update")
@@ -50,15 +64,20 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
 
   let param_names = extract_init_params_from_ast(functions_list)
 
+  let view_source = extract_view_source(source, functions_list)
+
   Ok(PageContract(
     to_server_variants: to_server,
     to_client_variants: to_client,
+    model_variants:,
+    msg_variants:,
     has_server_update:,
     has_server_init:,
     has_load:,
     has_init:,
     has_model:,
     param_names:,
+    view_source:,
   ))
 }
 
@@ -234,6 +253,28 @@ pub fn build_type_alias_originals(
 }
 
 // ---------- Function detection ----------
+
+/// Extract the source text of the `view` function using AST span positions.
+fn extract_view_source(
+  source: String,
+  functions: List(glance.Definition(glance.Function)),
+) -> String {
+  case
+    list.find(functions, fn(def) {
+      def.definition.name == "view" && def.definition.publicity == glance.Public
+    })
+  {
+    Error(Nil) -> ""
+    Ok(func_def) -> {
+      let glance.Function(location: glance.Span(start:, end:), ..) =
+        func_def.definition
+      case string.length(source) >= end {
+        True -> string.slice(from: source, at_index: start, length: end - start)
+        False -> ""
+      }
+    }
+  }
+}
 
 fn has_function(
   functions: List(glance.Definition(glance.Function)),

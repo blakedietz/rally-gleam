@@ -55,12 +55,17 @@ fn basic_contracts() -> List(#(ScannedRoute, PageContract)) {
         to_client_variants: [
           VariantInfo("CounterNewValue", [VariantField("value", IntField)]),
         ],
+        model_variants: [
+          VariantInfo("Model", [VariantField("count", IntField)]),
+        ],
+        msg_variants: [],
         has_server_update: True,
         has_server_init: True,
         has_load: True,
         has_init: True,
         has_model: True,
         param_names: [],
+        view_source: "",
       ),
     )
   })

@@ -49,11 +49,14 @@ pub type PageContract {
   PageContract(
     to_server_variants: List(VariantInfo),
     to_client_variants: List(VariantInfo),
+    model_variants: List(VariantInfo),
+    msg_variants: List(VariantInfo),
     has_server_update: Bool,
     has_server_init: Bool,
     has_load: Bool,
     has_init: Bool,
     has_model: Bool,
     param_names: List(String),
+    view_source: String,
   )
 }

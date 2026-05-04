@@ -14,6 +14,7 @@ import lustre/effect.{type Effect}
 import lustre/event
 import generated/router
 import generated/transport
+import generated/views
 
 pub type Model {
   Model(
@@ -101,10 +102,10 @@ fn view(model: Model) -> Element(Msg) {
 }
 
 fn render_page(route: router.Route) -> Element(Msg) {
-  case route {    router.Home -> html.div([], [html.text("Home")])
-    router.About -> html.div([], [html.text("About")])
-    router.ProductsNew -> html.div([], [html.text("ProductsNew")])
-    router.ProductsId -> html.div([], [html.text("ProductsId")])
+  case route {    router.Home -> { let #(model, _) = views.home_init() element.map(views.home_view(model), fn(_) { Noop }) }
+    router.About -> { let #(model, _) = views.about_init() element.map(views.about_view(model), fn(_) { Noop }) }
+    router.ProductsNew -> { let #(model, _) = views.products_new_init() element.map(views.products_new_view(model), fn(_) { Noop }) }
+    router.ProductsId -> { let #(model, _) = views.products_id_init() element.map(views.products_id_view(model), fn(_) { Noop }) }
     router.NotFound(_) ->
       html.div([], [html.text("Page not found")])
   }
