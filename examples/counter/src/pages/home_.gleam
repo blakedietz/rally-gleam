@@ -1,4 +1,4 @@
-import app_config.{type Context}
+import server_context.{type ServerContext}
 import gleam/string
 import lustre/element.{type Element}
 import lustre/element/html
@@ -45,7 +45,7 @@ pub fn view(model: Model) -> Element(Msg) {
 pub fn server_update(
   model: ServerModel,
   msg: ToServer,
-  _ctx: Context,
+  _ctx: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
   case msg {
     Increment -> #(ServerModel(count: model.count + 1), lando_effect.send_to_client(CounterNewValue(model.count + 1)))
@@ -53,6 +53,6 @@ pub fn server_update(
   }
 }
 
-pub fn server_init(_ctx: Context) -> ServerModel {
+pub fn server_init(_ctx: ServerContext) -> ServerModel {
   ServerModel(count: 0)
 }

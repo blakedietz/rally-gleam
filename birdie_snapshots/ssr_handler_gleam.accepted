@@ -13,11 +13,11 @@ import mist.{type ResponseData}
 import lando_runtime/ssr
 import lando_runtime/codec
 import generated/router
-import app_config.{type Context}
+import server_context.{type ServerContext}
 
 pub fn handle_request(
   route: router.Route,
-  ctx: Context,
+  ctx: ServerContext,
 ) -> response.Response(ResponseData) {
   case route {
     router.Home -> {

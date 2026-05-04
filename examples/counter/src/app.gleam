@@ -1,4 +1,4 @@
-import app_config.{Context}
+import server_context.{ServerContext}
 import mist.{type Connection, type ResponseData}
 import gleam/bytes_tree
 import gleam/dict
@@ -14,7 +14,7 @@ import generated/ssr_handler
 
 pub fn main() {
   let db = start_db()
-  let ctx = Context(db:)
+  let ctx = ServerContext(db:)
 
   let handler = fn(req: Request(Connection)) -> Response(ResponseData) {
     let Request(path: path, method: method, ..) = req

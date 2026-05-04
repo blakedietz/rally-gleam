@@ -6,7 +6,7 @@ import lando/types.{type VariantInfo, VariantField, VariantInfo}
 
 pub fn parse_page_with_to_backend_test() {
   let source = "
-import app_config.{type Context}
+import server_context.{type ServerContext}
 pub type ToServer {
   LoadProduct(id: Int)
   SaveProduct(data: String)
@@ -15,9 +15,9 @@ pub type ToClient {
   ProductLoaded(String)
   SaveError(String)
 }
-pub fn server_update(model: ServerModel, msg: ToServer, ctx: Context) -> #(ServerModel, Effect(ToClient)) { todo }
+pub fn server_update(model: ServerModel, msg: ToServer, ctx: ServerContext) -> #(ServerModel, Effect(ToClient)) { todo }
 pub fn init(id: Int) -> #(Model, Effect(Msg)) { todo }
-pub fn load(id: Int, ctx: Context) -> Result(Model, LoadError) { todo }
+pub fn load(id: Int, ctx: ServerContext) -> Result(Model, LoadError) { todo }
 "
   let assert Ok(contract) = parser.parse_page(source)
 

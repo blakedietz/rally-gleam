@@ -9,7 +9,7 @@ test_name: server_dispatch_snapshot_test
 import gleam/dynamic
 import lando_runtime/effect
 import lando_runtime/wire
-import app_config.{type Context}
+import server_context.{type ServerContext}
 
 
 import pages/home_ as pages_home_
@@ -25,7 +25,7 @@ pub fn handle_message(
   model: dynamic.Dynamic,
   page: String,
   msg: dynamic.Dynamic,
-  ctx: Context,
+  ctx: ServerContext,
 ) -> #(dynamic.Dynamic, effect.Effect(dynamic.Dynamic)) {
   case page {
     "Home" -> {
@@ -60,7 +60,7 @@ pub fn handle_message(
 /// Returns Nil for pages without a server_init function.
 pub fn init_server_model(
   page: String,
-  ctx: Context,
+  ctx: ServerContext,
 ) -> dynamic.Dynamic {
   case page {
     "Home" -> wire.coerce(pages_home_.server_init(ctx))
