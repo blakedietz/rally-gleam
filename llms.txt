@@ -36,14 +36,14 @@ pub type ToClient { NewSmashedLikes(count: Int) }
 pub type ServerModel { ServerModel }
 
 // -- Client functions (with ClientContext) --
-pub fn init(ctx: ClientContext) -> #(Model, Effect(Msg))
-pub fn update(ctx: ClientContext, model: Model, msg: Msg) -> #(Model, Effect(Msg))
-pub fn view(ctx: ClientContext, model: Model) -> Element(Msg)
+pub fn init(client_context: ClientContext) -> #(Model, Effect(Msg))
+pub fn update(client_context: ClientContext, model: Model, msg: Msg) -> #(Model, Effect(Msg))
+pub fn view(client_context: ClientContext, model: Model) -> Element(Msg)
 
 // -- Server functions --
-pub fn server_update(model: ServerModel, msg: ToServer, ctx: ServerContext) -> #(ServerModel, Effect(ToClient))
-pub fn server_init(ctx: ServerContext) -> #(ServerModel, Effect(ToClient))
-pub fn load(ctx: ServerContext) -> Result(Model, LoadError)  // optional, for SSR
+pub fn server_update(model: ServerModel, msg: ToServer, server_context: ServerContext) -> #(ServerModel, Effect(ToClient))
+pub fn server_init(server_context: ServerContext) -> #(ServerModel, Effect(ToClient))
+pub fn load(server_context: ServerContext) -> Result(Model, LoadError)  // optional, for SSR
 ```
 
 - `Model`/`Msg` — client-side state and UI events
@@ -66,6 +66,7 @@ Page modules import from `lando_runtime/effect`:
 - `send_to_client(variant)` — encodes the `ToClient` message as an ETF push frame and queues it for the WebSocket handler to send. Uses process dictionary for handler state. Useful for sending initial state on connect (e.g. from `server_init`).
 - `broadcast_to_page(variant)` — broadcasts a `ToClient` push frame to ALL connections viewing the same page (via pg topic). Used for real-time updates that all viewers should see.
 - `send_to_client_context(variant)` — sends a `ClientContextMsg` from a page to update the shared `ClientContext`. Allows server responses to propagate to cross-page state.
+- `get_ws_session()` — returns the session ID for the current WebSocket connection (server-side only, from process dictionary). Used by pages to look up the authenticated user.
 - `effect.none()` — no-op effect
 - `effect.from(fn)` — create a custom effect
 
