@@ -41,7 +41,6 @@ pub type Msg {
 }
 
 pub type ToServer {
-  LoadArticle(slug: String)
   UpdateArticle(
     title: String,
     description: String,
@@ -68,7 +67,7 @@ pub type ServerModel {
 
 // --- Client ---
 
-pub fn init(_client_context: ClientContext, slug: String) -> #(Model, Effect(Msg)) {
+pub fn init(_client_context: ClientContext, _slug: String) -> #(Model, Effect(Msg)) {
   #(
     Model(
       slug: "",
@@ -80,7 +79,7 @@ pub fn init(_client_context: ClientContext, slug: String) -> #(Model, Effect(Msg
       errors: [],
       loaded: False,
     ),
-    lando_effect.send_to_server(LoadArticle(slug)),
+    effect.none(),
   )
 }
 
@@ -228,9 +227,64 @@ fn error_list(errors: List(String)) -> Element(msg) {
 // --- Server ---
 
 pub fn server_init(
-  _server_context: ServerContext,
+  server_context: ServerContext,
+  article_slug: String,
 ) -> #(ServerModel, Effect(ToClient)) {
-  #(ServerModelEmpty, effect.none())
+  let session_id = lando_effect.get_ws_session()
+  case
+    auth_sql.find_user_by_session(
+      db: server_context.db,
+      session_id: Some(session_id),
+      now: datetime.now_unix(),
+    )
+  {
+    Ok([user]) -> {
+      case
+        articles_sql.get_for_edit(db: server_context.db, slug: article_slug)
+      {
+        Ok([article]) -> {
+          case article.author_id == user.id {
+            True -> {
+              let assert Ok(tag_rows) =
+                tags_sql.list_by_article(
+                  db: server_context.db,
+                  article_id: article.id,
+                )
+              let tags = list.map(tag_rows, fn(row) { row.name })
+              #(
+                ServerModel(
+                  article_id: article.id,
+                  author_id: article.author_id,
+                ),
+                lando_effect.send_to_client(ArticleLoaded(
+                  title: article.title,
+                  description: article.description,
+                  body: article.body,
+                  tags:,
+                )),
+              )
+            }
+            False -> #(
+              ServerModelEmpty,
+              lando_effect.send_to_client(EditorErrors([
+                "You can only edit your own articles",
+              ])),
+            )
+          }
+        }
+        _ -> #(
+          ServerModelEmpty,
+          lando_effect.send_to_client(EditorErrors(["Article not found"])),
+        )
+      }
+    }
+    _ -> #(
+      ServerModelEmpty,
+      lando_effect.send_to_client(EditorErrors([
+        "You must be logged in to edit",
+      ])),
+    )
+  }
 }
 
 pub fn server_update(
@@ -239,63 +293,6 @@ pub fn server_update(
   server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
   case msg {
-    LoadArticle(article_slug) -> {
-      let session_id = lando_effect.get_ws_session()
-      case
-        auth_sql.find_user_by_session(
-          db: server_context.db,
-          session_id: Some(session_id),
-          now: datetime.now_unix(),
-        )
-      {
-        Ok([user]) -> {
-          case
-            articles_sql.get_for_edit(db: server_context.db, slug: article_slug)
-          {
-            Ok([article]) -> {
-              case article.author_id == user.id {
-                True -> {
-                  let assert Ok(tag_rows) =
-                    tags_sql.list_by_article(
-                      db: server_context.db,
-                      article_id: article.id,
-                    )
-                  let tags = list.map(tag_rows, fn(row) { row.name })
-                  #(
-                    ServerModel(
-                      article_id: article.id,
-                      author_id: article.author_id,
-                    ),
-                    lando_effect.send_to_client(ArticleLoaded(
-                      title: article.title,
-                      description: article.description,
-                      body: article.body,
-                      tags:,
-                    )),
-                  )
-                }
-                False -> #(
-                  ServerModelEmpty,
-                  lando_effect.send_to_client(EditorErrors([
-                    "You can only edit your own articles",
-                  ])),
-                )
-              }
-            }
-            _ -> #(
-              ServerModelEmpty,
-              lando_effect.send_to_client(EditorErrors(["Article not found"])),
-            )
-          }
-        }
-        _ -> #(
-          ServerModelEmpty,
-          lando_effect.send_to_client(EditorErrors([
-            "You must be logged in to edit",
-          ])),
-        )
-      }
-    }
     UpdateArticle(title, description, body, tags) -> {
       case model {
         ServerModelEmpty -> #(

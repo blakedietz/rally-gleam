@@ -1,5 +1,5 @@
 ---
-version: 1.5.5
+version: 2.0.0
 title: server_dispatch_gleam
 file: ./test/lando/router_snapshot_test.gleam
 test_name: server_dispatch_snapshot_test
@@ -61,6 +61,7 @@ pub fn handle_message(
 pub fn init_server_model(
   page: String,
   server_context: ServerContext,
+  params: dynamic.Dynamic,
 ) -> #(dynamic.Dynamic, effect.Effect(dynamic.Dynamic)) {
   case page {
     "Home" -> {
@@ -76,7 +77,8 @@ pub fn init_server_model(
       #(wire.coerce(model), wire.coerce(effects))
     }
     "ProductsId" -> {
-      let #(model, effects) = pages_products_id_.server_init(server_context)
+      let id = wire.coerce(wire.tuple_element(params, 0))
+      let #(model, effects) = pages_products_id_.server_init(server_context, id)
       #(wire.coerce(model), wire.coerce(effects))
     }
     _ -> #(dynamic.nil(), effect.none())

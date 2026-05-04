@@ -1150,6 +1150,24 @@ export function send(url, module, msg, callback) {
 }
 
 /**
+ * Send a page init frame with route params. Uses request_id 0 as the
+ * init sentinel. The server initializes the page's ServerModel with
+ * these params instead of requiring a separate Load message.
+ * @param {string} url WebSocket URL
+ * @param {string} module page name
+ * @param {any} params route params value
+ */
+export function send_page_init(url, module, params) {
+  ensureSocket(url);
+  const payload = encode_call(module, 0, params);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(payload);
+  } else {
+    pendingSends.push({ payload, requestId: 0, callback: () => {}, timer: null });
+  }
+}
+
+/**
  * Register a push handler for a specific module. When the server
  * sends a push frame tagged with this module path, the callback is
  * invoked with the decoded value.

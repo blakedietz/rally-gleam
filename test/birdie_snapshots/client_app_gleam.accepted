@@ -1,5 +1,5 @@
 ---
-version: 1.5.5
+version: 2.0.0
 title: client_app_gleam
 file: ./test/lando/router_snapshot_test.gleam
 test_name: app_gleam_snapshot_test
@@ -100,6 +100,7 @@ fn init_page(route: router.Route) -> #(PageModel, Effect(Msg)) {
       #(ProductsNewPageModel(m), effect.map(e, fn(msg) { PageMsg(ProductsNewPageMsg(msg)) }))
     }
     router.ProductsId(id) -> {
+      transport.send_page_init("ProductsId", id)
       let #(m, e) = views.products_id_init(id)
       #(ProductsIdPageModel(m), effect.map(e, fn(msg) { PageMsg(ProductsIdPageMsg(msg)) }))
     }

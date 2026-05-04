@@ -198,3 +198,10 @@ pub fn coerce(value: a) -> b {
   let _ = value
   panic as "lando_runtime/wire.coerce: external is missing for this target. This indicates a libero packaging bug; the function should be resolved by the @external attributes."
 }
+
+@external(erlang, "lando_runtime_wire_ffi", "tuple_element")
+pub fn tuple_element(tuple: dynamic.Dynamic, index: Int) -> dynamic.Dynamic {
+  let _ = tuple
+  let _ = index
+  panic as "lando_runtime/wire.tuple_element: server-side only"
+}

@@ -1,5 +1,5 @@
 -module(lando_runtime_wire_ffi).
--export([decode_call/1, variant_tag/1]).
+-export([decode_call/1, variant_tag/1, tuple_element/2]).
 
 %% Decode an ETF binary, validate it's a {Binary, Integer, Value} call envelope,
 %% and return a Gleam-shaped Result: {ok, {Name, RequestId, Value}} or
@@ -43,3 +43,10 @@ variant_tag(Value) when is_tuple(Value), tuple_size(Value) >= 1 ->
     end;
 variant_tag(_) ->
     {error, nil}.
+
+%% Extract the Nth element (0-based) from a tuple.
+%% Used by generated server_dispatch to unpack route params.
+tuple_element(Tuple, Index) when is_tuple(Tuple) ->
+    element(Index + 1, Tuple);
+tuple_element(List, Index) when is_list(List) ->
+    lists:nth(Index + 1, List).

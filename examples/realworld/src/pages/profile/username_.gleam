@@ -54,7 +54,6 @@ pub type Msg {
 }
 
 pub type ToServer {
-  LoadProfile(username: String)
   ToggleFollow
   SwitchTab(tab_name: String)
 }
@@ -76,7 +75,7 @@ pub type ServerModel {
 
 // --- Client ---
 
-pub fn init(_client_context: ClientContext, username: String) -> #(Model, Effect(Msg)) {
+pub fn init(_client_context: ClientContext, _username: String) -> #(Model, Effect(Msg)) {
   #(
     Model(
       profile: None,
@@ -84,7 +83,7 @@ pub fn init(_client_context: ClientContext, username: String) -> #(Model, Effect
       active_tab: MyArticles,
       is_following: False,
     ),
-    lando_effect.send_to_server(LoadProfile(username)),
+    effect.none(),
   )
 }
 
@@ -223,9 +222,28 @@ fn article_preview(article: ArticlePreview) -> Element(Msg) {
 // --- Server ---
 
 pub fn server_init(
-  _server_context: ServerContext,
+  server_context: ServerContext,
+  username: String,
 ) -> #(ServerModel, Effect(ToClient)) {
-  #(ServerModelEmpty, effect.none())
+  let session_id = lando_effect.get_ws_session()
+  let maybe_user_id = get_user_id(server_context.db, session_id)
+  case users_sql.get_by_username(db: server_context.db, username:) {
+    Ok([row]) -> {
+      let profile = Profile(username: row.username, bio: row.bio, image: row.image)
+      let articles = fetch_user_articles(server_context.db, row.id)
+      let is_following =
+        get_follow_status(server_context.db, row.id, maybe_user_id)
+      #(
+        ServerModel(profile_user_id: row.id),
+        lando_effect.send_to_client(ProfileData(
+          profile:,
+          articles:,
+          is_following:,
+        )),
+      )
+    }
+    _ -> #(ServerModelEmpty, effect.none())
+  }
 }
 
 pub fn server_update(
@@ -234,27 +252,6 @@ pub fn server_update(
   server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
   case msg {
-    LoadProfile(username) -> {
-      let session_id = lando_effect.get_ws_session()
-      let maybe_user_id = get_user_id(server_context.db, session_id)
-      case users_sql.get_by_username(db: server_context.db, username:) {
-        Ok([row]) -> {
-          let profile = Profile(username: row.username, bio: row.bio, image: row.image)
-          let articles = fetch_user_articles(server_context.db, row.id)
-          let is_following =
-            get_follow_status(server_context.db, row.id, maybe_user_id)
-          #(
-            ServerModel(profile_user_id: row.id),
-            lando_effect.send_to_client(ProfileData(
-              profile:,
-              articles:,
-              is_following:,
-            )),
-          )
-        }
-        _ -> #(ServerModelEmpty, effect.none())
-      }
-    }
     ToggleFollow -> {
       case model {
         ServerModelEmpty -> #(model, effect.none())

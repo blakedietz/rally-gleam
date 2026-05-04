@@ -45,32 +45,46 @@ fn generate_frame_handler(
 
       case wire.decode_call(data) {
         Ok(#(page, request_id, value)) -> {
-          let model = case dict.get(state, page) {
-            Ok(m) -> m
-            Error(_) -> {
+          case request_id {
+            0 -> {
               let _ = effect.put_ws_state(conn, effect.get_stored_ctx(), page)
               topics.join(\"page:\" <> page)
-              let #(m, _effects) = server_dispatch.init_server_model(page, effect.get_stored_ctx())
-              m
+              let #(m, _effects) = server_dispatch.init_server_model(page, effect.get_stored_ctx(), value)
+              let response_frame = wire.tag_response(0, wire.encode(Nil))
+              let _ = mist.send_binary_frame(conn, response_frame)
+              let new_state = dict.insert(state, page, m)
+              send_pending_frames(conn)
+              mist.continue(new_state)
+            }
+            _ -> {
+              let model = case dict.get(state, page) {
+                Ok(m) -> m
+                Error(_) -> {
+                  let _ = effect.put_ws_state(conn, effect.get_stored_ctx(), page)
+                  topics.join(\"page:\" <> page)
+                  let #(m, _effects) = server_dispatch.init_server_model(page, effect.get_stored_ctx(), dynamic.nil())
+                  m
+                }
+              }
+              let _ = effect.put_ws_state(conn, effect.get_stored_ctx(), page)
+              let start = timestamp.system_time()
+              let #(new_model, _effects) =
+                server_dispatch.handle_message(model, page, value, effect.get_stored_ctx())
+              let elapsed_ms =
+                timestamp.difference(start, timestamp.system_time())
+                |> duration.to_milliseconds()
+
+              let session_id = effect.get_ws_session()
+              system.log_to_server(system.get_conn(), session_id, Error(Nil), page, value, data, elapsed_ms)
+
+              let response_frame = wire.tag_response(request_id, wire.encode(Nil))
+              let _ = mist.send_binary_frame(conn, response_frame)
+
+              let new_state = dict.insert(state, page, new_model)
+              send_pending_frames(conn)
+              mist.continue(new_state)
             }
           }
-          let _ = effect.put_ws_state(conn, effect.get_stored_ctx(), page)
-          let start = timestamp.system_time()
-          let #(new_model, _effects) =
-            server_dispatch.handle_message(model, page, value, effect.get_stored_ctx())
-          let elapsed_ms =
-            timestamp.difference(start, timestamp.system_time())
-            |> duration.to_milliseconds()
-
-          let session_id = effect.get_ws_session()
-          system.log_to_server(system.get_conn(), session_id, Error(Nil), page, value, data, elapsed_ms)
-
-          let response_frame = wire.tag_response(request_id, wire.encode(Nil))
-          let _ = mist.send_binary_frame(conn, response_frame)
-
-          let new_state = dict.insert(state, page, new_model)
-          send_pending_frames(conn)
-          mist.continue(new_state)
         }
         Error(_) -> mist.continue(state)
       }

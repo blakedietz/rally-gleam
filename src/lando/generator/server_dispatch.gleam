@@ -1,3 +1,4 @@
+import gleam/int
 import gleam/list
 import gleam/string
 import lando/types.{type ScannedRoute, type PageContract}
@@ -78,13 +79,35 @@ fn generate_init_model(
         False -> Error(Nil)
         True -> {
           let alias = module_to_alias(route.module_path)
+          let has_params = route.params != []
+          let call = case has_params {
+            True -> {
+              let param_extracts =
+                route.params
+                |> list.index_map(fn(param, idx) {
+                  let #(name, _type) = param
+                  "      let " <> name <> " = wire.coerce(wire.tuple_element(params, " <> int.to_string(idx) <> "))"
+                })
+                |> string.join("\n")
+              let param_args =
+                route.params
+                |> list.map(fn(p) { p.0 })
+                |> string.join(", ")
+              param_extracts <> "\n"
+              <> "      let #(model, effects) = "
+              <> alias
+              <> ".server_init(server_context, " <> param_args <> ")\n"
+            }
+            False ->
+              "      let #(model, effects) = "
+              <> alias
+              <> ".server_init(server_context)\n"
+          }
           Ok(
             "    \""
             <> route.variant_name
             <> "\" -> {\n"
-            <> "      let #(model, effects) = "
-            <> alias
-            <> ".server_init(server_context)\n"
+            <> call
             <> "      #(wire.coerce(model), wire.coerce(effects))\n"
             <> "    }",
           )
@@ -98,6 +121,7 @@ fn generate_init_model(
 pub fn init_server_model(
   page: String,
   server_context: ServerContext,
+  params: dynamic.Dynamic,
 ) -> #(dynamic.Dynamic, effect.Effect(dynamic.Dynamic)) {
   case page {\n"
   <> arms

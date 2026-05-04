@@ -1,5 +1,5 @@
 ---
-version: 1.5.5
+version: 2.0.0
 title: client_transport_gleam
 file: ./test/lando/router_snapshot_test.gleam
 test_name: transport_gleam_snapshot_test
@@ -52,4 +52,13 @@ pub fn decode(data: BitArray) -> a
 pub fn send_to_server(page: String, msg: a) -> Nil {
   send_raw("/ws", page, msg, fn(_) { Nil })
 }
+
+/// Send route params to initialize the server-side page model.
+/// Uses request_id 0 as the init sentinel.
+pub fn send_page_init(page: String, params: a) -> Nil {
+  send_page_init_raw("/ws", page, params)
+}
+
+@external(javascript, "./rpc_ffi.mjs", "send_page_init")
+fn send_page_init_raw(url: String, page: String, params: a) -> Nil
 

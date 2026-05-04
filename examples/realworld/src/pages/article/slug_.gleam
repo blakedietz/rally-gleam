@@ -69,7 +69,6 @@ pub type Msg {
 }
 
 pub type ToServer {
-  LoadArticle(slug: String)
   ToggleFavorite
   ToggleFollow(username: String)
   SubmitComment(body: String)
@@ -101,7 +100,7 @@ pub type ServerModel {
 
 // --- Client ---
 
-pub fn init(_client_context: ClientContext, slug: String) -> #(Model, Effect(Msg)) {
+pub fn init(_client_context: ClientContext, _slug: String) -> #(Model, Effect(Msg)) {
   #(
     Model(
       article: None,
@@ -112,7 +111,7 @@ pub fn init(_client_context: ClientContext, slug: String) -> #(Model, Effect(Msg
       comment_body: "",
       errors: [],
     ),
-    lando_effect.send_to_server(LoadArticle(slug)),
+    effect.none(),
   )
 }
 
@@ -355,9 +354,61 @@ fn comment_card(comment: Comment) -> Element(Msg) {
 // --- Server ---
 
 pub fn server_init(
-  _server_context: ServerContext,
+  server_context: ServerContext,
+  article_slug: String,
 ) -> #(ServerModel, Effect(ToClient)) {
-  #(ServerModelEmpty, effect.none())
+  let session_id = lando_effect.get_ws_session()
+  let maybe_user_id = get_user_id(server_context.db, session_id)
+  case articles_sql.get_by_slug(db: server_context.db, slug: article_slug) {
+    Ok([row]) -> {
+      let assert Ok(tag_rows) =
+        tags_sql.list_by_article(db: server_context.db, article_id: row.id)
+      let tags = list.map(tag_rows, fn(r) { r.name })
+      let article =
+        Article(
+          id: row.id,
+          slug: row.slug,
+          title: row.title,
+          description: row.description,
+          body: row.body,
+          created_at: row.created_at,
+          tags:,
+          author_username: row.username,
+          author_image: row.image,
+          author_bio: row.bio,
+        )
+      let assert Ok(comment_rows) =
+        comments_sql.list_by_article(db: server_context.db, article_id: row.id)
+      let comments =
+        list.map(comment_rows, fn(c) {
+          Comment(
+            id: c.id,
+            body: c.body,
+            created_at: c.created_at,
+            username: c.username,
+            image: c.image,
+          )
+        })
+      let #(is_favorited, favorites_count) =
+        get_favorite_info(server_context.db, row.id, maybe_user_id)
+      let is_following =
+        get_follow_status(server_context.db, row.author_id, maybe_user_id)
+      #(
+        ServerModel(article_id: row.id, author_id: row.author_id),
+        lando_effect.send_to_client(ArticleData(
+          article:,
+          comments:,
+          is_favorited:,
+          is_following:,
+          favorites_count:,
+        )),
+      )
+    }
+    _ -> #(
+      ServerModelEmpty,
+      lando_effect.send_to_client(ArticleError("Article not found")),
+    )
+  }
 }
 
 pub fn server_update(
@@ -366,60 +417,6 @@ pub fn server_update(
   server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
   case msg {
-    LoadArticle(article_slug) -> {
-      let session_id = lando_effect.get_ws_session()
-      let maybe_user_id = get_user_id(server_context.db, session_id)
-      case articles_sql.get_by_slug(db: server_context.db, slug: article_slug) {
-        Ok([row]) -> {
-          let assert Ok(tag_rows) =
-            tags_sql.list_by_article(db: server_context.db, article_id: row.id)
-          let tags = list.map(tag_rows, fn(r) { r.name })
-          let article =
-            Article(
-              id: row.id,
-              slug: row.slug,
-              title: row.title,
-              description: row.description,
-              body: row.body,
-              created_at: row.created_at,
-              tags:,
-              author_username: row.username,
-              author_image: row.image,
-              author_bio: row.bio,
-            )
-          let assert Ok(comment_rows) =
-            comments_sql.list_by_article(db: server_context.db, article_id: row.id)
-          let comments =
-            list.map(comment_rows, fn(c) {
-              Comment(
-                id: c.id,
-                body: c.body,
-                created_at: c.created_at,
-                username: c.username,
-                image: c.image,
-              )
-            })
-          let #(is_favorited, favorites_count) =
-            get_favorite_info(server_context.db, row.id, maybe_user_id)
-          let is_following =
-            get_follow_status(server_context.db, row.author_id, maybe_user_id)
-          #(
-            ServerModel(article_id: row.id, author_id: row.author_id),
-            lando_effect.send_to_client(ArticleData(
-              article:,
-              comments:,
-              is_favorited:,
-              is_following:,
-              favorites_count:,
-            )),
-          )
-        }
-        _ -> #(
-          ServerModelEmpty,
-          lando_effect.send_to_client(ArticleError("Article not found")),
-        )
-      }
-    }
     ToggleFavorite -> {
       case model {
         ServerModelEmpty -> #(

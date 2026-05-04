@@ -135,6 +135,15 @@ pub fn decode(data: BitArray) -> a
 pub fn send_to_server(page: String, msg: a) -> Nil {
   send_raw(\"/ws\", page, msg, fn(_) { Nil })
 }
+
+/// Send route params to initialize the server-side page model.
+/// Uses request_id 0 as the init sentinel.
+pub fn send_page_init(page: String, params: a) -> Nil {
+  send_page_init_raw(\"/ws\", page, params)
+}
+
+@external(javascript, \"./rpc_ffi.mjs\", \"send_page_init\")
+fn send_page_init_raw(url: String, page: String, params: a) -> Nil
 "
 }
 
@@ -490,8 +499,20 @@ fn generate_init_page(
             False, "" -> "()"
             False, _ -> "(" <> string.drop_start(param_args, 2) <> ")"
           }
+          let server_init_call = case route.params {
+            [] -> ""
+            params -> {
+              let param_names = list.map(params, fn(p) { p.0 })
+              let params_tuple = case param_names {
+                [single] -> single
+                _ -> "#(" <> string.join(param_names, ", ") <> ")"
+              }
+              "      transport.send_page_init(\"" <> route.variant_name <> "\", " <> params_tuple <> ")\n"
+            }
+          }
           Ok(
             "    " <> pattern <> " -> {\n"
+            <> server_init_call
             <> "      let #(m, e) = views." <> fn_suffix <> "_init" <> call_args <> "\n"
             <> "      #(" <> route.variant_name <> "PageModel(m), effect.map(e, fn(msg) { PageMsg(" <> route.variant_name <> "PageMsg(msg)) }))\n"
             <> "    }",
