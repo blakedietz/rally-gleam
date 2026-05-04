@@ -1,3 +1,4 @@
+import client_context.{type ClientContext}
 import server_context.{type ServerContext}
 import gleam/string
 import lustre/element.{type Element}
@@ -22,11 +23,11 @@ pub type ToClient { CounterNewValue(value: Int) }
 
 pub type ServerModel { ServerModel(count: Int) }
 
-pub fn init() -> #(Model, Effect(Msg)) {
+pub fn init(_ctx: ClientContext) -> #(Model, Effect(Msg)) {
   #(Model(count: 0), effect.none())
 }
 
-pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+pub fn update(_ctx: ClientContext, model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     UserClickedIncrement -> #(model, lando_effect.send_to_server(Increment))
     UserClickedDecrement -> #(model, lando_effect.send_to_server(Decrement))
@@ -34,7 +35,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   }
 }
 
-pub fn view(model: Model) -> Element(Msg) {
+pub fn view(_ctx: ClientContext, model: Model) -> Element(Msg) {
   html.div([], [
     html.button([], [html.text("+")]),
     html.text(string.inspect(model.count)),
