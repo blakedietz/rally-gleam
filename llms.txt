@@ -37,6 +37,8 @@ pub type ServerModel { ServerModel }
 
 // -- Client functions (with ClientContext) --
 pub fn init(client_context: ClientContext) -> #(Model, Effect(Msg))
+// Pages with route params receive them after client_context:
+// pub fn init(client_context: ClientContext, slug: String) -> #(Model, Effect(Msg))
 pub fn update(client_context: ClientContext, model: Model, msg: Msg) -> #(Model, Effect(Msg))
 pub fn view(client_context: ClientContext, model: Model) -> Element(Msg)
 
@@ -47,7 +49,7 @@ pub fn load(server_context: ServerContext) -> Result(Model, LoadError)  // optio
 ```
 
 - `Model`/`Msg` — client-side state and UI events
-- `init`/`update`/`view` — standard Lustre TEA (The Elm Architecture); receive `ClientContext` as first arg when a `client_context.gleam` module exists
+- `init`/`update`/`view` — standard Lustre TEA (The Elm Architecture); receive `ClientContext` as first arg when a `client_context.gleam` module exists. For pages with dynamic route segments (e.g. `slug_.gleam`), `init` also receives the parsed route param after `client_context`
 - `ToServer` — messages the client sends to the server over WebSocket
 - `ToClient` — messages the server sends back to the client
 - `GotServerMsg(ToClient)` — the single Msg variant that handles ALL server responses. In the generated client views.gleam, the constructor is prefixed per page (e.g. `HomeGotServerMsg(HomeToClient)`) to avoid name collisions
@@ -57,6 +59,7 @@ pub fn load(server_context: ServerContext) -> Result(Model, LoadError)  // optio
 - `load` — SSR data loading, runs server-side before first render
 - `ServerContext` — defined in `server_context.gleam`, holds server dependencies (DB connection, etc.)
 - `ClientContext` — defined in `client_context.gleam`, holds cross-page client state (updated via `send_to_client_context`)
+- `layout` — if `src/pages/layout.gleam` exists and exports `pub fn layout(client_context: ClientContext, content: Element(msg)) -> Element(msg)`, all pages are wrapped in it. The layout receives the current `ClientContext` so it can show auth-dependent UI (nav links, etc.)
 
 ### Effect primitives
 
