@@ -4,16 +4,14 @@ import gleam/list
 import gleam/string
 import gleeunit/should
 import lando_runtime/effect as lando_effect
-import lando_runtime/migrate
+import lando_runtime/test_db
 import lando_runtime/topics
 import lustre/element
 import pages/home_.{Model, ServerModel, SmashLike}
 import server_context.{type ServerContext, ServerContext}
-import sqlight
 
 fn with_server_ctx(f: fn(ServerContext) -> Nil) -> Nil {
-  let assert Ok(db) = sqlight.open(":memory:")
-  let assert Ok(_) = migrate.run(conn: db, dir: "migrations")
+  let db = test_db.setup("migrations")
   let ctx = ServerContext(db:)
   topics.start()
   lando_effect.put_ws_state(Nil, ctx, "Home")
