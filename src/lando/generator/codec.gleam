@@ -25,7 +25,7 @@ pub fn generate(
   has_client_context: Bool,
 ) -> List(CodecFile) {
   [
-    CodecFile("src/generated/codec_ffi.mjs", emit_codec_ffi(discovered)),
+    CodecFile("src/generated/codec_ffi.mjs", emit_codec_ffi(discovered, contracts)),
     CodecFile("src/generated/types.gleam", emit_types_gleam(contracts)),
     CodecFile("src/generated/codec.gleam", emit_codec_gleam(contracts)),
     CodecFile("src/generated/views.gleam", emit_views_gleam(contracts, has_client_context)),
@@ -180,9 +180,9 @@ fn prefix_page_types(source: String, prefix: String) -> String {
   |> string.replace("Model(", prefix <> "Model(")
   // Effect(Msg) in return types
   |> string.replace("Effect(Msg)", "Effect(" <> prefix <> "Msg)")
-  // GotServerMsg wrapping ToClient/ToServer
-  |> string.replace("GotServerMsg(ToClient)", "GotServerMsg(" <> prefix <> "ToClient)")
-  |> string.replace("GotServerMsg(ToServer)", "GotServerMsg(" <> prefix <> "ToServer)")
+  // GotServerMsg constructor renamed to {Prefix}GotServerMsg to avoid
+  // conflicts when multiple pages define it in the same views.gleam module.
+  |> string.replace("GotServerMsg(", prefix <> "GotServerMsg(")
   // ToClient/ToServer in type annotations like Effect(ToClient)
   |> string.replace("(ToClient)", "(" <> prefix <> "ToClient)")
   |> string.replace("(ToServer)", "(" <> prefix <> "ToServer)")
@@ -246,11 +246,21 @@ fn snake_case(name: String) -> String {
 // ---------- JS typed decoders (codec_ffi.mjs) ----------
 // Ported from libero's codegen_decoders.gleam
 
-fn emit_codec_ffi(discovered: List(DiscoveredType)) -> String {
+fn emit_codec_ffi(
+  discovered: List(DiscoveredType),
+  contracts: List(#(ScannedRoute, PageContract)),
+) -> String {
   let type_decoders =
     discovered
     |> list.map(emit_type_decoder)
     |> string.join("\n\n")
+
+  let push_decoders = emit_push_decoders(contracts)
+
+  let types_import = case push_decoders {
+    "" -> ""
+    _ -> emit_types_mjs_import(contracts)
+  }
 
   let stdlib_setters =
     "import { setResultCtors, setOptionCtors, setListCtors, "
@@ -266,7 +276,8 @@ fn emit_codec_ffi(discovered: List(DiscoveredType)) -> String {
     <> "import { Some, None } from \""
     <> "../gleam_stdlib/gleam/option.mjs\";\n"
     <> "import { from_list as dictFromList } from \""
-    <> "../gleam_stdlib/gleam/dict.mjs\";"
+    <> "../gleam_stdlib/gleam/dict.mjs\";\n"
+    <> types_import
 
   let ctor_setters =
     "setResultCtors(Ok, ResultError);\n"
@@ -284,7 +295,80 @@ fn emit_codec_ffi(discovered: List(DiscoveredType)) -> String {
 
 " <> stdlib_setters <> "\n\n" <> imports <> "\n\n" <> ctor_setters
   <> "\n" <> float_registrations <> "\n"
-  <> type_decoders <> "\n"
+  <> type_decoders
+  <> push_decoders <> "\n"
+}
+
+/// Generate the import statement for types.mjs constructor classes,
+/// used by push decoders to construct proper Gleam instances.
+fn emit_types_mjs_import(
+  contracts: List(#(ScannedRoute, PageContract)),
+) -> String {
+  let ctor_names =
+    contracts
+    |> list.flat_map(fn(pair) {
+      let #(_route, contract) = pair
+      case contract.has_server_update, contract.to_client_variants {
+        True, variants if variants != [] ->
+          list.map(variants, fn(v) { v.name })
+        _, _ -> []
+      }
+    })
+    |> list.unique
+    |> string.join(", ")
+  case ctor_names {
+    "" -> ""
+    _ -> "import { " <> ctor_names <> " } from \"./types.mjs\";"
+  }
+}
+
+/// Generate push decoder functions in codec_ffi.mjs.
+/// Each function converts a raw ETF-decoded value (atom-tagged array)
+/// into the proper Gleam ToClient constructor instance.
+fn emit_push_decoders(
+  contracts: List(#(ScannedRoute, PageContract)),
+) -> String {
+  contracts
+  |> list.filter_map(fn(pair) {
+    let #(route, contract) = pair
+    case contract.has_server_update, contract.to_client_variants {
+      True, variants if variants != [] -> {
+        let fn_suffix = snake_case(route.variant_name)
+        Ok(emit_push_decoder_fn(fn_suffix, variants))
+      }
+      _, _ -> Error(Nil)
+    }
+  })
+  |> string.join("\n\n")
+}
+
+fn emit_push_decoder_fn(fn_suffix: String, variants: List(VariantInfo)) -> String {
+  let arms =
+    list.map(variants, fn(v) {
+      let atom_name = snake_case(v.name)
+      let args = case v.fields {
+        [] -> ""
+        fields ->
+          fields
+          |> list.index_map(fn(f, i) {
+            field_decoder_call(f.type_, "term[" <> int.to_string(i + 1) <> "]")
+          })
+          |> string.join(", ")
+      }
+      let ctor = case v.fields {
+        [] -> "new " <> v.name <> "()"
+        _ -> "new " <> v.name <> "(" <> args <> ")"
+      }
+      "    case \"" <> atom_name <> "\":\n"
+      <> "      return " <> ctor <> ";"
+    })
+  "\nexport function decode_push_" <> fn_suffix <> "(term) {\n"
+  <> "  const tag = Array.isArray(term) ? term[0] : term;\n"
+  <> "  switch (tag) {\n"
+  <> string.join(arms, "\n")
+  <> "\n    default:\n      throw new DecodeError(\"unknown push variant: \" + String(tag));\n"
+  <> "  }\n"
+  <> "}"
 }
 
 fn emit_float_registrations(discovered: List(DiscoveredType)) -> String {
@@ -502,6 +586,9 @@ fn emit_type_def(
             // to avoid conflicts when multiple pages share the same module.
             "Model" -> type_name
             "Msg" -> type_name
+            // Prefix GotServerMsg to avoid conflicts when multiple pages
+            // define GotServerMsg(ToClient) in the same views.gleam module.
+            "GotServerMsg" -> prefix <> "GotServerMsg"
             other -> other
           }
           case v.fields {
@@ -538,6 +625,7 @@ fn emit_codec_gleam(
 ) -> String {
   let encode_fns = emit_encode_functions(contracts)
   let decode_fns = emit_decode_functions(contracts)
+  let push_decode_fns = emit_push_decode_functions(contracts)
 
   "// Generated by lando — do not edit.
 ////
@@ -545,13 +633,15 @@ fn emit_codec_gleam(
 //// Wraps transport.encode / transport.decode with
 //// compile-time type-safe signatures.
 
+import gleam/dynamic.{type Dynamic}
 import generated/transport
 import generated/types.{"
   <> emit_codec_type_imports(contracts)
   <> "}
 
 " <> string.join(encode_fns, "\n\n") <> "\n\n"
-  <> string.join(decode_fns, "\n\n") <> "\n"
+  <> string.join(decode_fns, "\n\n") <> "\n\n"
+  <> string.join(push_decode_fns, "\n\n") <> "\n"
 }
 
 fn emit_codec_type_imports(
@@ -624,6 +714,39 @@ fn emit_decode_functions(
           <> "}",
         )
       }
+    }
+  })
+}
+
+fn emit_push_decode_functions(
+  contracts: List(#(ScannedRoute, PageContract)),
+) -> List(String) {
+  list.filter_map(contracts, fn(pair) {
+    let #(route, contract) = pair
+    case contract.has_server_update, contract.to_client_variants {
+      True, variants if variants != [] -> {
+        let prefix = route.variant_name
+        let fn_suffix = walker.to_snake_case(prefix)
+        Ok(
+          "/// Decode a raw push value into a typed "
+          <> prefix
+          <> "ToClient constructor.\n"
+          <> "@external(javascript, \"./codec_ffi.mjs\", \"decode_push_"
+          <> fn_suffix
+          <> "\")\n"
+          <> "pub fn decode_push_"
+          <> fn_suffix
+          <> "(raw: Dynamic) -> "
+          <> prefix
+          <> "ToClient {\n"
+          <> "  let _ = raw\n"
+          <> "  panic as \"decode_push_"
+          <> fn_suffix
+          <> ": client-side only\"\n"
+          <> "}",
+        )
+      }
+      _, _ -> Error(Nil)
     }
   })
 }

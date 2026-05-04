@@ -228,6 +228,7 @@ import lustre/attribute as attr
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/effect.{type Effect}
+import generated/codec
 import generated/router
 import generated/transport
 import generated/views"
@@ -264,9 +265,6 @@ pub type Msg {
 }
 
 pub fn main() {
-"
-  <> push_registrations
-  <> "
   let app = lustre.application(init, update, view)
   lustre.start(app, \"#app\", Nil)
 }
@@ -284,6 +282,9 @@ fn init_transport() -> Effect(Msg) {
     let _ = transport.register_on_connect(fn() { dispatch(TransportConnected) })
     let _ = transport.register_on_disconnect(fn(reason) { dispatch(TransportDisconnected(reason)) })
     let _ = router.on_popstate(fn() { dispatch(UrlChanged(router.parse_route_from_url())) })
+"
+  <> push_registrations
+  <> "
     Nil
   })
 }
@@ -344,11 +345,19 @@ fn generate_push_registrations(
     let #(route, contract) = pair
     case contract.has_server_update {
       False -> Error(Nil)
-      True -> Ok(
-        "  let _ = transport.register_push_handler(\""
-        <> route.variant_name
-        <> "\", fn(_msg) { Nil })",
-      )
+      True -> {
+        let vn = route.variant_name
+        let fn_suffix = to_snake_case(vn)
+        Ok(
+          "    let _ = transport.register_push_handler(\""
+          <> vn
+          <> "\", fn(raw) {\n"
+          <> "      dispatch(PageMsg("
+          <> vn <> "PageMsg(views." <> vn <> "GotServerMsg(codec.decode_push_"
+          <> fn_suffix <> "(raw)))))\n"
+          <> "    })",
+        )
+      }
     }
   })
   |> string.join("\n")
