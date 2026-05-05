@@ -1,6 +1,6 @@
 # Lando Framework
 
-A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, Marmot for queries, ETF for wire format.
+A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, Marmot for queries, ETF for wire format, libero for RPC plumbing.
 
 ## Quick start
 
@@ -9,7 +9,7 @@ bash bin/new my_app
 cd my_app && bin/dev
 ```
 
-`bin/dev` runs the lando codegen (scans `src/pages/`, generates router, dispatch, SSR handler, WS handler, and client package), builds the JS client, and starts the Mist server on port 8080.
+`bin/dev` runs the lando codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), builds the JS client, and starts the Mist server on port 8080.
 
 ## Page module contract
 
@@ -26,53 +26,64 @@ Trailing underscore marks a dynamic segment. Names ending in `_id` become `Int` 
 ### What a page exports
 
 ```gleam
-// src/pages/home_.gleam
+// src/pages/login.gleam
 
 // -- Types --
-pub type Model { Model }
-pub type Msg { SmashedLikeButton; GotServerMsg(ToClient) }
-pub type ToServer { SmashLike }
-pub type ToClient { NewSmashedLikes(count: Int) }
-pub type ServerModel { ServerModel }
+pub type Model { Model(email: String, password: String, errors: List(String)) }
+pub type Msg { UpdatedEmail(String); ClickedLogin; GotLogin(Result(#(String, String), List(String))) }
 
-// -- Client functions (with ClientContext) --
+// -- Client functions --
 pub fn init(client_context: ClientContext) -> #(Model, Effect(Msg))
-// Pages with route params receive them after client_context:
-// pub fn init(client_context: ClientContext, slug: String) -> #(Model, Effect(Msg))
 pub fn update(client_context: ClientContext, model: Model, msg: Msg) -> #(Model, Effect(Msg))
 pub fn view(client_context: ClientContext, model: Model) -> Element(Msg)
 
-// -- Server functions --
-pub fn server_update(model: ServerModel, msg: ToServer, server_context: ServerContext) -> #(ServerModel, Effect(ToClient))
-pub fn server_init(server_context: ServerContext) -> #(ServerModel, Effect(ToClient))
-pub fn load(server_context: ServerContext) -> Result(Model, LoadError)  // optional, for SSR
+// -- Server handler (the function signature IS the wire contract) --
+pub fn server_login(
+  email email: String,
+  password password: String,
+  server_context server_context: ServerContext,
+) -> Result(#(String, String), List(String))
+
+// -- Optional SSR --
+pub fn load(server_context: ServerContext) -> Model
 ```
 
-- `Model`/`Msg` — client-side state and UI events
-- `init`/`update`/`view` — standard Lustre TEA (The Elm Architecture); receive `ClientContext` as first arg when a `client_context.gleam` module exists. For pages with dynamic route segments (e.g. `slug_.gleam`), `init` also receives the parsed route param after `client_context`
-- `ToServer` — messages the client sends to the server over WebSocket
-- `ToClient` — messages the server sends back to the client
-- `GotServerMsg(ToClient)` — the single Msg variant that handles ALL server responses. In the generated client views.gleam, the constructor is prefixed per page (e.g. `HomeGotServerMsg(HomeToClient)`) to avoid name collisions
-- `server_update` — runs on the BEAM, has access to DB/session via `ServerContext`
-- `server_init` — returns the initial `ServerModel` + optional initial effect (e.g. sending current state to client)
-- `ServerModel` — per-session server state
-- `load` — SSR data loading, runs server-side before first render
-- `ServerContext` — defined in `server_context.gleam`, holds server dependencies (DB connection, etc.)
-- `ClientContext` — defined in `client_context.gleam`, holds cross-page client state (updated via `send_to_client_context`)
-- `layout` — if `src/pages/layout.gleam` exists and exports `pub fn layout(client_context: ClientContext, content: Element(msg)) -> Element(msg)`, all pages are wrapped in it. The layout receives the current `ClientContext` so it can show auth-dependent UI (nav links, etc.)
+The handler-as-contract pattern: `pub fn server_*` functions with a `ServerContext` parameter and `Result` return type define the RPC contract. No ToServer/ToClient types, no ServerModel, no server_init/server_update. The function signature is scanned by libero and generates dispatch + client stubs automatically.
+
+### How client calls the server
+
+Pages define a local `RpcMsg` type whose variants match the handler wire names, and call `lando_effect.rpc(msg, on_response: callback)`:
+
+```gleam
+type RpcMsg { Login(email: String, password: String) }
+
+pub fn update(_cc, model, msg) {
+  case msg {
+    ClickedLogin -> #(model, lando_effect.rpc(Login(email: model.email, password: model.password), on_response: GotLogin))
+    GotLogin(Ok(#(username, image))) -> // handle success
+    GotLogin(Error(errors)) -> // handle errors
+  }
+}
+```
+
+- `Model`/`Msg` and client functions are standard Lustre TEA
+- `server_*` functions run on the BEAM with full DB/session access
+- `load` is SSR data loading, runs server-side before first render
+- `ServerContext` is defined in `server_context.gleam`, holds server dependencies
+- `ClientContext` is defined in `client_context.gleam`, holds cross-page client state
+- `layout` wraps all pages if `src/pages/layout.gleam` exports `pub fn layout(client_context, content)`
 
 ### Effect primitives
 
 Page modules import from `lando_runtime/effect`:
 
-- `send_to_server(variant)` — sends a `ToServer` message to the server over WebSocket. On the client, the generated views.gleam contains per-page wrappers (e.g. `home_send_to_server`) that call `transport.send_to_server("Home", msg)` via `rpc_ffi.mjs`. The page's adapted `update` source has `lando_effect.send_to_server(` automatically rewritten to the page-specific wrapper. On the server this is a no-op.
-- `send_to_client(variant)` — encodes the `ToClient` message as an ETF push frame and queues it for the WebSocket handler to send. Uses process dictionary for handler state. Useful for sending initial state on connect (e.g. from `server_init`).
-- `broadcast_to_page(variant)` — broadcasts a `ToClient` push frame to ALL connections viewing the same page (via pg topic). Used for real-time updates that all viewers should see.
-- `send_to_client_context(variant)` — sends a `ClientContextMsg` from a page to update the shared `ClientContext`. Allows server responses to propagate to cross-page state.
-- `navigate(path)` — pushes a new browser history entry and triggers a route change via modem's popstate listener. On the server this is a no-op.
-- `get_ws_session()` — returns the session ID for the current WebSocket connection (server-side only, from process dictionary). Used by pages to look up the authenticated user.
-- `effect.none()` — no-op effect
-- `effect.from(fn)` — create a custom effect
+- `rpc(msg, on_response: callback)` — calls a server handler via WebSocket RPC. On the server this is a no-op (update never runs server-side). On the client, the generated code encodes the msg and sends it over the transport.
+- `send_to_client(variant)` — server push: encodes as ETF push frame, queues for WS handler
+- `broadcast_to_page(variant)` / `broadcast_to_app(variant)` / `broadcast_to_session(variant)` — multi-cast push via pg topics
+- `send_to_client_context(variant)` — page-to-context messaging for cross-page state
+- `navigate(path)` — client-side URL push via modem
+- `get_ws_session()` — returns session ID for current connection (server-side only)
+- `effect.none()` / `effect.from(fn)` — standard lustre effects
 
 ## Project structure
 
@@ -98,15 +109,16 @@ Running `gleam run -m lando` produces:
 |---|---|
 | `src/generated/router.gleam` | `Route` type, `parse_route`, `route_to_path`, `href` |
 | `src/generated/page_dispatch.gleam` | `PageModel`/`PageMsg` unions, init/update/view dispatch |
-| `src/generated/server_dispatch.gleam` | `handle_message` dispatcher + `init_server_model` per-page init |
+| `src/generated/rpc_dispatch.gleam` | libero-generated RPC handler dispatch (pattern matches wire calls to server_ functions) |
 | `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, embeds model as flags |
-| `src/generated/ws_handler.gleam` | WebSocket upgrade handler: ETF frame loop, session model storage, push frame delivery, topic auto-join (app/session/page), broadcast frame forwarding |
-| `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop (PageModel/PageMsg unions, init_page/update_page/render_page dispatch), WebSocket transport, modem-based route-change handling, push handler dispatch, optional layout wrapping (when any route has a layout_module) |
-| `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handler registration, ETF codec |
-| `client/src/generated/views.gleam` | Per-page Model/Msg types, per-page `send_to_server` transport wrappers, and adapted init/update/view functions with prefixed types |
-| `client/src/generated/types.gleam` | Mirrored page ToServer/ToClient types for the client |
-| `client/src/generated/codec.gleam` | Typed encode/decode wrappers for page message types, push decoder FFI bindings |
-| `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types, push decoders per page |
+| `src/generated/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery |
+| `src/generated/http_handler.gleam` | HTTP RPC handler: POST /rpc with ETF body, calls rpc_dispatch, returns ETF response |
+| `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing |
+| `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, ETF codec |
+| `client/src/generated/views.gleam` | Per-page Model/Msg types, adapted init/update/view, typed RPC stub functions |
+| `client/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
+| `client/src/generated/codec.gleam` | Typed encode/decode wrappers, decoder FFI bindings |
+| `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
 | `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from lando_runtime) |
 
 ## Architecture
@@ -117,40 +129,32 @@ Running `gleam run -m lando` produces:
 |---|---|
 | `lando.gleam` | CLI entry point, reads `[tools.lando]` from gleam.toml, runs pipeline |
 | `scanner.gleam` | Recursively walks pages directory, produces `List(ScannedRoute)` |
-| `parser.gleam` | Glance AST parser: extracts ToServer/ToClient types with full field info, detects function signatures |
-| `walker.gleam` | BFS type graph walker: discovers all reachable custom types from page message types |
+| `parser.gleam` | Glance AST parser: extracts Model/Msg types, detects function signatures |
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
-| `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam (with per-page TEA loop: PageModel/PageMsg types, init_page/update_page/render_page dispatchers), rpc_ffi.mjs, decoders_prelude.mjs |
-| `generator/codec.gleam` | ETF codec generation: types.gleam (mirrored page types), codec.gleam (typed wrappers), codec_ffi.mjs (JS decoders), views.gleam (adapts real page init/update/view functions with prefixed types, generates per-page `send_to_server` transport wrappers) |
-| `generator/server_dispatch.gleam` | Server dispatch: `handle_message` + `init_server_model` |
-| `generator/ssr_handler.gleam` | SSR handler |
-| `generator/ws_handler.gleam` | WebSocket frame loop: auto-joins pg topics (app, session, page), decodes call envelopes, dispatches to server_update, sends push frames, forwards broadcast frames via Mist selector |
+| `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam |
+| `generator/codec.gleam` | Client codegen: types.gleam (ClientMsg), views.gleam (adapted page code + RPC stubs), codec files |
+| `generator/ssr_handler.gleam` | SSR handler generation |
+| `generator/ws_handler.gleam` | WebSocket handler: calls rpc_dispatch.handle, drains push frames |
+| `generator/http_handler.gleam` | HTTP RPC handler generation |
 | `format.gleam` | `gleam format` runner for generated code |
-| `field_type.gleam` | Type representation |
-| `gen_error.gleam` | Terminal error formatting |
+
+Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generates dispatch source), walker (BFS type graph), codegen_decoders (JS type registration), field_type (type representation), wire (ETF codec), trace (panic catching).
 
 ### Runtime library (`src/lando_runtime/`)
 
 | Module | Role |
 |---|---|
-| `effect.gleam` | `send_to_server`, `send_to_client`, `broadcast_to_page`/`broadcast_to_app`/`broadcast_to_session` (ETF push via process dict + pg), `send_to_client_context` (page-to-context messaging), `navigate` (client-side URL push via modem) |
-| `db.gleam` | SQLite helpers: `open` (WAL/busy/FK), `query` (timed wrapper with debug logging), `one` (List to Option), `bool_to_int`, `nullable_text`, `transaction` (nestable via SAVEPOINTs) |
-| `system.gleam` | Framework-owned system DB (separate from app DB): message logging, background job queue, global connection via `global_value` |
-| `jobs.gleam` | Durable background job runner: polling, execution, exponential backoff retry, dead-letter handling |
-| `session.gleam` | Session cookie generation (crypto-random 128-bit hex) and extraction, `set_cookie_header` (HttpOnly, SameSite=Lax, Secure) |
-| `topics.gleam` | Topic pub/sub using OTP `pg` process groups: join/leave/broadcast/receive for cross-process push delivery |
-| `wire.gleam` | ETF encode/decode, call envelope parsing, frame tagging, variant tagging, Dynamic coercion |
+| `effect.gleam` | `rpc`, `send_to_client`, `broadcast_to_page`/`broadcast_to_app`/`broadcast_to_session`, `send_to_client_context`, `navigate`, `get_ws_session` |
+| `db.gleam` | SQLite helpers: `open` (WAL/busy/FK), `query`, `one`, `transaction` |
+| `system.gleam` | System DB: message logging, background job queue, global connection |
+| `jobs.gleam` | Durable background job runner with retry |
+| `session.gleam` | Session cookie generation and extraction |
+| `topics.gleam` | Topic pub/sub using OTP `pg` process groups |
+| `wire.gleam` | Thin wrapper over libero/wire (ETF encode/decode, frame tagging) + tuple_element |
 | `codec.gleam` | Base64 ETF serialization for SSR flags |
-| `ssr.gleam` | HTML rendering via `element.to_document_string` |
-| `remote_data.gleam` | Typed async state (`NotAsked`/`Loading`/`Failure`/`Success`) |
-| `error.gleam` | RPC error types |
-| `trace.gleam` | Panic catching + trace IDs |
+| `ssr.gleam` | HTML rendering via lustre element |
 | `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect |
-| `lando_effect_ffi.mjs` | JS FFI for client-side effects: `navigate` (pushState + popstate dispatch) |
-| `lando_runtime_ffi.erl` | Erlang FFI: encode/decode, process dict state for WS handler, push frame accumulator |
-| `lando_runtime_wire_ffi.erl` | Erlang FFI: `decode_call` envelope parser, `variant_tag` extraction |
-| `lando_runtime_topics_ffi.erl` | Erlang FFI: `pg`-based topic pub/sub (start, join, leave, members, broadcast, receive_frame) |
-| `lando_runtime_db_ffi.erl` | Erlang FFI: per-request query timing accumulator (process dictionary) |
+| `lando_runtime_ffi.erl` | Erlang FFI: WS process state management, push frame accumulator |
 
 ### Broadcast and Topics
 
@@ -163,96 +167,36 @@ Four-level server-to-client messaging using OTP `pg` process groups:
 | `broadcast_to_session(msg)` | Every connection in the same browser session | `"session:<session_id>"` |
 | `send_to_client(msg)` | One specific connection | Direct (process dict queue) |
 
-On WebSocket connect, the framework auto-subscribes to three implicit topics: `app`, `page:<name>`, `session:<id>`. Session is cookie-based (not auth/user-based). Custom topics can be added via `topics.join`/`topics.leave`/`topics.broadcast`.
-
 ### Transport
 
 - **Wire format:** ETF (Erlang External Term Format), binary
-- **Call envelope:** `{module_name, request_id, msg}` for client→server messages
-- **Response frame:** `<<0x00, request_id:32, response_etf>>` — sent after each dispatch so the client's request/response matching doesn't timeout
-- **Push frame:** `<<0x01, {module_name, msg}_etf>>` — server→client push messages (from `send_to_client`/`broadcast`)
-- **Transport:** WebSocket with auto-reconnect (via `rpc_ffi.mjs`)
+- **Call envelope:** `{module_name, request_id, msg}` for client to server RPC calls
+- **Response frame:** `<<0x00, request_id:32, response_etf>>` — correlated response
+- **Push frame:** `<<0x01, {module_name, msg}_etf>>` — server to client push
+- **Transport:** WebSocket with auto-reconnect, or HTTP POST /rpc for non-WebSocket clients
 - **SSR:** First request renders HTML with serialized model embedded as flags
 - **Hydration:** Client reads flags, boots Lustre, takes over as SPA
-- **Server effects:** `send_to_client` encodes and queues push frames in the process dictionary. The WS handler drains and sends them after each dispatch via `mist.send_binary_frame`. `broadcast` sends push frames to all connections in a topic via pg groups; the WS handler's Mist selector catches these messages and forwards them as `Custom` frames.
 
 ## Dependencies
 
+- `libero` — RPC plumbing: handler scanning, dispatch codegen, ETF wire, decoder generation
 - `lustre` — UI framework (TEA, SSR, VDOM)
 - `mist` — HTTP/WebSocket server (BEAM)
 - `marmot` — SQL-to-Gleam codegen (introspects SQLite)
 - `sqlight` — SQLite NIF
-- `gleam_time` — Timestamps (unix seconds), query timing
 - `glance` — Gleam AST parser
 - `tom` — TOML config parser
 - `simplifile` — Filesystem operations
-- `logging` — Structured logging (debug query logs, system DB status)
-- `global_value` — Global persistent storage (system DB connection)
-- `modem` — client-side URL routing for Lustre (generated client dependency)
 
 ## SSR Hydration
 
 Pages with a `load` function get server-side rendered on first request:
 
 1. The SSR handler calls `load(server_context)` to get the page `Model`
-2. If `client_context.gleam` exports `pub fn from_session(server_context, session_id)`, it's called to build a `ClientContext` for the render
+2. If `client_context.gleam` exports `pub fn from_session(server_context, session_id)`, it's called to build a `ClientContext`
 3. The page's `view(client_context, model)` renders HTML, wrapped in layout if present
-4. The model is base64-ETF encoded and embedded: `<script>window.__LANDO_FLAGS__='...'</script>`
-5. On the client, `init()` reads the flags. If decode succeeds, `hydrate_page` wraps the model in the correct `PageModel` variant with no effects (instant takeover). If decode fails, `init_page` runs fresh.
-
-Routes without `load` serve the shell HTML template and boot as a pure SPA.
-
-## Shell HTML Template
-
-Configured via `shell_file` (default: `src/shell.html`):
-
-```toml
-[tools.lando]
-shell_file = "src/shell.html"
-```
-
-The template is the base HTML document for SPA routes. Must include a `<div id="app"></div>` mount point and a script tag for the client JS. The SSR handler falls back to this for routes without a `load` function.
-
-## System DB and Jobs
-
-Every lando app gets a framework-managed SQLite database (separate from the app DB) via `system.start("system.db")` or `system.start_with_jobs("system.db", handler)`.
-
-Provides:
-- **Message logging:** all ToServer dispatches are logged with session, page, payload, and elapsed time
-- **Background jobs:** durable queue with retry. Schema: `id, name, payload (BLOB), run_at, attempts, status, last_error, created_at`
-
-Job API:
-- `system.enqueue(name, payload, run_at)` — enqueue at a Unix timestamp
-- `system.enqueue_in(name, payload, delay_seconds)` — enqueue after delay
-- `system.enqueue_now(name, payload)` — enqueue immediately
-
-The job runner polls every 1s, fetches up to 10 pending jobs, runs them via the `JobHandler` function (`fn(String, BitArray) -> Result(Nil, String)`). Retries with exponential backoff (attempts^2 * 5s), max 5 attempts. Failed jobs go to `'dead'` status.
-
-The system DB connection is stored globally via `global_value` so any process can call `system.get_conn()` without threading the connection through parameters.
-
-## WebSocket Reconnection
-
-The JS transport (`rpc_ffi.mjs`) handles reconnection automatically:
-
-- On disconnect: exponential backoff from 500ms to 30s with full jitter
-- Push handlers survive reconnects (registered once, reused across connections)
-- Sends queued during disconnect are flushed on reconnect
-
-On the Gleam side, `TransportConnected` triggers `reinit_server(route)` which sends `send_page_init` with request_id 0 for the current route. The server re-initializes the `ServerModel` fresh, so the client picks up current state without a full page reload.
-
-Connection state (`Connected | Disconnected | Reconnecting`) is tracked in the app model and rendered as a banner via `connection_banner`.
-
-## ClientContext and from_session
-
-`client_context.gleam` holds cross-page client state (auth user, theme, etc.). If it exports:
-
-```gleam
-pub fn from_session(server_context: ServerContext, session_id: String) -> ClientContext
-```
-
-The SSR handler uses it to hydrate `ClientContext` from server state (e.g., looking up the authenticated user by session). This lets server-rendered pages include user-specific UI without a client round-trip.
-
-On the client, `ClientContext` is initialized via `client_context.init()` and updated through `ClientContextUpdate` messages. Pages can trigger context updates from server responses via `send_to_client_context`.
+4. The model is base64-ETF encoded and embedded as flags
+5. On the client, `init()` reads the flags for instant hydration
 
 ## Configuration
 
@@ -263,30 +207,29 @@ In `gleam.toml`:
 pages_root = "src/pages"
 output_route = "src/generated/router.gleam"
 output_dispatch = "src/generated/page_dispatch.gleam"
-output_server_dispatch = "src/generated/server_dispatch.gleam"
+output_server_dispatch = "src/generated/rpc_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
 output_ws = "src/generated/ws_handler.gleam"
+output_http = "src/generated/http_handler.gleam"
 sql_dir = "src/sql"
 client_root = "client"
 shell_file = "src/shell.html"
 ```
 
-The lando package path is resolved from `[dependencies].lando.path` in the consumer's gleam.toml, defaulting to `".."`.
-
 ## Examples
 
-- `examples/realworld/` — RealWorld (Conduit) clone: full CRUD app with auth, articles, comments, tags, favorites, follows. Uses marmot for all SQL queries, `gleam_time` for unix-second integer timestamps, `gleam_crypto` for session tokens and password verification. Tests cover password hashing, slug generation, timestamps, and full schema validation with birdie snapshots
+- `examples/realworld/` — RealWorld (Conduit) clone: full CRUD with auth, articles, tags. Uses handler-as-contract pattern for all server interactions.
 
 ## Prior art
 
 - elm-land: file-based routing conventions
-- Lamdera: explicit `ToServer`/`ToClient` message types as client-server contract
-- libero: ETF wire protocol, codegen architecture
+- Lamdera: inspiration for architecture (adapted for BEAM primitives)
+- libero: ETF wire protocol, handler scanning, dispatch codegen
 - marmot: SQL-first codegen with live SQLite introspection
 
 ## Testing
 
 ```sh
-gleam test                    # 103 tests: scanner, generator, parser, wire, codec, topics, session, broadcast, snapshots
+gleam test                    # 99 tests: scanner, generator, parser, wire, codec, topics, session, broadcast, snapshots
 gleam run -m birdie           # review snapshot changes
 ```
