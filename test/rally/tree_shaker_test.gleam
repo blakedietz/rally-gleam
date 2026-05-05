@@ -1,0 +1,384 @@
+import gleam/string
+import gleeunit/should
+import rally/tree_shaker
+
+// -- Test: client-only page passes through unchanged --
+
+pub fn client_only_page_test() {
+  let source =
+    "import gleam/option.{type Option, None, Some}
+import lustre/effect.{type Effect}
+import lustre/element.{type Element}
+import lustre/element/html
+
+pub type Model { Model(count: Int, name: Option(String)) }
+pub type Msg { Increment }
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(count: 0, name: None), effect.none())
+}
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case msg {
+    Increment -> #(Model(..model, count: model.count + 1), effect.none())
+  }
+}
+
+pub fn view(model: Model) -> Element(Msg) {
+  html.text(\"hello\")
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // Everything should survive since there's no server code
+  result |> string.contains("pub fn init()") |> should.be_true()
+  result |> string.contains("pub fn update(") |> should.be_true()
+  result |> string.contains("pub fn view(") |> should.be_true()
+  result |> string.contains("pub type Model") |> should.be_true()
+  result |> string.contains("pub type Msg") |> should.be_true()
+  // Imports used by client types/functions should survive
+  result |> string.contains("gleam/option") |> should.be_true()
+  result |> string.contains("lustre/effect") |> should.be_true()
+  result |> string.contains("lustre/element/html") |> should.be_true()
+}
+
+// -- Test: server_* function is removed --
+
+pub fn removes_server_function_test() {
+  let source =
+    "import gleam/option.{type Option, None}
+import server_context.{type ServerContext}
+
+pub type Model { Model(name: Option(String)) }
+pub type Msg { Got(String) }
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(name: None), effect.none())
+}
+
+pub fn view(model: Model) -> Element(Msg) {
+  html.text(\"hello\")
+}
+
+pub fn server_get_name(msg: ServerGetName, server_context: ServerContext) -> String {
+  \"dave\"
+}
+"
+
+  let result =
+    tree_shaker.shake(source, server_symbols: ["ServerContext", "ServerGetName"])
+
+  // server_get_name and its server-only import should be gone
+  result |> string.contains("server_get_name") |> should.be_false()
+  result |> string.contains("server_context") |> should.be_false()
+  result |> string.contains("ServerGetName") |> should.be_false()
+  // client code should remain
+  result |> string.contains("pub fn init()") |> should.be_true()
+  result |> string.contains("pub fn view(") |> should.be_true()
+  result |> string.contains("gleam/option") |> should.be_true()
+}
+
+// -- Test: private helper only used by server code is excluded --
+
+pub fn excludes_server_only_helper_test() {
+  let source =
+    "import gleam/option.{type Option, None}
+import server_context.{type ServerContext}
+import generated/sql/auth_sql
+
+pub type Model { Model(name: String) }
+pub type Msg { Got(String) }
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(name: \"\"), effect.none())
+}
+
+pub fn view(model: Model) -> Element(Msg) {
+  html.text(model.name)
+}
+
+fn lookup_user(db, id) {
+  auth_sql.find(db, id)
+}
+
+pub fn server_get_name(msg: ServerGetName, server_context: ServerContext) -> String {
+  lookup_user(server_context.db, 1)
+}
+"
+
+  let result =
+    tree_shaker.shake(source, server_symbols: ["ServerContext", "ServerGetName"])
+
+  // server function and its helper should both be gone
+  result |> string.contains("server_get_name") |> should.be_false()
+  result |> string.contains("lookup_user") |> should.be_false()
+  result |> string.contains("auth_sql") |> should.be_false()
+  // client code remains
+  result |> string.contains("pub fn init()") |> should.be_true()
+  result |> string.contains("pub fn view(") |> should.be_true()
+}
+
+// -- Test: private helper used by client code is kept --
+
+pub fn keeps_client_helper_test() {
+  let source =
+    "import lustre/element.{type Element}
+import lustre/element/html
+
+pub type Model { Model(items: List(String)) }
+pub type Msg { NoOp }
+
+pub fn view(model: Model) -> Element(Msg) {
+  html.div([], [items_table(model.items)])
+}
+
+fn items_table(items) {
+  html.ul([], [])
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  result |> string.contains("fn items_table(") |> should.be_true()
+  result |> string.contains("pub fn view(") |> should.be_true()
+}
+
+// -- Test: private helper used by both client and server is kept --
+
+pub fn keeps_shared_helper_test() {
+  let source =
+    "import gleam/int
+import server_context.{type ServerContext}
+
+pub type Model { Model(label: String) }
+pub type Msg { NoOp }
+
+pub fn view(model: Model) -> Element(Msg) {
+  html.text(format_count(42))
+}
+
+fn format_count(n) {
+  int.to_string(n)
+}
+
+pub fn server_stats(msg: ServerStats, server_context: ServerContext) -> String {
+  format_count(100)
+}
+"
+
+  let result =
+    tree_shaker.shake(source, server_symbols: ["ServerContext", "ServerStats"])
+
+  // shared helper stays (client uses it)
+  result |> string.contains("fn format_count(") |> should.be_true()
+  // server function removed
+  result |> string.contains("server_stats") |> should.be_false()
+  result |> string.contains("server_context") |> should.be_false()
+}
+
+// -- Test: load function is removed --
+
+pub fn removes_load_function_test() {
+  let source =
+    "import server_context.{type ServerContext}
+
+pub type Model { Model(data: String) }
+pub type Msg { NoOp }
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(data: \"\"), effect.none())
+}
+
+pub fn load(server_context: ServerContext) -> Model {
+  Model(data: \"loaded\")
+}
+"
+
+  let result =
+    tree_shaker.shake(source, server_symbols: ["ServerContext"])
+
+  result |> string.contains("pub fn load(") |> should.be_false()
+  result |> string.contains("pub fn init()") |> should.be_true()
+  result |> string.contains("server_context") |> should.be_false()
+}
+
+// -- Test: handler message type is removed --
+
+pub fn removes_handler_message_type_test() {
+  let source =
+    "import server_context.{type ServerContext}
+
+pub type Model { Model }
+pub type Msg { Got(String) }
+pub type ServerGetName { ServerGetName(id: Int) }
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model, effect.none())
+}
+
+pub fn server_get_name(msg: ServerGetName, server_context: ServerContext) -> String {
+  \"dave\"
+}
+"
+
+  let result =
+    tree_shaker.shake(source, server_symbols: ["ServerContext", "ServerGetName"])
+
+  result |> string.contains("pub type ServerGetName") |> should.be_false()
+  result |> string.contains("pub type Model") |> should.be_true()
+  result |> string.contains("pub type Msg") |> should.be_true()
+}
+
+// -- Test: transitive private helper chain from client code --
+
+pub fn keeps_transitive_helpers_test() {
+  let source =
+    "pub type Model { Model }
+pub type Msg { NoOp }
+
+pub fn view(model: Model) -> Element(Msg) {
+  render_header()
+}
+
+fn render_header() {
+  render_logo()
+}
+
+fn render_logo() {
+  html.text(\"logo\")
+}
+
+fn server_only_helper() {
+  \"nope\"
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // Both helpers in the chain should be kept
+  result |> string.contains("fn render_header(") |> should.be_true()
+  result |> string.contains("fn render_logo(") |> should.be_true()
+  // Orphaned helper should be gone (not reachable from any public fn)
+  result |> string.contains("server_only_helper") |> should.be_false()
+}
+
+// -- Test: imports used via pattern matching are kept --
+
+pub fn keeps_imports_used_in_patterns_test() {
+  let source =
+    "import gleam/option.{type Option, None, Some}
+
+pub type Model { Model(name: Option(String)) }
+pub type Msg { NoOp }
+
+pub fn view(model: Model) -> Element(Msg) {
+  case model.name {
+    Some(n) -> html.text(n)
+    None -> html.text(\"anon\")
+  }
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // gleam/option should be kept because Some/None are used in patterns
+  result |> string.contains("gleam/option") |> should.be_true()
+}
+
+// -- Test: constructor used ONLY in pattern (not in type or expression) --
+
+pub fn keeps_import_used_only_in_pattern_test() {
+  let source =
+    "import gleam/option.{None, Some}
+
+pub type Model { Model(count: Int) }
+pub type Msg { NoOp }
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  let value = get_value()
+  case value {
+    Some(n) -> #(Model(count: n), effect.none())
+    None -> #(model, effect.none())
+  }
+}
+
+fn get_value() {
+  Some(42)
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // Some/None used only in patterns and expressions, not in any type annotation
+  result |> string.contains("gleam/option") |> should.be_true()
+  result |> string.contains("fn get_value(") |> should.be_true()
+}
+
+// -- Test: constructor used ONLY in a case pattern, never as expression --
+
+pub fn keeps_import_used_only_in_case_pattern_test() {
+  let source =
+    "import gleam/dynamic.{type Dynamic}
+import gleam/result
+
+pub type Model { Model(value: Dynamic) }
+pub type Msg { NoOp }
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case result.nil(model.value) {
+    Ok(_) -> #(model, effect.none())
+    Error(_) -> #(model, effect.none())
+  }
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // Ok/Error are builtins so they don't need imports, but result module is used
+  result |> string.contains("gleam/result") |> should.be_true()
+  // dynamic is used in the type
+  result |> string.contains("gleam/dynamic") |> should.be_true()
+}
+
+// -- Test: imported constructor used ONLY in case pattern --
+
+pub fn keeps_import_for_pattern_only_constructor_test() {
+  let source =
+    "import my_types.{type Status, Active, Inactive}
+
+pub type Model { Model(count: Int) }
+pub type Msg { NoOp }
+
+pub fn view(model: Model, status: Status) -> Element(Msg) {
+  case status {
+    Active -> html.text(\"active\")
+    Inactive -> html.text(\"inactive\")
+  }
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // my_types should be kept - Status is in the function signature type
+  result |> string.contains("my_types") |> should.be_true()
+}
+
+// -- Test: import used only via qualified module access --
+
+pub fn keeps_qualified_module_import_test() {
+  let source =
+    "import gleam/int
+
+pub type Model { Model(count: Int) }
+pub type Msg { NoOp }
+
+pub fn view(model: Model) -> Element(Msg) {
+  html.text(int.to_string(model.count))
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  result |> string.contains("gleam/int") |> should.be_true()
+}

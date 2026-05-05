@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/int
 import gleam/io
 import gleam/list
+import gleam/option
 import gleam/result
 import gleam/string
 import tom
@@ -15,8 +16,10 @@ import rally/generator/ssr_handler
 import rally/generator/ws_handler
 import rally/parser
 import rally/scanner
+import rally/tree_shaker
 import rally/types.{type ScanConfig, ScanConfig}
 import libero
+import libero/scanner as libero_scanner
 
 pub fn main() {
   case run() {
@@ -244,10 +247,12 @@ fn run() -> Result(String, String) {
   // 11. Generate client package (includes rpc_ffi.mjs and decoders_prelude.mjs)
   let client_files =
     client.generate_package(routes, contracts, config, rpc_ffi_content, decoders_prelude_content, has_client_context)
+  let server_symbols = collect_server_symbols(handler_endpoints)
   let client_context_files = case has_client_context {
     True -> {
       let assert Ok(cc_source) = simplifile.read(client_context_path)
-      [client.GeneratedFile(config.client_root <> "/src/client_context.gleam", cc_source)]
+      let shaken = tree_shaker.shake(cc_source, server_symbols:)
+      [client.GeneratedFile(config.client_root <> "/src/client_context.gleam", shaken)]
     }
     False -> []
   }
@@ -300,5 +305,18 @@ fn dirname(path: String) -> String {
     [_last, ..rest] -> string.join(list.reverse(rest), "/")
     [] -> "."
   }
+}
+
+fn collect_server_symbols(
+  endpoints: List(libero_scanner.HandlerEndpoint),
+) -> List(String) {
+  let handler_type_names =
+    list.filter_map(endpoints, fn(e) {
+      case e.msg_type_name {
+        option.Some(name) -> Ok(name)
+        option.None -> Error(Nil)
+      }
+    })
+  ["ServerContext", ..handler_type_names]
 }
 
