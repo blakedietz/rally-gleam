@@ -3,8 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 echo "==> Running marmot codegen..."
 gleam run -m marmot
-echo "==> Running lando codegen..."
-gleam run -m lando
+echo "==> Running rally codegen..."
+gleam run -m rally
 echo "==> Building client..."
 cd client && gleam build --target javascript && cd ..
 echo "==> Starting server on http://localhost:8080"

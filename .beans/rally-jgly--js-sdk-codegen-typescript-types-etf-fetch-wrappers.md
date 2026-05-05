@@ -1,5 +1,5 @@
 ---
-# lando-jgly
+# rally-jgly
 title: 'JS SDK codegen: TypeScript types + ETF fetch wrappers'
 status: todo
 type: epic
