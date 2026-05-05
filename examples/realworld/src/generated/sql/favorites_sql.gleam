@@ -7,7 +7,7 @@ pub fn add(
   article_id article_id: Int,
 ) -> Result(List(Nil), sqlight.Error) {
   sqlight.query(
-    "INSERT INTO favorites (user_id, article_id) VALUES (:user_id, :article_id)",
+    "INSERT OR IGNORE INTO favorites (user_id, article_id) VALUES (:user_id, :article_id)",
     on: db,
     with: [sqlight.int(user_id), sqlight.int(article_id)],
     expecting: decode.success(Nil),

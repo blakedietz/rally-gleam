@@ -7,7 +7,7 @@ pub fn add(
   followed_id followed_id: Int,
 ) -> Result(List(Nil), sqlight.Error) {
   sqlight.query(
-    "INSERT INTO follows (follower_id, followed_id) VALUES (:follower_id, :followed_id)",
+    "INSERT OR IGNORE INTO follows (follower_id, followed_id) VALUES (:follower_id, :followed_id)",
     on: db,
     with: [sqlight.int(follower_id), sqlight.int(followed_id)],
     expecting: decode.success(Nil),

@@ -209,7 +209,7 @@ pub fn server_update_settings(
           let now = datetime.now_unix()
           case string.is_empty(string.trim(msg.password)) {
             True -> {
-              let assert Ok(_) =
+              case
                 auth_sql.update_user(
                   db: server_context.db,
                   image: msg.image,
@@ -219,14 +219,17 @@ pub fn server_update_settings(
                   now:,
                   user_id: user.id,
                 )
-              Ok(#(msg.username, msg.image))
+              {
+                Ok(_) -> Ok(#(msg.username, msg.image))
+                Error(_) -> Error(["Username or email already taken"])
+              }
             }
             False -> {
               case string.length(msg.password) < 8 {
                 True -> Error(["Password must be at least 8 characters"])
                 False -> {
                   let hash = password.hash(msg.password)
-                  let assert Ok(_) =
+                  case
                     auth_sql.update_user_with_password(
                       db: server_context.db,
                       image: msg.image,
@@ -237,7 +240,10 @@ pub fn server_update_settings(
                       now:,
                       user_id: user.id,
                     )
-                  Ok(#(msg.username, msg.image))
+                  {
+                    Ok(_) -> Ok(#(msg.username, msg.image))
+                    Error(_) -> Error(["Username or email already taken"])
+                  }
                 }
               }
             }

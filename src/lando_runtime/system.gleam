@@ -15,6 +15,7 @@ pub fn open(path: String) -> Result(sqlight.Connection, sqlight.Error) {
   use conn <- result.try(sqlight.open(path))
   use _ <- result.try(sqlight.exec("PRAGMA journal_mode=WAL;", on: conn))
   use _ <- result.try(sqlight.exec("PRAGMA synchronous=OFF;", on: conn))
+  use _ <- result.try(sqlight.exec("PRAGMA busy_timeout=5000;", on: conn))
   use _ <- result.try(sqlight.exec(
     "CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY,

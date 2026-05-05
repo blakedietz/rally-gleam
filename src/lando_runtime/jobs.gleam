@@ -93,7 +93,9 @@ fn process_pending_jobs(db: sqlight.Connection, handler: JobHandler) -> Nil {
 fn fetch_ready_jobs(db: sqlight.Connection, now: Int) -> List(Job) {
   case
     sqlight.query(
-      "SELECT id, name, payload, attempts FROM jobs WHERE status = 'pending' AND run_at <= ?1 ORDER BY run_at LIMIT 10",
+      "UPDATE jobs SET status = 'running'
+       WHERE id IN (SELECT id FROM jobs WHERE status = 'pending' AND run_at <= ?1 ORDER BY run_at LIMIT 10)
+       RETURNING id, name, payload, attempts",
       on: db,
       with: [sqlight.int(now)],
       expecting: {
@@ -185,7 +187,7 @@ fn mark_retry(
 ) -> Nil {
   let _ =
     sqlight.query(
-      "UPDATE jobs SET attempts = ?2, run_at = ?3, last_error = ?4 WHERE id = ?1",
+      "UPDATE jobs SET status = 'pending', attempts = ?2, run_at = ?3, last_error = ?4 WHERE id = ?1",
       on: db,
       with: [
         sqlight.int(job_id),

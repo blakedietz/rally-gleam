@@ -463,6 +463,7 @@ class ETFDecoder {
 
   decodeMap() {
     const arity = this.readUint32();
+    this.checkCollectionLen(arity, "map arity");
     const pairs = [];
     for (let i = 0; i < arity; i++) {
       const key = this.decodeTerm();
@@ -944,6 +945,9 @@ function recordMessage(direction, label, data, extra) {
   };
   if (extra) entry.extra = extra;
   window.__LANDO_MESSAGES__.push(entry);
+  if (window.__LANDO_MESSAGES__.length > 1000) {
+    window.__LANDO_MESSAGES__ = window.__LANDO_MESSAGES__.slice(-500);
+  }
 }
 
 function logRpc(direction, label, data, extra) {
@@ -1107,7 +1111,9 @@ function ensureSocket(url) {
     cancelReconnect();
     for (const entry of pendingSends) {
       ws.send(entry.payload);
-      responseCallbacks.set(entry.requestId, { callback: entry.callback, timer: entry.timer });
+      if (entry.callback) {
+        responseCallbacks.set(entry.requestId, { callback: entry.callback, timer: entry.timer });
+      }
     }
     pendingSends = [];
     for (const listener of onConnectListeners) {
@@ -1131,7 +1137,13 @@ function ensureSocket(url) {
       // handlers and response handlers see the same runtime shapes for
       // shared types. Consumers route raw values through their generated
       // typed decoders the same way response handlers do.
-      const decoded = decode_value_raw(payload);
+      let decoded;
+      try {
+        decoded = decode_value_raw(payload);
+      } catch (e) {
+        console.warn("lando: failed to decode push frame", e);
+        return;
+      }
       if (Array.isArray(decoded) && typeof decoded[0] === "string"
           && decoded[1] !== undefined) {
         logRpc("<<", `push ${decoded[0]}`, decoded[1]);
@@ -1153,7 +1165,20 @@ function ensureSocket(url) {
 
     // Per-endpoint decoders expect fully raw ETF (atoms as strings,
     // tuples as arrays, no Gleam constructors).
-    const decoded = decode_value_raw(responsePayload);
+    let decoded;
+    try {
+      decoded = decode_value_raw(responsePayload);
+    } catch (e) {
+      console.warn(`lando: failed to decode response #${requestId}`, e);
+      const entry = responseCallbacks.get(requestId);
+      if (entry) {
+        responseCallbacks.delete(requestId);
+        if (entry.timer) clearTimeout(entry.timer);
+        requestTimestamps.delete(requestId);
+        entry.callback(makeConnectionError("Failed to decode response"));
+      }
+      return;
+    }
 
     const entry = responseCallbacks.get(requestId);
     if (entry) {
@@ -1275,7 +1300,7 @@ export function send_page_init(url, module, params) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(payload);
   } else {
-    pendingSends.push({ payload, requestId: 0, callback: () => {}, timer: null });
+    pendingSends.push({ payload, requestId: null, callback: null, timer: null });
   }
 }
 

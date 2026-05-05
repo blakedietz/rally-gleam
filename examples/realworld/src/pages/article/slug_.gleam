@@ -1,6 +1,5 @@
 import client_context.{type ClientContext}
 import datetime
-import gleam/dynamic/decode
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -600,25 +599,16 @@ pub fn server_update(
       let session_id = lando_effect.get_ws_session()
       case get_user_id(server_context.db, session_id) {
         Ok(user_id) -> {
-          let assert Ok(_) =
+          case
             comments_sql.delete_own(
               db: server_context.db,
               id:,
               author_id: user_id,
             )
-          let assert Ok([deleted_count]) =
-            sqlight.query(
-              "SELECT changes()",
-              on: server_context.db,
-              with: [],
-              expecting: {
-                use val <- decode.field(0, decode.int)
-                decode.success(val)
-              },
-            )
-          case deleted_count > 0 {
-            True -> #(model, lando_effect.broadcast_to_page(CommentRemoved(id:)))
-            False -> #(model, effect.none())
+          {
+            Ok([_]) ->
+              #(model, lando_effect.broadcast_to_page(CommentRemoved(id:)))
+            _ -> #(model, effect.none())
           }
         }
         Error(_) -> #(

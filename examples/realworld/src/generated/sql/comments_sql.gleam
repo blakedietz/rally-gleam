@@ -28,16 +28,23 @@ pub fn create(
   )
 }
 
+pub type DeleteOwnRow {
+  DeleteOwnRow(id: Int)
+}
+
 pub fn delete_own(
   db db: sqlight.Connection,
   id id: Int,
   author_id author_id: Int,
-) -> Result(List(Nil), sqlight.Error) {
+) -> Result(List(DeleteOwnRow), sqlight.Error) {
   sqlight.query(
-    "DELETE FROM comments WHERE id = :id AND author_id = :author_id",
+    "DELETE FROM comments WHERE id = :id AND author_id = :author_id RETURNING id",
     on: db,
     with: [sqlight.int(id), sqlight.int(author_id)],
-    expecting: decode.success(Nil),
+    expecting: {
+      use id <- decode.field(0, decode.int)
+      decode.success(DeleteOwnRow(id:))
+    },
   )
 }
 

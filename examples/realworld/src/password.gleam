@@ -1,5 +1,4 @@
 import argus
-import gleam/bit_array
 
 pub fn hash(password: String) -> String {
   let assert Ok(hashes) =

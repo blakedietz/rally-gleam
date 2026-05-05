@@ -16,7 +16,11 @@ put_ws_state(Conn, Ctx, Page) ->
     nil.
 
 get_ws_conn() -> get(lando_ws_conn).
-get_ws_page() -> get(lando_ws_page).
+get_ws_page() ->
+    case get(lando_ws_page) of
+        undefined -> <<>>;
+        Val -> Val
+    end.
 get_stored_server_context() -> get(lando_ws_ctx).
 
 push_outgoing_frame(Frame) ->

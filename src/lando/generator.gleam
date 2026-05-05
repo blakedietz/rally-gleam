@@ -288,7 +288,7 @@ fn merge_static_segments(
       merge_static_segments(rest, buf <> "/" <> name, acc)
     [DynamicSegment(param_name, IntParam), ..rest] -> {
       let acc = case buf {
-        "" -> acc
+        "" -> ["\"/\"", ..acc]
         _ -> ["\"" <> buf <> "/\"", ..acc]
       }
       merge_static_segments(rest, "", [
@@ -298,7 +298,7 @@ fn merge_static_segments(
     }
     [DynamicSegment(param_name, _), ..rest] -> {
       let acc = case buf {
-        "" -> acc
+        "" -> ["\"/\"", ..acc]
         _ -> ["\"" <> buf <> "/\"", ..acc]
       }
       merge_static_segments(rest, "", [param_name, ..acc])

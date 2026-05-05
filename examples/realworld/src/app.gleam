@@ -6,6 +6,7 @@ import gleam/erlang/process
 import gleam/http.{Get}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
+import gleam/list
 import gleam/string
 import lando_runtime/db
 import lando_runtime/migrate
@@ -98,7 +99,10 @@ pub fn main() {
 
 fn serve_static(path: String) -> Response(ResponseData) {
   let file_path = client_build_root <> "/" <> path
-  case string.contains(path, "..") {
+  let has_traversal =
+    string.split(path, "/")
+    |> list.any(fn(seg) { seg == ".." || seg == "." })
+  case has_traversal {
     True ->
       response.new(403)
       |> response.set_body(mist.Bytes(bytes_tree.from_string("Forbidden")))
