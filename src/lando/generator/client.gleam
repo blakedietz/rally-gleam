@@ -162,6 +162,7 @@ fn app_gleam(
   let page_model_type = generate_page_model_type(routes, contract_map)
   let page_msg_type = generate_page_msg_type(routes, contract_map)
   let init_page_fn = generate_init_page(routes, contract_map, has_client_context)
+  let reinit_server_fn = generate_reinit_server(routes, contract_map)
   let update_page_fn = generate_update_page(routes, contract_map, has_client_context)
   let render_page_fn = generate_render_page(routes, contract_map, has_client_context)
 
@@ -341,6 +342,8 @@ fn init_transport() -> Effect(Msg) {
 
 " <> init_page_fn <> "
 
+" <> reinit_server_fn <> "
+
 " <> update_page_fn <> "
 
 " <> render_page_fn <> "
@@ -354,7 +357,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 " <> page_msg_body <> "
     }
     TransportConnected ->
-      #(Model(..model, connection: Connected), effect.none())
+      #(Model(..model, connection: Connected), reinit_server(model.route))
     TransportDisconnected(_reason) ->
       #(Model(..model, connection: Disconnected), effect.none())"
   <> ctx_update_arm
@@ -538,6 +541,38 @@ fn generate_init_page(
   }
 
   sig <> "\n  case route {\n" <> arms <> "\n" <> not_found_arm <> "\n  }\n}"
+}
+
+fn generate_reinit_server(
+  routes: List(ScannedRoute),
+  contract_map: dict.Dict(String, PageContract),
+) -> String {
+  let arms =
+    routes
+    |> list.filter_map(fn(route) {
+      case dict.get(contract_map, route.variant_name) {
+        Ok(contract) if contract.has_model -> {
+          let pattern = route_pattern(route)
+          let body = case route.params {
+            [] ->
+              "      transport.send_page_init(\"" <> route.variant_name <> "\", Nil)"
+            [single] ->
+              "      transport.send_page_init(\"" <> route.variant_name <> "\", " <> single.0 <> ")"
+            params -> {
+              let tuple = "#(" <> string.join(list.map(params, fn(p) { p.0 }), ", ") <> ")"
+              "      transport.send_page_init(\"" <> route.variant_name <> "\", " <> tuple <> ")"
+            }
+          }
+          Ok("    " <> pattern <> " -> {\n" <> body <> "\n      effect.none()\n    }")
+        }
+        _ -> Error(Nil)
+      }
+    })
+    |> string.join("\n")
+
+  "fn reinit_server(route: router.Route) -> Effect(Msg) {\n  case route {\n"
+  <> arms
+  <> "\n    _ -> effect.none()\n  }\n}"
 }
 
 fn generate_update_page(

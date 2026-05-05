@@ -108,6 +108,28 @@ fn init_page(route: router.Route) -> #(PageModel, Effect(Msg)) {
   }
 }
 
+fn reinit_server(route: router.Route) -> Effect(Msg) {
+  case route {
+    router.Home -> {
+      transport.send_page_init("Home", Nil)
+      effect.none()
+    }
+    router.About -> {
+      transport.send_page_init("About", Nil)
+      effect.none()
+    }
+    router.ProductsNew -> {
+      transport.send_page_init("ProductsNew", Nil)
+      effect.none()
+    }
+    router.ProductsId(id) -> {
+      transport.send_page_init("ProductsId", id)
+      effect.none()
+    }
+    _ -> effect.none()
+  }
+}
+
 fn update_page(page_model: PageModel, page_msg: PageMsg) -> #(PageModel, Effect(Msg)) {
   case page_model, page_msg {
     HomePageModel(m), HomePageMsg(msg) -> {
@@ -155,7 +177,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       #(Model(..model, page_model:), page_effects)
     }
     TransportConnected ->
-      #(Model(..model, connection: Connected), effect.none())
+      #(Model(..model, connection: Connected), reinit_server(model.route))
     TransportDisconnected(_reason) ->
       #(Model(..model, connection: Disconnected), effect.none())
   }
