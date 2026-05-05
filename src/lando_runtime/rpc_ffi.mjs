@@ -885,7 +885,9 @@ export function decode_safe(buffer) {
 // ---------- Debug logging ----------
 
 function debugEnabled() {
-  return typeof window !== "undefined" && window.__LANDO_DEBUG__;
+  if (typeof window === "undefined") return false;
+  if (window.__LANDO_DEBUG__ !== undefined) return window.__LANDO_DEBUG__;
+  return location.hostname === "localhost" || location.hostname === "127.0.0.1";
 }
 
 function formatRaw(value, depth = 0) {
@@ -981,6 +983,7 @@ let pendingSends = [];    // [{payload, requestId, callback, timer}]
 let responseCallbacks = new Map(); // requestId -> {callback, timer}
 let nextRequestId = 1;
 const REQUEST_TIMEOUT_MS = 30_000;
+const requestTimestamps = new Map();
 
 // Push handler registry: module path → callback
 const pushHandlers = new Map();
@@ -1020,6 +1023,7 @@ function clearAllPending(reason) {
   }
   pendingSends = [];
   responseCallbacks = new Map();
+  requestTimestamps.clear();
 }
 
 // Compute the next reconnect delay with full jitter: pick a value in
@@ -1075,6 +1079,10 @@ function ensureSocket(url) {
   ws.binaryType = "arraybuffer";
 
   ws.addEventListener("open", () => {
+    if (debugEnabled()) {
+      const label = reconnectAttempts > 0 ? "reconnected" : "connected";
+      console.log(`%c-- ${label} --`, "color: #33e855; font-weight: bold");
+    }
     reconnectAttempts = 0;
     cancelReconnect();
     for (const entry of pendingSends) {
@@ -1131,18 +1139,27 @@ function ensureSocket(url) {
     if (entry) {
       responseCallbacks.delete(requestId);
       if (entry.timer) clearTimeout(entry.timer);
-      logRpc("<-", `rpc #${requestId}`, decoded);
+      const sentAt = requestTimestamps.get(requestId);
+      if (sentAt !== undefined) {
+        requestTimestamps.delete(requestId);
+        const ms = (performance.now() - sentAt).toFixed(1);
+        logRpc("<-", `rpc #${requestId} (${ms}ms)`, decoded);
+      } else {
+        logRpc("<-", `rpc #${requestId}`, decoded);
+      }
       entry.callback(decoded);
     }
   });
 
   ws.addEventListener("close", () => {
     if (!ws) {
-      // error handler already ran cleanup, just reconnect
       scheduleReconnect();
       return;
     }
     ws = null;
+    if (debugEnabled()) {
+      console.log("%c-- disconnected --", "color: #e83333; font-weight: bold");
+    }
     clearAllPending("WebSocket connection closed");
     for (const listener of onDisconnectListeners) {
       try { listener("connection closed"); } catch (_) { /* swallow */ }
@@ -1200,6 +1217,7 @@ export function send(url, module, msg, callback) {
   ensureSocket(url);
   const requestId = nextRequestId++;
   const payload = encode_call(module, requestId, msg);
+  if (debugEnabled()) requestTimestamps.set(requestId, performance.now());
   logRpc("->", `rpc #${requestId}`, msg, { module });
 
   const timer = setTimeout(() => {
@@ -1209,6 +1227,7 @@ export function send(url, module, msg, callback) {
       pendingSends.splice(pendingIdx, 1);
     }
     responseCallbacks.delete(requestId);
+    requestTimestamps.delete(requestId);
     callback(makeConnectionError("Request timed out"));
     // No need to close the WebSocket; request IDs prevent FIFO desync.
   }, REQUEST_TIMEOUT_MS);
