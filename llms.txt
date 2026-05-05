@@ -113,7 +113,8 @@ Running `gleam run -m rally` produces:
 | `src/generated/http_handler.gleam` | HTTP RPC handler: POST /rpc with ETF body, calls rpc_dispatch, returns ETF response |
 | `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing |
 | `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, ETF codec |
-| `client/src/generated/views.gleam` | Per-page Model/Msg types, adapted init/update/view, typed RPC stub functions |
+| `client/src/pages/*.gleam` | Per-page client modules: tree-shaken page source with types, init/update/view, and private helpers |
+| `client/src/rally_runtime/effect.gleam` | Client-side effect shim: rpc, navigate, send_to_client_context backed by transport |
 | `client/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
 | `client/src/generated/codec.gleam` | decode_flags utility for SSR hydration |
 | `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
@@ -130,7 +131,8 @@ Running `gleam run -m rally` produces:
 | `parser.gleam` | Glance AST parser: extracts Model/Msg types, detects function signatures |
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
 | `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam |
-| `generator/codec.gleam` | Client codegen: types.gleam (ClientMsg), views.gleam (adapted page code + RPC stubs), codec_ffi.mjs (ETF decoders), codec.gleam (decode_flags utility) |
+| `generator/codec.gleam` | Client codegen: per-page modules (tree-shaken), types.gleam (ClientMsg), codec_ffi.mjs (ETF decoders), codec.gleam (decode_flags), rally_effect shim |
+| `tree_shaker.gleam` | Source-level tree shaker: extracts client-safe code from page modules using Glance AST |
 | `generator/ssr_handler.gleam` | SSR handler generation |
 | `generator/ws_handler.gleam` | WebSocket handler: calls rpc_dispatch.handle, drains push frames |
 | `generator/http_handler.gleam` | HTTP RPC handler generation |
