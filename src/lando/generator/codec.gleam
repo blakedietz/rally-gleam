@@ -107,8 +107,8 @@ fn emit_page_view_block(
 ) -> String {
   let prefix = route.variant_name
   let fn_suffix = snake_case(prefix)
-  let model_type = emit_type_def(prefix <> "Model", contract.model_variants, prefix, contract)
-  let msg_type = emit_type_def(prefix <> "Msg", contract.msg_variants, prefix, contract)
+  let model_type = emit_type_def(prefix <> "Model", contract.model_variants, prefix, route.module_path)
+  let msg_type = emit_type_def(prefix <> "Msg", contract.msg_variants, prefix, route.module_path)
   let view_fn = case contract.view_source {
     "" -> emit_default_view(fn_suffix, prefix)
     source -> adapt_view_source(fn_suffix, prefix, source)
@@ -635,7 +635,7 @@ fn emit_type_def(
   type_name: String,
   variants: List(VariantInfo),
   prefix: String,
-  _contract: PageContract,
+  page_module: String,
 ) -> String {
   case variants {
     [] -> "pub type " <> type_name <> " { }"
@@ -643,12 +643,8 @@ fn emit_type_def(
       let lines =
         list.map(variants, fn(v) {
           let ctor_name = case v.name {
-            // Rename Model/Msg constructors to match the prefixed type name
-            // to avoid conflicts when multiple pages share the same module.
             "Model" -> type_name
             "Msg" -> type_name
-            // Prefix GotServerMsg to avoid conflicts when multiple pages
-            // define GotServerMsg(ToClient) in the same views.gleam module.
             "GotServerMsg" -> prefix <> "GotServerMsg"
             other -> other
           }
@@ -657,7 +653,7 @@ fn emit_type_def(
             fields -> {
               let field_strs =
                 list.map(fields, fn(f) {
-                  f.label <> ": " <> rewrite_field_type(f.type_, prefix)
+                  f.label <> ": " <> rewrite_field_type(f.type_, prefix, page_module)
                 })
               "  " <> ctor_name <> "(" <> string.join(field_strs, ", ") <> ")"
             }
@@ -669,12 +665,24 @@ fn emit_type_def(
 }
 
 /// Rewrite UserType references to the page's own types with the prefixed names.
-fn rewrite_field_type(ft: FieldType, prefix: String) -> String {
+/// Types defined in the page's own module are emitted unqualified since they're
+/// replicated into views.gleam alongside the Model/Msg types.
+fn rewrite_field_type(ft: FieldType, prefix: String, page_module: String) -> String {
+  let recurse = fn(t) { rewrite_field_type(t, prefix, page_module) }
   case ft {
     field_type.UserType(module_path: _, type_name: "ToClient", args: []) ->
       prefix <> "ToClient"
     field_type.UserType(module_path: _, type_name: "ToServer", args: []) ->
       prefix <> "ToServer"
+    field_type.UserType(module_path: mp, type_name: tn, args: []) if mp == page_module ->
+      tn
+    field_type.UserType(module_path: mp, type_name: tn, args: args) if mp == page_module ->
+      tn <> "(" <> string.join(list.map(args, recurse), ", ") <> ")"
+    field_type.ListOf(element:) -> "List(" <> recurse(element) <> ")"
+    field_type.OptionOf(inner:) -> "Option(" <> recurse(inner) <> ")"
+    field_type.ResultOf(ok:, err:) -> "Result(" <> recurse(ok) <> ", " <> recurse(err) <> ")"
+    field_type.DictOf(key:, value:) -> "Dict(" <> recurse(key) <> ", " <> recurse(value) <> ")"
+    field_type.TupleOf(elements:) -> "#(" <> string.join(list.map(elements, recurse), ", ") <> ")"
     _ -> field_type.to_gleam_source(ft)
   }
 }

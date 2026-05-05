@@ -16,9 +16,7 @@ import lando/generator/ws_handler
 import lando/parser
 import lando/scanner
 import lando/types.{type ScanConfig, ScanConfig}
-import libero/walker
-import libero/codegen_dispatch as libero_dispatch
-import libero/scanner as libero_scanner
+import libero
 
 pub fn main() {
   case run() {
@@ -113,15 +111,7 @@ fn run() -> Result(String, String) {
   use routes <- result.try(scanner.scan(config))
 
   // 1b. Scan for server_ handler endpoints via libero
-  // Prefix with ./ so derive_module_path can find /src/ boundary
-  let libero_src_dir = case string.starts_with(config.pages_root, "/") {
-    True -> config.pages_root
-    False -> "./" <> config.pages_root
-  }
-  let handler_endpoints = case libero_scanner.scan(
-    src_dir: libero_src_dir,
-    context_type_name: "ServerContext",
-  ) {
+  let handler_endpoints = case libero.scan() {
     Ok(endpoints) -> {
       case endpoints {
         [] -> Nil
@@ -152,7 +142,7 @@ fn run() -> Result(String, String) {
         <> ".gleam"
       case simplifile.read(file_path) {
         Ok(source) -> {
-          case parser.parse_page(source) {
+          case parser.parse_page(source, module_path: route.module_path) {
             Ok(contract) -> Ok(#(route, contract))
             Error(_) -> {
               io.println_error(
@@ -187,12 +177,7 @@ fn run() -> Result(String, String) {
   }
 
   // 5. Generate RPC dispatch via libero
-  let sd_source = libero_dispatch.generate(
-    endpoints: handler_endpoints,
-    context_module: "server_context",
-    context_type_name: "ServerContext",
-    wire_module_tag: "rpc",
-  )
+  let sd_source = libero.generate_dispatch(handler_endpoints)
   use _ <- result.try(write_file(config.output_server_dispatch, sd_source))
 
   // 6. Generate SSR handler
@@ -243,15 +228,8 @@ fn run() -> Result(String, String) {
 
   // 8. Walk type graph for codec generation.
   // Seeds come from handler endpoint params/return types discovered by libero.
-  let seeds = libero_scanner.collect_seeds(handler_endpoints)
-  let page_file_paths =
-    list.map(routes, fn(r) {
-      config.pages_root
-      <> "/"
-      <> last_module_segment(r.module_path)
-      <> ".gleam"
-    })
-  let discovered = case walker.walk(seeds:, file_paths: page_file_paths) {
+  let seeds = libero.collect_seeds(handler_endpoints)
+  let discovered = case libero.walk(seeds) {
     Ok(types) -> types
     Error(errors) -> {
       list.each(errors, fn(e) {

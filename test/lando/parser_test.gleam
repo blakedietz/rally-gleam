@@ -15,7 +15,7 @@ pub fn init() -> #(Model, Effect(Msg)) { todo }
 pub fn update(model, msg) -> #(Model, Effect(Msg)) { todo }
 pub fn view(model: Model) -> Element(Msg) { todo }
 "
-  let assert Ok(contract) = parser.parse_page(source)
+  let assert Ok(contract) = parser.parse_page(source, module_path: "test/page")
 
   list.map(contract.model_variants, fn(v: VariantInfo) { v.name })
   |> should.equal(["Model"])
@@ -38,7 +38,7 @@ pub type Model { Model }
 pub fn init(id: Int) -> #(Model, Effect(Msg)) { todo }
 pub fn load(id: Int, ctx: ServerContext) -> Result(Model, LoadError) { todo }
 "
-  let assert Ok(contract) = parser.parse_page(source)
+  let assert Ok(contract) = parser.parse_page(source, module_path: "test/page")
   contract.has_load |> should.be_true()
   contract.has_init |> should.be_true()
   contract.param_names |> should.equal(["id"])
@@ -51,7 +51,7 @@ pub type Msg { Noop }
 pub fn init() -> #(Model, Effect(Msg)) { #(Model(count: 0), effect.none()) }
 pub fn update(model, msg) -> #(Model, Effect(Msg)) { #(model, effect.none()) }
 "
-  let assert Ok(contract) = parser.parse_page(source)
+  let assert Ok(contract) = parser.parse_page(source, module_path: "test/page")
   contract.has_load |> should.be_false()
   contract.has_model |> should.be_true()
   contract.has_init |> should.be_true()
@@ -63,7 +63,7 @@ pub fn parse_page_init_with_multiple_params_test() {
 pub type Model { Model }
 pub fn init(id: Int, key: String) -> #(Model, Effect(Msg)) { todo }
 "
-  let assert Ok(contract) = parser.parse_page(source)
+  let assert Ok(contract) = parser.parse_page(source, module_path: "test/page")
   contract.param_names |> should.equal(["id", "key"])
 }
 
@@ -76,7 +76,7 @@ pub type Msg {
 }
 pub fn init() -> #(Model, Effect(Msg)) { todo }
 "
-  let assert Ok(contract) = parser.parse_page(source)
+  let assert Ok(contract) = parser.parse_page(source, module_path: "test/page")
   list.map(contract.msg_variants, fn(v: VariantInfo) { v.name })
   |> should.equal(["GotItems", "GotMaybe"])
 }

@@ -17,7 +17,7 @@ import lando/types.{
 
 /// Parse a page module source to extract the contract.
 /// Uses Glance AST parsing for robust type extraction.
-pub fn parse_page(source: String) -> Result(PageContract, String) {
+pub fn parse_page(source: String, module_path module_path: String) -> Result(PageContract, String) {
   use ast <- result.try(
     glance.module(source)
     |> result.map_error(fn(e) { "Parse error: " <> string.inspect(e) }),
@@ -33,6 +33,7 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
     type_imports: type_imports,
     alias_map: alias_map,
     type_alias_originals: type_alias_originals,
+    module_path: module_path,
   )
   let msg_variants = extract_variants(
     ast: ast,
@@ -40,6 +41,7 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
     type_imports: type_imports,
     alias_map: alias_map,
     type_alias_originals: type_alias_originals,
+    module_path: module_path,
   )
 
   let functions_list = ast.functions
@@ -86,6 +88,7 @@ pub fn parse_client_context(
       type_imports: type_imports,
       alias_map: alias_map,
       type_alias_originals: type_alias_originals,
+      module_path: "client_context",
     )
   let msg_variants =
     extract_variants(
@@ -94,6 +97,7 @@ pub fn parse_client_context(
       type_imports: type_imports,
       alias_map: alias_map,
       type_alias_originals: type_alias_originals,
+      module_path: "client_context",
     )
 
   let functions_list = ast.functions
@@ -117,6 +121,7 @@ fn extract_variants(
   type_imports type_imports: Dict(String, String),
   alias_map alias_map: Dict(String, String),
   type_alias_originals type_alias_originals: Dict(String, String),
+  module_path module_path: String,
 ) -> List(VariantInfo) {
   case
     list.find(ast.custom_types, fn(d) { d.definition.name == type_name })
@@ -140,6 +145,7 @@ fn extract_variants(
                 type_imports:,
                 alias_map:,
                 type_alias_originals:,
+                module_path:,
               ),
             )
           })
@@ -155,6 +161,7 @@ fn glance_type_to_field_type(
   type_imports type_imports: Dict(String, String),
   alias_map alias_map: Dict(String, String),
   type_alias_originals type_alias_originals: Dict(String, String),
+  module_path module_path: String,
 ) -> FieldType {
   let recurse = fn(t) {
     glance_type_to_field_type(
@@ -162,6 +169,7 @@ fn glance_type_to_field_type(
       type_imports:,
       alias_map:,
       type_alias_originals:,
+      module_path:,
     )
   }
   case t {
@@ -172,6 +180,7 @@ fn glance_type_to_field_type(
         type_imports:,
         alias_map:,
         type_alias_originals:,
+        module_path:,
       )
     glance.NamedType(name:, module: None, parameters: params, ..) ->
       resolve_named_type(
@@ -180,6 +189,7 @@ fn glance_type_to_field_type(
         type_imports:,
         alias_map:,
         type_alias_originals:,
+        module_path:,
       )
     glance.NamedType(name:, module: Some(m), parameters: params, ..) -> {
       let resolved_module = dict.get(alias_map, m) |> result.unwrap(or: m)
@@ -207,6 +217,7 @@ fn resolve_named_type(
   type_imports type_imports: Dict(String, String),
   alias_map alias_map: Dict(String, String),
   type_alias_originals type_alias_originals: Dict(String, String),
+  module_path module_path: String,
 ) -> FieldType {
   let recurse = fn(t) {
     glance_type_to_field_type(
@@ -214,16 +225,17 @@ fn resolve_named_type(
       type_imports:,
       alias_map:,
       type_alias_originals:,
+      module_path:,
     )
   }
   case field_type.builtin_field_type(name:, parameters: params, recurse:) {
     Ok(ft) -> ft
     Error(Nil) -> {
-      let module_path = dict.get(type_imports, name) |> result.unwrap(or: name)
+      let resolved_module = dict.get(type_imports, name) |> result.unwrap(or: module_path)
       let type_name =
         dict.get(type_alias_originals, name) |> result.unwrap(or: name)
       field_type.UserType(
-        module_path:,
+        module_path: resolved_module,
         type_name:,
         args: list.map(params, recurse),
       )

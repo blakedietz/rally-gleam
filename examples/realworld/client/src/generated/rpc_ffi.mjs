@@ -463,6 +463,7 @@ class ETFDecoder {
 
   decodeMap() {
     const arity = this.readUint32();
+    this.checkCollectionLen(arity, "map arity");
     const pairs = [];
     for (let i = 0; i < arity; i++) {
       const key = this.decodeTerm();
@@ -882,6 +883,100 @@ export function decode_safe(buffer) {
   }
 }
 
+// ---------- Debug logging ----------
+
+function debugEnabled() {
+  if (typeof window === "undefined") return false;
+  if (window.__LANDO_DEBUG__ !== undefined) return window.__LANDO_DEBUG__;
+  return location.hostname === "localhost" || location.hostname === "127.0.0.1";
+}
+
+function formatRaw(value, depth = 0) {
+  if (value === undefined || value === null) return "Nil";
+  if (typeof value === "boolean") return value ? "True" : "False";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "bigint") return String(value);
+  if (value instanceof BitArray) return `<<${value.rawBuffer.length} bytes>>`;
+  if (value && value.__liberoRawBinary) return `<<${value.rawBuffer.length} bytes>>`;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    if (typeof value[0] === "string" && /^[a-z_]/.test(value[0])) {
+      const tag = pascalCase(value[0]);
+      if (value.length === 1) return tag;
+      const fields = value.slice(1).map(v => formatRaw(v, depth + 1));
+      return `${tag}(${fields.join(", ")})`;
+    }
+    const items = value.map(v => formatRaw(v, depth + 1));
+    return `#(${items.join(", ")})`;
+  }
+  if (value instanceof Empty) return "[]";
+  if (value instanceof NonEmpty) {
+    const items = gleamListToArray(value).map(v => formatRaw(v, depth + 1));
+    return `[${items.join(", ")}]`;
+  }
+  if (value instanceof Map) {
+    const pairs = [...value.entries()].map(([k, v]) => `${formatRaw(k)}: ${formatRaw(v, depth + 1)}`);
+    return `dict.from_list([${pairs.join(", ")}])`;
+  }
+  if (value instanceof CustomType) {
+    const name = value.constructor.name;
+    const keys = Object.keys(value);
+    if (keys.length === 0) return name;
+    const fields = keys.map(k => formatRaw(value[k], depth + 1));
+    return `${name}(${fields.join(", ")})`;
+  }
+  return String(value);
+}
+
+function pascalCase(snake) {
+  return snake.split("_").map(s => s.charAt(0).toUpperCase() + s.slice(1)).join("");
+}
+
+function recordMessage(direction, label, data, extra) {
+  if (typeof window === "undefined") return;
+  if (!window.__LANDO_MESSAGES__) window.__LANDO_MESSAGES__ = [];
+  const entry = {
+    t: performance.now(),
+    ts: new Date().toISOString(),
+    dir: direction,
+    label,
+    data,
+    formatted: formatRaw(data),
+  };
+  if (extra) entry.extra = extra;
+  window.__LANDO_MESSAGES__.push(entry);
+  if (window.__LANDO_MESSAGES__.length > 1000) {
+    window.__LANDO_MESSAGES__ = window.__LANDO_MESSAGES__.slice(-500);
+  }
+}
+
+function logRpc(direction, label, data, extra) {
+  if (!debugEnabled()) return;
+  recordMessage(direction, label, data, extra);
+  const colors = {
+    "->": "color: #e8a033; font-weight: bold",
+    "<-": "color: #33bbe8; font-weight: bold",
+    "<<": "color: #b833e8; font-weight: bold",
+  };
+  const arrow = direction;
+  const style = colors[arrow] || "";
+  const parts = [`%c${arrow} ${label}`, style];
+  if (extra) {
+    console.groupCollapsed(...parts);
+    console.log(formatRaw(data));
+    for (const [k, v] of Object.entries(extra)) {
+      console.log(`${k}:`, v);
+    }
+    console.groupEnd();
+  } else {
+    console.log(...parts, formatRaw(data));
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.__LANDO_FORMAT__ = formatRaw;
+}
+
 // ---------- WebSocket ----------
 //
 // `send` opens the WebSocket lazily on first call and caches the
@@ -912,6 +1007,7 @@ let pendingSends = [];    // [{payload, requestId, callback, timer}]
 let responseCallbacks = new Map(); // requestId -> {callback, timer}
 let nextRequestId = 1;
 const REQUEST_TIMEOUT_MS = 30_000;
+const requestTimestamps = new Map();
 
 // Push handler registry: module path → callback
 const pushHandlers = new Map();
@@ -951,6 +1047,7 @@ function clearAllPending(reason) {
   }
   pendingSends = [];
   responseCallbacks = new Map();
+  requestTimestamps.clear();
 }
 
 // Compute the next reconnect delay with full jitter: pick a value in
@@ -1006,11 +1103,17 @@ function ensureSocket(url) {
   ws.binaryType = "arraybuffer";
 
   ws.addEventListener("open", () => {
+    if (debugEnabled()) {
+      const label = reconnectAttempts > 0 ? "reconnected" : "connected";
+      console.log(`%c-- ${label} --`, "color: #33e855; font-weight: bold");
+    }
     reconnectAttempts = 0;
     cancelReconnect();
     for (const entry of pendingSends) {
       ws.send(entry.payload);
-      responseCallbacks.set(entry.requestId, { callback: entry.callback, timer: entry.timer });
+      if (entry.callback) {
+        responseCallbacks.set(entry.requestId, { callback: entry.callback, timer: entry.timer });
+      }
     }
     pendingSends = [];
     for (const listener of onConnectListeners) {
@@ -1034,9 +1137,16 @@ function ensureSocket(url) {
       // handlers and response handlers see the same runtime shapes for
       // shared types. Consumers route raw values through their generated
       // typed decoders the same way response handlers do.
-      const decoded = decode_value_raw(payload);
+      let decoded;
+      try {
+        decoded = decode_value_raw(payload);
+      } catch (e) {
+        console.warn("lando: failed to decode push frame", e);
+        return;
+      }
       if (Array.isArray(decoded) && typeof decoded[0] === "string"
           && decoded[1] !== undefined) {
+        logRpc("<<", `push ${decoded[0]}`, decoded[1]);
         const handler = pushHandlers.get(decoded[0]);
         if (handler) handler(decoded[1]);
       }
@@ -1055,23 +1165,46 @@ function ensureSocket(url) {
 
     // Per-endpoint decoders expect fully raw ETF (atoms as strings,
     // tuples as arrays, no Gleam constructors).
-    const decoded = decode_value_raw(responsePayload);
+    let decoded;
+    try {
+      decoded = decode_value_raw(responsePayload);
+    } catch (e) {
+      console.warn(`lando: failed to decode response #${requestId}`, e);
+      const entry = responseCallbacks.get(requestId);
+      if (entry) {
+        responseCallbacks.delete(requestId);
+        if (entry.timer) clearTimeout(entry.timer);
+        requestTimestamps.delete(requestId);
+        entry.callback(makeConnectionError("Failed to decode response"));
+      }
+      return;
+    }
 
     const entry = responseCallbacks.get(requestId);
     if (entry) {
       responseCallbacks.delete(requestId);
       if (entry.timer) clearTimeout(entry.timer);
+      const sentAt = requestTimestamps.get(requestId);
+      if (sentAt !== undefined) {
+        requestTimestamps.delete(requestId);
+        const ms = (performance.now() - sentAt).toFixed(1);
+        logRpc("<-", `rpc #${requestId} (${ms}ms)`, decoded);
+      } else {
+        logRpc("<-", `rpc #${requestId}`, decoded);
+      }
       entry.callback(decoded);
     }
   });
 
   ws.addEventListener("close", () => {
     if (!ws) {
-      // error handler already ran cleanup, just reconnect
       scheduleReconnect();
       return;
     }
     ws = null;
+    if (debugEnabled()) {
+      console.log("%c-- disconnected --", "color: #e83333; font-weight: bold");
+    }
     clearAllPending("WebSocket connection closed");
     for (const listener of onDisconnectListeners) {
       try { listener("connection closed"); } catch (_) { /* swallow */ }
@@ -1129,6 +1262,8 @@ export function send(url, module, msg, callback) {
   ensureSocket(url);
   const requestId = nextRequestId++;
   const payload = encode_call(module, requestId, msg);
+  if (debugEnabled()) requestTimestamps.set(requestId, performance.now());
+  logRpc("->", `rpc #${requestId}`, msg, { module });
 
   const timer = setTimeout(() => {
     // Remove from whichever state this request is in.
@@ -1137,6 +1272,7 @@ export function send(url, module, msg, callback) {
       pendingSends.splice(pendingIdx, 1);
     }
     responseCallbacks.delete(requestId);
+    requestTimestamps.delete(requestId);
     callback(makeConnectionError("Request timed out"));
     // No need to close the WebSocket; request IDs prevent FIFO desync.
   }, REQUEST_TIMEOUT_MS);
@@ -1160,10 +1296,11 @@ export function send(url, module, msg, callback) {
 export function send_page_init(url, module, params) {
   ensureSocket(url);
   const payload = encode_call(module, 0, params);
+  logRpc("->", `page_init ${module}`, params);
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(payload);
   } else {
-    pendingSends.push({ payload, requestId: 0, callback: () => {}, timer: null });
+    pendingSends.push({ payload, requestId: null, callback: null, timer: null });
   }
 }
 
