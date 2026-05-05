@@ -18,6 +18,7 @@ import lando/parser
 import lando/scanner
 import lando/types.{type PageContract, type ScanConfig, type ScannedRoute, type VariantInfo, ScanConfig}
 import lando/walker
+import libero/scanner as libero_scanner
 
 pub fn main() {
   case run() {
@@ -106,6 +107,32 @@ fn run() -> Result(String, String) {
 
   // 1. Scan pages directory
   use routes <- result.try(scanner.scan(config))
+
+  // 1b. Scan for server_ handler endpoints via libero
+  let handler_endpoints = case libero_scanner.scan(
+    src_dir: config.pages_root,
+    context_type_name: "ServerContext",
+  ) {
+    Ok(endpoints) -> {
+      case endpoints {
+        [] -> Nil
+        _ ->
+          io.println(
+            "lando: discovered "
+            <> int.to_string(list.length(endpoints))
+            <> " handler endpoints via libero",
+          )
+      }
+      endpoints
+    }
+    Error(errors) -> {
+      list.each(errors, fn(e) {
+        io.println_error("lando: libero scanner error: " <> string.inspect(e))
+      })
+      []
+    }
+  }
+  let _ = handler_endpoints
 
   // 2. Parse each page module for its contract
   let contracts =
