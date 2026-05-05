@@ -151,7 +151,7 @@ Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generat
 | `wire.gleam` | Thin wrapper over libero/wire (ETF encode/decode, frame tagging) + tuple_element |
 | `codec.gleam` | Base64 ETF serialization for SSR flags |
 | `ssr.gleam` | HTML rendering via lustre element |
-| `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect |
+| `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect + dev-mode message inspector |
 | `lando_runtime_ffi.erl` | Erlang FFI: WS process state management, push frame accumulator |
 
 ### Broadcast and Topics
@@ -174,6 +174,28 @@ Four-level server-to-client messaging using OTP `pg` process groups:
 - **Transport:** WebSocket with auto-reconnect, or HTTP POST /rpc for non-WebSocket clients
 - **SSR:** First request renders HTML with serialized model embedded as flags
 - **Hydration:** Client reads flags, boots Lustre, takes over as SPA
+
+## Dev Tools
+
+### Message Inspector
+
+Auto-enabled on localhost. All WebSocket messages are logged to the browser console with Gleam-syntax formatting and color-coded by direction:
+
+| Arrow | Color | Meaning |
+|---|---|---|
+| `->` | Orange | Client to server (RPC call or page init) |
+| `<-` | Blue | Server response (with round-trip timing) |
+| `<<` | Purple | Server push |
+
+RPC responses show round-trip latency (e.g. `rpc #3 (12.4ms)`). Connection lifecycle events (connected, disconnected, reconnected) are also logged.
+
+**Console API:**
+- `window.__LANDO_MESSAGES__` — array of all messages with timestamps, direction, raw data, and formatted strings
+- `window.__LANDO_FORMAT__(value)` — format any ETF-decoded value as Gleam syntax
+- `window.__LANDO_DEBUG__ = false` — disable inspector
+- `window.__LANDO_DEBUG__ = true` — enable in production
+
+**Server-side:** All messages are logged to `system.messages` SQLite table with session ID, page, direction, variant name, raw ETF payload, and elapsed time.
 
 ## Dependencies
 
