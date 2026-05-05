@@ -1,4 +1,3 @@
-import generated/router
 import generated/ws_handler
 import gleam/bytes_tree
 import gleam/erlang/process
@@ -9,6 +8,7 @@ import gleam/string
 import lando_runtime/db
 import lando_runtime/migrate
 import lando_runtime/session
+import lando_runtime/system
 import mist.{type Connection, type ResponseData}
 import server_context.{ServerContext}
 import simplifile
@@ -18,6 +18,7 @@ const client_build_root = "client/build/dev/javascript"
 
 pub fn main() {
   let db = start_db()
+  system.start("system.db")
   let server_context = ServerContext(db:)
 
   let handler = fn(req: Request(Connection)) -> Response(ResponseData) {
