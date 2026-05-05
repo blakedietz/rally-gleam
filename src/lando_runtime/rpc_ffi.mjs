@@ -931,8 +931,24 @@ function pascalCase(snake) {
   return snake.split("_").map(s => s.charAt(0).toUpperCase() + s.slice(1)).join("");
 }
 
+function recordMessage(direction, label, data, extra) {
+  if (typeof window === "undefined") return;
+  if (!window.__LANDO_MESSAGES__) window.__LANDO_MESSAGES__ = [];
+  const entry = {
+    t: performance.now(),
+    ts: new Date().toISOString(),
+    dir: direction,
+    label,
+    data,
+    formatted: formatRaw(data),
+  };
+  if (extra) entry.extra = extra;
+  window.__LANDO_MESSAGES__.push(entry);
+}
+
 function logRpc(direction, label, data, extra) {
   if (!debugEnabled()) return;
+  recordMessage(direction, label, data, extra);
   const colors = {
     "->": "color: #e8a033; font-weight: bold",
     "<-": "color: #33bbe8; font-weight: bold",
@@ -951,6 +967,10 @@ function logRpc(direction, label, data, extra) {
   } else {
     console.log(...parts, formatRaw(data));
   }
+}
+
+if (typeof window !== "undefined") {
+  window.__LANDO_FORMAT__ = formatRaw;
 }
 
 // ---------- WebSocket ----------
