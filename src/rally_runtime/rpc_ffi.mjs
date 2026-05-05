@@ -1347,3 +1347,7 @@ export function read_flags() {
   delete window.__RALLY_FLAGS__;
   return flags;
 }
+
+export function identity(value) {
+  return value;
+}
