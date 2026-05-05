@@ -382,3 +382,43 @@ pub fn view(model: Model) -> Element(Msg) {
 
   result |> string.contains("gleam/int") |> should.be_true()
 }
+
+// -- Test: server handler type used by client RPC call is kept --
+
+pub fn keeps_handler_type_used_by_client_rpc_test() {
+  let source =
+    "import rally_runtime/effect as rally_effect
+import server_context.{type ServerContext}
+
+pub type Model { Model(name: String) }
+pub type Msg { GotName(Result(String, Nil)) }
+pub type ServerGetName { ServerGetName(id: Int) }
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case msg {
+    GotName(Ok(name)) -> #(Model(name:), effect.none())
+    GotName(Error(_)) -> #(model, effect.none())
+  }
+}
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(name: \"\"), rally_effect.rpc(ServerGetName(id: 1), on_response: GotName))
+}
+
+pub fn server_get_name(msg: ServerGetName, server_context: ServerContext) -> Result(String, Nil) {
+  Ok(\"dave\")
+}
+"
+
+  let result =
+    tree_shaker.shake(source, server_symbols: ["ServerContext", "ServerGetName"])
+
+  // ServerGetName type should be KEPT because client code uses it in rpc call
+  result |> string.contains("pub type ServerGetName") |> should.be_true()
+  // Server function should still be removed
+  result |> string.contains("server_get_name") |> should.be_false()
+  result |> string.contains("server_context") |> should.be_false()
+  // Client code should remain
+  result |> string.contains("pub fn init()") |> should.be_true()
+  result |> string.contains("rally_effect.rpc") |> should.be_true()
+}

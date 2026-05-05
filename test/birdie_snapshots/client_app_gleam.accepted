@@ -14,19 +14,21 @@ import modem
 import generated/codec
 import generated/router
 import generated/transport
-import generated/views
+import pages/about as pages_about
+import pages/home_ as pages_home_
+import pages/users/id_ as pages_users_id_
 
 pub type PageModel {
-  HomePageModel(views.HomeModel)
-  AboutPageModel(views.AboutModel)
-  UsersIdPageModel(views.UsersIdModel)
+  HomePageModel(pages_home_.Model)
+  AboutPageModel(pages_about.Model)
+  UsersIdPageModel(pages_users_id_.Model)
   NoPageModel
 }
 
 pub type PageMsg {
-  HomePageMsg(views.HomeMsg)
-  AboutPageMsg(views.AboutMsg)
-  UsersIdPageMsg(views.UsersIdMsg)
+  HomePageMsg(pages_home_.Msg)
+  AboutPageMsg(pages_about.Msg)
+  UsersIdPageMsg(pages_users_id_.Msg)
 }
 
 pub type Model {
@@ -79,16 +81,16 @@ fn init_transport() -> Effect(Msg) {
 fn init_page(route: router.Route) -> #(PageModel, Effect(Msg)) {
   case route {
     router.Home -> {
-      let #(m, e) = views.home_init()
+      let #(m, e) = pages_home_.init()
       #(HomePageModel(m), effect.map(e, fn(msg) { PageMsg(HomePageMsg(msg)) }))
     }
     router.About -> {
-      let #(m, e) = views.about_init()
+      let #(m, e) = pages_about.init()
       #(AboutPageModel(m), effect.map(e, fn(msg) { PageMsg(AboutPageMsg(msg)) }))
     }
     router.UsersId(id) -> {
       transport.send_page_init("UsersId", id)
-      let #(m, e) = views.users_id_init(id)
+      let #(m, e) = pages_users_id_.init(id)
       #(UsersIdPageModel(m), effect.map(e, fn(msg) { PageMsg(UsersIdPageMsg(msg)) }))
     }
     _ -> #(NoPageModel, effect.none())
@@ -125,15 +127,15 @@ fn reinit_server(route: router.Route) -> Effect(Msg) {
 fn update_page(page_model: PageModel, page_msg: PageMsg) -> #(PageModel, Effect(Msg)) {
   case page_model, page_msg {
     HomePageModel(m), HomePageMsg(msg) -> {
-      let #(new_m, e) = views.home_update(m, msg)
+      let #(new_m, e) = pages_home_.update(m, msg)
       #(HomePageModel(new_m), effect.map(e, fn(msg) { PageMsg(HomePageMsg(msg)) }))
     }
     AboutPageModel(m), AboutPageMsg(msg) -> {
-      let #(new_m, e) = views.about_update(m, msg)
+      let #(new_m, e) = pages_about.update(m, msg)
       #(AboutPageModel(new_m), effect.map(e, fn(msg) { PageMsg(AboutPageMsg(msg)) }))
     }
     UsersIdPageModel(m), UsersIdPageMsg(msg) -> {
-      let #(new_m, e) = views.users_id_update(m, msg)
+      let #(new_m, e) = pages_users_id_.update(m, msg)
       #(UsersIdPageModel(new_m), effect.map(e, fn(msg) { PageMsg(UsersIdPageMsg(msg)) }))
     }
     _, _ -> #(page_model, effect.none())
@@ -143,11 +145,11 @@ fn update_page(page_model: PageModel, page_msg: PageMsg) -> #(PageModel, Effect(
 fn render_page(page_model: PageModel) -> Element(Msg) {
   case page_model {
     HomePageModel(m) ->
-      element.map(views.home_view(m), fn(msg) { PageMsg(HomePageMsg(msg)) })
+      element.map(pages_home_.view(m), fn(msg) { PageMsg(HomePageMsg(msg)) })
     AboutPageModel(m) ->
-      element.map(views.about_view(m), fn(msg) { PageMsg(AboutPageMsg(msg)) })
+      element.map(pages_about.view(m), fn(msg) { PageMsg(AboutPageMsg(msg)) })
     UsersIdPageModel(m) ->
-      element.map(views.users_id_view(m), fn(msg) { PageMsg(UsersIdPageMsg(msg)) })
+      element.map(pages_users_id_.view(m), fn(msg) { PageMsg(UsersIdPageMsg(msg)) })
     NoPageModel -> html.div([], [html.text("Page not found")])
   }
 }

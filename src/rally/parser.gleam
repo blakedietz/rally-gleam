@@ -62,6 +62,7 @@ pub fn parse_page(source: String, module_path module_path: String) -> Result(Pag
     has_init:,
     has_model:,
     param_names:,
+    source:,
     view_source:,
     init_source:,
     update_source:,

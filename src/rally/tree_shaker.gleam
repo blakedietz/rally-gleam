@@ -49,7 +49,7 @@ pub fn shake(
 
       // Reconstruct source with only client-safe parts
       let client_imports = filter_imports(ast.imports, server_set, client_refs)
-      let client_types = filter_types(ast.custom_types, server_set)
+      let client_types = filter_types(ast.custom_types, server_set, client_refs)
       let client_constants = filter_constants(ast.constants, all_client_fn_names, ast)
       let client_functions = extract_client_functions(ast, all_client_fn_names, source)
 
@@ -517,9 +517,23 @@ fn last_segment(module_path: String) -> String {
 fn filter_types(
   types: List(glance.Definition(glance.CustomType)),
   server_symbols: Set(String),
+  client_refs: Set(String),
 ) -> List(glance.Definition(glance.CustomType)) {
   list.filter(types, fn(def) {
-    !set.contains(server_symbols, def.definition.name)
+    let name = def.definition.name
+    let is_server = set.contains(server_symbols, name)
+    case is_server {
+      False -> True
+      True -> {
+        // Keep server types whose constructors are referenced by client code
+        let has_client_ref =
+          set.contains(client_refs, name)
+          || list.any(def.definition.variants, fn(v) {
+            set.contains(client_refs, v.name)
+          })
+        has_client_ref
+      }
+    }
   })
 }
 

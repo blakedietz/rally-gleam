@@ -238,16 +238,17 @@ fn run() -> Result(String, String) {
     }
   }
 
-  // 10. Generate codec files for the client package
+  let server_symbols = collect_server_symbols(handler_endpoints)
+
+  // 10. Generate codec files and per-page client modules
   let codec_files =
-    list.map(codec.generate(contracts, discovered, has_client_context, handler_endpoints), fn(f: codec.CodecFile) {
+    list.map(codec.generate(contracts, discovered, has_client_context, handler_endpoints, server_symbols), fn(f: codec.CodecFile) {
       client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
     })
 
   // 11. Generate client package (includes rpc_ffi.mjs and decoders_prelude.mjs)
   let client_files =
     client.generate_package(routes, contracts, config, rpc_ffi_content, decoders_prelude_content, has_client_context)
-  let server_symbols = collect_server_symbols(handler_endpoints)
   let client_context_files = case has_client_context {
     True -> {
       let assert Ok(cc_source) = simplifile.read(client_context_path)

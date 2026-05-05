@@ -63,6 +63,7 @@ pub type PageContract {
     has_init: Bool,
     has_model: Bool,
     param_names: List(String),
+    source: String,
     view_source: String,
     init_source: String,
     update_source: String,
