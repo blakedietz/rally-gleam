@@ -21,20 +21,11 @@ pub type Msg {
   UpdatedEmail(String)
   UpdatedPassword(String)
   ClickedLogin
-  GotServerMsg(ToClient)
+  GotLogin(Result(#(String, String), List(String)))
 }
 
-pub type ToServer {
-  SubmitLogin(email: String, password: String)
-}
-
-pub type ToClient {
-  Authenticated(username: String, image: String)
-  AuthError(errors: List(String))
-}
-
-pub type ServerModel {
-  ServerModel
+type RpcMsg {
+  Login(email: String, password: String)
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
@@ -51,17 +42,19 @@ pub fn update(
     UpdatedPassword(val) -> #(Model(..model, password: val), effect.none())
     ClickedLogin -> #(
       model,
-      lando_effect.send_to_server(SubmitLogin(model.email, model.password)),
+      lando_effect.rpc(
+        Login(email: model.email, password: model.password),
+        on_response: GotLogin,
+      ),
     )
-    GotServerMsg(Authenticated(username, image)) -> #(model,
+    GotLogin(Ok(#(username, image))) -> #(
+      model,
       effect.batch([
         lando_effect.send_to_client_context(SignedIn(User(username:, image:))),
         lando_effect.navigate("/"),
-      ]))
-    GotServerMsg(AuthError(errors)) -> #(
-      Model(..model, errors:),
-      effect.none(),
+      ]),
     )
+    GotLogin(Error(errors)) -> #(Model(..model, errors:), effect.none())
   }
 }
 
@@ -123,65 +116,39 @@ fn fieldset_input(
   ])
 }
 
-pub fn server_init(
-  _server_context: ServerContext,
-) -> #(ServerModel, Effect(ToClient)) {
-  #(ServerModel, effect.none())
-}
+// --- Server handler ---
 
-pub fn server_update(
-  _model: ServerModel,
-  msg: ToServer,
-  server_context: ServerContext,
-) -> #(ServerModel, Effect(ToClient)) {
-  case msg {
-    SubmitLogin(email, password_text) -> {
-      let errors = validate_login(email, password_text)
-      case errors {
-        [] -> {
-          case
-            auth_sql.find_user_by_email(db: server_context.db, email:)
-          {
-            Ok([user]) -> {
-              case password.verify(password_text, user.password_hash) {
-                True -> {
-                  let session_id = lando_effect.get_ws_session()
-                  let now = datetime.now_unix()
-                  let assert Ok(_) =
-                    auth_sql.create_session(
-                      db: server_context.db,
-                      session_id: Some(session_id),
-                      user_id: user.id,
-                      created_at: now,
-                      expires_at: now + datetime.session_ttl_seconds,
-                    )
-                  #(
-                    ServerModel,
-                    lando_effect.send_to_client(Authenticated(
-                      username: user.username,
-                      image: user.image,
-                    )),
-                  )
-                }
-                False -> #(
-                  ServerModel,
-                  lando_effect.send_to_client(AuthError([
-                    "Invalid email or password",
-                  ])),
+pub fn server_login(
+  email email: String,
+  password password_text: String,
+  server_context server_context: ServerContext,
+) -> Result(#(String, String), List(String)) {
+  let errors = validate_login(email, password_text)
+  case errors {
+    [] -> {
+      case auth_sql.find_user_by_email(db: server_context.db, email:) {
+        Ok([user]) -> {
+          case password.verify(password_text, user.password_hash) {
+            True -> {
+              let session_id = lando_effect.get_ws_session()
+              let now = datetime.now_unix()
+              let assert Ok(_) =
+                auth_sql.create_session(
+                  db: server_context.db,
+                  session_id: Some(session_id),
+                  user_id: user.id,
+                  created_at: now,
+                  expires_at: now + datetime.session_ttl_seconds,
                 )
-              }
+              Ok(#(user.username, user.image))
             }
-            _ -> #(
-              ServerModel,
-              lando_effect.send_to_client(AuthError([
-                "Invalid email or password",
-              ])),
-            )
+            False -> Error(["Invalid email or password"])
           }
         }
-        _ -> #(ServerModel, lando_effect.send_to_client(AuthError(errors)))
+        _ -> Error(["Invalid email or password"])
       }
     }
+    _ -> Error(errors)
   }
 }
 
@@ -197,4 +164,3 @@ fn validate_login(email: String, password_text: String) -> List(String) {
   }
   errors
 }
-

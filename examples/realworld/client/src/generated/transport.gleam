@@ -39,6 +39,11 @@ pub fn send_to_server(page: String, msg: a) -> Nil {
   send_raw("/ws", page, msg, fn(_) { Nil })
 }
 
+/// Send an RPC call and invoke callback with the decoded response.
+pub fn send_rpc(msg: a, callback: fn(b) -> Nil) -> Nil {
+  send_raw("/ws", "rpc", msg, callback)
+}
+
 /// Send route params to initialize the server-side page model.
 /// Uses request_id 0 as the init sentinel.
 pub fn send_page_init(page: String, params: a) -> Nil {

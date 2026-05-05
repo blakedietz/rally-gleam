@@ -32,32 +32,14 @@ pub type Msg {
   UpdatedPassword(String)
   ClickedUpdate
   ClickedLogout
-  GotServerMsg(ToClient)
+  GotUpdate(Result(#(String, String), List(String)))
+  GotLogout(Result(Nil, Nil))
 }
 
-pub type ToServer {
-  UpdateSettings(
-    image: String,
-    username: String,
-    bio: String,
-    email: String,
-    password: String,
-  )
+type RpcMsg {
+  UpdateSettings(image: String, username: String, bio: String, email: String, password: String)
   Logout
 }
-
-pub type ToClient {
-  SettingsLoaded(image: String, username: String, bio: String, email: String)
-  SettingsUpdated(username: String, image: String)
-  SettingsError(errors: List(String))
-  LoggedOut
-}
-
-pub type ServerModel {
-  ServerModel
-}
-
-// --- Client ---
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
   #(
@@ -86,36 +68,36 @@ pub fn update(
     UpdatedPassword(val) -> #(Model(..model, password: val), effect.none())
     ClickedUpdate -> #(
       model,
-      lando_effect.send_to_server(UpdateSettings(
-        image: model.image,
-        username: model.username,
-        bio: model.bio,
-        email: model.email,
-        password: model.password,
-      )),
+      lando_effect.rpc(
+        UpdateSettings(
+          image: model.image,
+          username: model.username,
+          bio: model.bio,
+          email: model.email,
+          password: model.password,
+        ),
+        on_response: GotUpdate,
+      ),
     )
-    ClickedLogout -> #(model, lando_effect.send_to_server(Logout))
-    GotServerMsg(SettingsLoaded(image, username, bio, email)) -> #(
-      Model(..model, image:, username:, bio:, email:),
-      effect.none(),
+    ClickedLogout -> #(
+      model,
+      lando_effect.rpc(Logout, on_response: GotLogout),
     )
-    GotServerMsg(SettingsUpdated(username, image)) -> #(
+    GotUpdate(Ok(#(username, image))) -> #(
       Model(..model, errors: []),
       lando_effect.send_to_client_context(SignedIn(User(username:, image:))),
     )
-    GotServerMsg(SettingsError(errors)) -> #(
-      Model(..model, errors:),
-      effect.none(),
-    )
-    GotServerMsg(LoggedOut) -> #(model,
+    GotUpdate(Error(errors)) -> #(Model(..model, errors:), effect.none())
+    GotLogout(Ok(_)) -> #(
+      model,
       effect.batch([
         lando_effect.send_to_client_context(SignedOut),
         lando_effect.navigate("/"),
-      ]))
+      ]),
+    )
+    GotLogout(Error(_)) -> #(model, effect.none())
   }
 }
-
-// --- View ---
 
 pub fn view(_client_context: ClientContext, model: Model) -> Element(Msg) {
   html.div([attr.class("settings-page")], [
@@ -203,11 +185,16 @@ fn error_list(errors: List(String)) -> Element(msg) {
   })
 }
 
-// --- Server ---
+// --- Server handlers ---
 
-pub fn server_init(
-  server_context: ServerContext,
-) -> #(ServerModel, Effect(ToClient)) {
+pub fn server_update_settings(
+  image image: String,
+  username username: String,
+  bio bio: String,
+  email email: String,
+  password password_text: String,
+  server_context server_context: ServerContext,
+) -> Result(#(String, String), List(String)) {
   let session_id = lando_effect.get_ws_session()
   case
     auth_sql.find_user_by_session(
@@ -217,118 +204,63 @@ pub fn server_init(
     )
   {
     Ok([user]) -> {
-      case
-        auth_sql.get_user_settings(
-          db: server_context.db,
-          user_id: user.id,
-        )
-      {
-        Ok([settings]) -> #(
-          ServerModel,
-          lando_effect.send_to_client(SettingsLoaded(
-            image: settings.image,
-            username: settings.username,
-            bio: settings.bio,
-            email: settings.email,
-          )),
-        )
-        _ -> #(ServerModel, effect.none())
-      }
-    }
-    _ -> #(ServerModel, effect.none())
-  }
-}
-
-pub fn server_update(
-  _model: ServerModel,
-  msg: ToServer,
-  server_context: ServerContext,
-) -> #(ServerModel, Effect(ToClient)) {
-  case msg {
-    UpdateSettings(image, username, bio, email, password_text) -> {
-      let session_id = lando_effect.get_ws_session()
-      case
-        auth_sql.find_user_by_session(
-          db: server_context.db,
-          session_id: Some(session_id),
-          now: datetime.now_unix(),
-        )
-      {
-        Ok([user]) -> {
-          let errors = validate_settings(username, email)
-          case errors {
-            [] -> {
-              let now = datetime.now_unix()
-              // Update with or without password change
-              case string.is_empty(string.trim(password_text)) {
-                True -> {
+      let errors = validate_settings(username, email)
+      case errors {
+        [] -> {
+          let now = datetime.now_unix()
+          case string.is_empty(string.trim(password_text)) {
+            True -> {
+              let assert Ok(_) =
+                auth_sql.update_user(
+                  db: server_context.db,
+                  image:,
+                  username:,
+                  bio:,
+                  email:,
+                  now:,
+                  user_id: user.id,
+                )
+              Ok(#(username, image))
+            }
+            False -> {
+              case string.length(password_text) < 8 {
+                True -> Error(["Password must be at least 8 characters"])
+                False -> {
+                  let hash = password.hash(password_text)
                   let assert Ok(_) =
-                    auth_sql.update_user(
+                    auth_sql.update_user_with_password(
                       db: server_context.db,
                       image:,
                       username:,
                       bio:,
                       email:,
+                      password_hash: hash,
                       now:,
                       user_id: user.id,
                     )
-                  #(
-                    ServerModel,
-                    lando_effect.send_to_client(SettingsUpdated(username:, image:)),
-                  )
-                }
-                False -> {
-                  case string.length(password_text) < 8 {
-                    True -> #(
-                      ServerModel,
-                      lando_effect.send_to_client(SettingsError([
-                        "Password must be at least 8 characters",
-                      ])),
-                    )
-                    False -> {
-                      let hash = password.hash(password_text)
-                      let assert Ok(_) =
-                        auth_sql.update_user_with_password(
-                          db: server_context.db,
-                          image:,
-                          username:,
-                          bio:,
-                          email:,
-                          password_hash: hash,
-                          now:,
-                          user_id: user.id,
-                        )
-                      #(
-                        ServerModel,
-                        lando_effect.send_to_client(SettingsUpdated(username:, image:)),
-                      )
-                    }
-                  }
+                  Ok(#(username, image))
                 }
               }
             }
-            _ -> #(
-              ServerModel,
-              lando_effect.send_to_client(SettingsError(errors)),
-            )
           }
         }
-        _ -> #(
-          ServerModel,
-          lando_effect.send_to_client(SettingsError(["You must be logged in"])),
-        )
+        _ -> Error(errors)
       }
     }
-    Logout -> {
-      let session_id = lando_effect.get_ws_session()
-      let assert Ok(_) =
-        auth_sql.delete_session(
-          db: server_context.db,
-          session_id: Some(session_id),
-        )
-      #(ServerModel, lando_effect.send_to_client(LoggedOut))
-    }
+    _ -> Error(["You must be logged in"])
   }
+}
+
+pub fn server_logout(
+  server_context server_context: ServerContext,
+) -> Result(Nil, Nil) {
+  let session_id = lando_effect.get_ws_session()
+  let assert Ok(_) =
+    auth_sql.delete_session(
+      db: server_context.db,
+      session_id: Some(session_id),
+    )
+  Ok(Nil)
 }
 
 fn validate_settings(username: String, email: String) -> List(String) {

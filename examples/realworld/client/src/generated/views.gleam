@@ -13,14 +13,13 @@ import lustre/event
 import lando_runtime/effect as lando_effect
 import generated/transport
 import client_context.{type ClientContext}
-import generated/types.{  type ArticleSlugToClient,
-  type EditorSlugToClient,
-  type EditorToClient,
-  type HomeToClient,
-  type LoginToClient,
-  type ProfileUsernameToClient,
-  type RegisterToClient,
-  type SettingsToClient}
+import generated/types.{  PublishArticle,
+  ChangePage,
+  SwitchTab,
+  Login,
+  Register,
+  Logout,
+  UpdateSettings}
 
 // ArticleSlug — pages/article/slug_
 pub type ArticleSlugModel {
@@ -345,7 +344,7 @@ pub type EditorMsg {
   AddedTag
   RemovedTag(value: String)
   ClickedPublish
-  EditorGotServerMsg(value: EditorToClient)
+  GotPublish(value: Result(String, List(String)))
 }
 
 fn editor_send_to_server(msg: a) -> Effect(b) {
@@ -395,21 +394,21 @@ pub fn editor_update(
     )
     ClickedPublish -> #(
       model,
-      editor_send_to_server(PublishArticle(
-        title: model.title,
-        description: model.description,
-        body: model.body,
-        tags: model.tags,
-      )),
+      lando_effect.rpc(
+        PublishArticle(
+          title: model.title,
+          description: model.description,
+          body: model.body,
+          tags: model.tags,
+        ),
+        on_response: GotPublish,
+      ),
     )
-    EditorGotServerMsg(ArticlePublished(slug)) -> #(
+    GotPublish(Ok(article_slug)) -> #(
       EditorModel(..model, errors: []),
-      lando_effect.navigate("/article/" <> slug),
+      lando_effect.navigate("/article/" <> article_slug),
     )
-    EditorGotServerMsg(EditorErrors(errors)) -> #(
-      EditorModel(..model, errors:),
-      effect.none(),
-    )
+    GotPublish(Error(errors)) -> #(EditorModel(..model, errors:), effect.none())
   }
 }
 
@@ -498,7 +497,7 @@ pub type HomeMsg {
   ClickedTab(value: Tab.Tab)
   ClickedPage(value: Int)
   ClickedTag(value: String)
-  HomeGotServerMsg(value: HomeToClient)
+  GotArticles(value: Result(#(List(ArticlePreview.ArticlePreview), Int), Nil))
 }
 
 fn home_send_to_server(msg: a) -> Effect(b) {
@@ -525,30 +524,27 @@ pub fn home_update(
       let #(tab_name, tag) = tab_to_wire(tab)
       #(
         HomeModel(..model, active_tab: tab, page: 1),
-        home_send_to_server(SwitchTab(tab_name:, tag:)),
+        lando_effect.rpc(SwitchTab(tab_name:, tag:), on_response: GotArticles),
       )
     }
     ClickedPage(page) -> {
       let #(tab_name, tag) = tab_to_wire(model.active_tab)
       #(
         HomeModel(..model, page:),
-        home_send_to_server(ChangePage(page:, tab_name:, tag:)),
+        lando_effect.rpc(ChangePage(page:, tab_name:, tag:), on_response: GotArticles),
       )
     }
     ClickedTag(tag) -> {
       #(
         HomeModel(..model, active_tab: TagFeed(tag:), page: 1),
-        home_send_to_server(SwitchTab(tab_name: "tag", tag:)),
+        lando_effect.rpc(SwitchTab(tab_name: "tag", tag:), on_response: GotArticles),
       )
     }
-    HomeGotServerMsg(HomeData(articles:, tags:, total:)) -> #(
-      HomeModel(..model, articles:, tags:, total:),
-      effect.none(),
-    )
-    HomeGotServerMsg(ArticleListUpdated(articles:, total:)) -> #(
+    GotArticles(Ok(#(articles, total))) -> #(
       HomeModel(..model, articles:, total:),
       effect.none(),
     )
+    GotArticles(Error(_)) -> #(model, effect.none())
   }
 }
 
@@ -577,7 +573,7 @@ pub type LoginMsg {
   UpdatedEmail(value: String)
   UpdatedPassword(value: String)
   ClickedLogin
-  LoginGotServerMsg(value: LoginToClient)
+  GotLogin(value: Result(#(String, String), List(String)))
 }
 
 fn login_send_to_server(msg: a) -> Effect(b) {
@@ -601,17 +597,19 @@ pub fn login_update(
     UpdatedPassword(val) -> #(LoginModel(..model, password: val), effect.none())
     ClickedLogin -> #(
       model,
-      login_send_to_server(SubmitLogin(model.email, model.password)),
+      lando_effect.rpc(
+        Login(email: model.email, password: model.password),
+        on_response: GotLogin,
+      ),
     )
-    LoginGotServerMsg(Authenticated(username, image)) -> #(model,
+    GotLogin(Ok(#(username, image))) -> #(
+      model,
       effect.batch([
         lando_effect.send_to_client_context(SignedIn(User(username:, image:))),
         lando_effect.navigate("/"),
-      ]))
-    LoginGotServerMsg(AuthError(errors)) -> #(
-      LoginModel(..model, errors:),
-      effect.none(),
+      ]),
     )
+    GotLogin(Error(errors)) -> #(LoginModel(..model, errors:), effect.none())
   }
 }
 
@@ -743,7 +741,7 @@ pub type RegisterMsg {
   UpdatedEmail(value: String)
   UpdatedPassword(value: String)
   ClickedRegister
-  RegisterGotServerMsg(value: RegisterToClient)
+  GotRegister(value: Result(#(String, String), List(String)))
 }
 
 fn register_send_to_server(msg: a) -> Effect(b) {
@@ -768,21 +766,19 @@ pub fn register_update(
     UpdatedPassword(val) -> #(RegisterModel(..model, password: val), effect.none())
     ClickedRegister -> #(
       model,
-      register_send_to_server(SubmitRegister(
-        model.username,
-        model.email,
-        model.password,
-      )),
+      lando_effect.rpc(
+        Register(username: model.username, email: model.email, password: model.password),
+        on_response: GotRegister,
+      ),
     )
-    RegisterGotServerMsg(Registered(username, image)) -> #(model,
+    GotRegister(Ok(#(username, image))) -> #(
+      model,
       effect.batch([
         lando_effect.send_to_client_context(SignedIn(User(username:, image:))),
         lando_effect.navigate("/"),
-      ]))
-    RegisterGotServerMsg(RegisterError(errors)) -> #(
-      RegisterModel(..model, errors:),
-      effect.none(),
+      ]),
     )
+    GotRegister(Error(errors)) -> #(RegisterModel(..model, errors:), effect.none())
   }
 }
 
@@ -833,7 +829,8 @@ pub type SettingsMsg {
   UpdatedPassword(value: String)
   ClickedUpdate
   ClickedLogout
-  SettingsGotServerMsg(value: SettingsToClient)
+  GotUpdate(value: Result(#(String, String), List(String)))
+  GotLogout(value: Result(Nil, Nil))
 }
 
 fn settings_send_to_server(msg: a) -> Effect(b) {
@@ -870,32 +867,34 @@ pub fn settings_update(
     UpdatedPassword(val) -> #(SettingsModel(..model, password: val), effect.none())
     ClickedUpdate -> #(
       model,
-      settings_send_to_server(UpdateSettings(
-        image: model.image,
-        username: model.username,
-        bio: model.bio,
-        email: model.email,
-        password: model.password,
-      )),
+      lando_effect.rpc(
+        UpdateSettings(
+          image: model.image,
+          username: model.username,
+          bio: model.bio,
+          email: model.email,
+          password: model.password,
+        ),
+        on_response: GotUpdate,
+      ),
     )
-    ClickedLogout -> #(model, settings_send_to_server(Logout))
-    SettingsGotServerMsg(SettingsLoaded(image, username, bio, email)) -> #(
-      SettingsModel(..model, image:, username:, bio:, email:),
-      effect.none(),
+    ClickedLogout -> #(
+      model,
+      lando_effect.rpc(Logout, on_response: GotLogout),
     )
-    SettingsGotServerMsg(SettingsUpdated(username, image)) -> #(
+    GotUpdate(Ok(#(username, image))) -> #(
       SettingsModel(..model, errors: []),
       lando_effect.send_to_client_context(SignedIn(User(username:, image:))),
     )
-    SettingsGotServerMsg(SettingsError(errors)) -> #(
-      SettingsModel(..model, errors:),
-      effect.none(),
-    )
-    SettingsGotServerMsg(LoggedOut) -> #(model,
+    GotUpdate(Error(errors)) -> #(SettingsModel(..model, errors:), effect.none())
+    GotLogout(Ok(_)) -> #(
+      model,
       effect.batch([
         lando_effect.send_to_client_context(SignedOut),
         lando_effect.navigate("/"),
-      ]))
+      ]),
+    )
+    GotLogout(Error(_)) -> #(model, effect.none())
   }
 }
 
@@ -977,4 +976,95 @@ pub fn settings_view(_client_context: ClientContext, model: SettingsModel) -> El
       ]),
     ]),
   ])
+}
+
+// ---------- RPC stubs (generated from server_ handlers) ----------
+
+pub fn rpc_publish_article(
+  title title: String,
+  description description: String,
+  body body: String,
+  tags tags: List(String),
+  on_response on_response: fn(Result(String, List(String))) -> msg,
+) -> Effect(msg) {
+  effect.from(fn(dispatch) {
+    transport.send_rpc(PublishArticle(title:, description:, body:, tags:), fn(response) {
+      dispatch(on_response(response))
+    })
+  })
+}
+
+pub fn rpc_change_page(
+  page page: Int,
+  tab_name tab_name: String,
+  tag tag: String,
+  on_response on_response: fn(Result(#(List(ArticlePreview.ArticlePreview), Int), Nil)) -> msg,
+) -> Effect(msg) {
+  effect.from(fn(dispatch) {
+    transport.send_rpc(ChangePage(page:, tab_name:, tag:), fn(response) {
+      dispatch(on_response(response))
+    })
+  })
+}
+
+pub fn rpc_switch_tab(
+  tab_name tab_name: String,
+  tag tag: String,
+  on_response on_response: fn(Result(#(List(ArticlePreview.ArticlePreview), Int), Nil)) -> msg,
+) -> Effect(msg) {
+  effect.from(fn(dispatch) {
+    transport.send_rpc(SwitchTab(tab_name:, tag:), fn(response) {
+      dispatch(on_response(response))
+    })
+  })
+}
+
+pub fn rpc_login(
+  email email: String,
+  password password: String,
+  on_response on_response: fn(Result(#(String, String), List(String))) -> msg,
+) -> Effect(msg) {
+  effect.from(fn(dispatch) {
+    transport.send_rpc(Login(email:, password:), fn(response) {
+      dispatch(on_response(response))
+    })
+  })
+}
+
+pub fn rpc_register(
+  username username: String,
+  email email: String,
+  password password: String,
+  on_response on_response: fn(Result(#(String, String), List(String))) -> msg,
+) -> Effect(msg) {
+  effect.from(fn(dispatch) {
+    transport.send_rpc(Register(username:, email:, password:), fn(response) {
+      dispatch(on_response(response))
+    })
+  })
+}
+
+pub fn rpc_logout(
+  on_response on_response: fn(Result(Nil, Nil)) -> msg,
+) -> Effect(msg) {
+  effect.from(fn(dispatch) {
+    transport.send_rpc(Logout, fn(response) {
+      dispatch(on_response(response))
+    })
+  })
+}
+
+pub fn rpc_update_settings(
+  image image: String,
+  username username: String,
+  bio bio: String,
+  email email: String,
+  password password: String,
+  on_response on_response: fn(Result(#(String, String), List(String))) -> msg,
+) -> Effect(msg) {
+  effect.from(fn(dispatch) {
+    transport.send_rpc(UpdateSettings(image:, username:, bio:, email:, password:), fn(response) {
+      dispatch(on_response(response))
+    })
+  })
 }

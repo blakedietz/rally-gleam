@@ -35,28 +35,12 @@ pub type Msg {
   AddedTag
   RemovedTag(String)
   ClickedPublish
-  GotServerMsg(ToClient)
+  GotPublish(Result(String, List(String)))
 }
 
-pub type ToServer {
-  PublishArticle(
-    title: String,
-    description: String,
-    body: String,
-    tags: List(String),
-  )
+type RpcMsg {
+  PublishArticle(title: String, description: String, body: String, tags: List(String))
 }
-
-pub type ToClient {
-  ArticlePublished(slug: String)
-  EditorErrors(errors: List(String))
-}
-
-pub type ServerModel {
-  ServerModel
-}
-
-// --- Client ---
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
   #(
@@ -98,25 +82,23 @@ pub fn update(
     )
     ClickedPublish -> #(
       model,
-      lando_effect.send_to_server(PublishArticle(
-        title: model.title,
-        description: model.description,
-        body: model.body,
-        tags: model.tags,
-      )),
+      lando_effect.rpc(
+        PublishArticle(
+          title: model.title,
+          description: model.description,
+          body: model.body,
+          tags: model.tags,
+        ),
+        on_response: GotPublish,
+      ),
     )
-    GotServerMsg(ArticlePublished(slug)) -> #(
+    GotPublish(Ok(article_slug)) -> #(
       Model(..model, errors: []),
-      lando_effect.navigate("/article/" <> slug),
+      lando_effect.navigate("/article/" <> article_slug),
     )
-    GotServerMsg(EditorErrors(errors)) -> #(
-      Model(..model, errors:),
-      effect.none(),
-    )
+    GotPublish(Error(errors)) -> #(Model(..model, errors:), effect.none())
   }
 }
-
-// --- View ---
 
 pub fn view(_client_context: ClientContext, model: Model) -> Element(Msg) {
   html.div([attr.class("editor-page")], [
@@ -200,75 +182,52 @@ fn error_list(errors: List(String)) -> Element(msg) {
   })
 }
 
-// --- Server ---
+// --- Server handler ---
 
-pub fn server_init(
-  _server_context: ServerContext,
-) -> #(ServerModel, Effect(ToClient)) {
-  #(ServerModel, effect.none())
-}
-
-pub fn server_update(
-  _model: ServerModel,
-  msg: ToServer,
-  server_context: ServerContext,
-) -> #(ServerModel, Effect(ToClient)) {
-  case msg {
-    PublishArticle(title, description, body, tags) -> {
-      let errors = validate_article(title, body)
-      case errors {
-        [] -> {
-          let session_id = lando_effect.get_ws_session()
+pub fn server_publish_article(
+  title title: String,
+  description description: String,
+  body body: String,
+  tags tags: List(String),
+  server_context server_context: ServerContext,
+) -> Result(String, List(String)) {
+  let errors = validate_article(title, body)
+  case errors {
+    [] -> {
+      let session_id = lando_effect.get_ws_session()
+      case
+        auth_sql.find_user_by_session(
+          db: server_context.db,
+          session_id: Some(session_id),
+          now: datetime.now_unix(),
+        )
+      {
+        Ok([user]) -> {
+          let now = datetime.now_unix()
+          let article_slug = slug.unique_from_title(server_context.db, title)
           case
-            auth_sql.find_user_by_session(
+            articles_sql.create(
               db: server_context.db,
-              session_id: Some(session_id),
-              now: datetime.now_unix(),
+              slug: article_slug,
+              title:,
+              description:,
+              body:,
+              author_id: user.id,
+              created_at: now,
+              updated_at: now,
             )
           {
-            Ok([user]) -> {
-              let now = datetime.now_unix()
-              let article_slug = slug.unique_from_title(server_context.db, title)
-              case
-                articles_sql.create(
-                  db: server_context.db,
-                  slug: article_slug,
-                  title:,
-                  description:,
-                  body:,
-                  author_id: user.id,
-                  created_at: now,
-                  updated_at: now,
-                )
-              {
-                Ok([row]) -> {
-                  save_tags(server_context.db, row.id, tags)
-                  #(
-                    ServerModel,
-                    lando_effect.send_to_client(ArticlePublished(
-                      slug: row.slug,
-                    )),
-                  )
-                }
-                _ -> #(
-                  ServerModel,
-                  lando_effect.send_to_client(EditorErrors([
-                    "Failed to create article",
-                  ])),
-                )
-              }
+            Ok([row]) -> {
+              save_tags(server_context.db, row.id, tags)
+              Ok(row.slug)
             }
-            _ -> #(
-              ServerModel,
-              lando_effect.send_to_client(EditorErrors([
-                "You must be logged in to publish",
-              ])),
-            )
+            _ -> Error(["Failed to create article"])
           }
         }
-        _ -> #(ServerModel, lando_effect.send_to_client(EditorErrors(errors)))
+        _ -> Error(["You must be logged in to publish"])
       }
     }
+    _ -> Error(errors)
   }
 }
 

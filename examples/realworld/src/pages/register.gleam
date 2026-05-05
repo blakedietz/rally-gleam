@@ -22,20 +22,11 @@ pub type Msg {
   UpdatedEmail(String)
   UpdatedPassword(String)
   ClickedRegister
-  GotServerMsg(ToClient)
+  GotRegister(Result(#(String, String), List(String)))
 }
 
-pub type ToServer {
-  SubmitRegister(username: String, email: String, password: String)
-}
-
-pub type ToClient {
-  Registered(username: String, image: String)
-  RegisterError(errors: List(String))
-}
-
-pub type ServerModel {
-  ServerModel
+type RpcMsg {
+  Register(username: String, email: String, password: String)
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
@@ -53,21 +44,19 @@ pub fn update(
     UpdatedPassword(val) -> #(Model(..model, password: val), effect.none())
     ClickedRegister -> #(
       model,
-      lando_effect.send_to_server(SubmitRegister(
-        model.username,
-        model.email,
-        model.password,
-      )),
+      lando_effect.rpc(
+        Register(username: model.username, email: model.email, password: model.password),
+        on_response: GotRegister,
+      ),
     )
-    GotServerMsg(Registered(username, image)) -> #(model,
+    GotRegister(Ok(#(username, image))) -> #(
+      model,
       effect.batch([
         lando_effect.send_to_client_context(SignedIn(User(username:, image:))),
         lando_effect.navigate("/"),
-      ]))
-    GotServerMsg(RegisterError(errors)) -> #(
-      Model(..model, errors:),
-      effect.none(),
+      ]),
     )
+    GotRegister(Error(errors)) -> #(Model(..model, errors:), effect.none())
   }
 }
 
@@ -128,65 +117,47 @@ fn fieldset_input(
   ])
 }
 
-pub fn server_init(
-  _server_context: ServerContext,
-) -> #(ServerModel, Effect(ToClient)) {
-  #(ServerModel, effect.none())
-}
+// --- Server handler ---
 
-pub fn server_update(
-  _model: ServerModel,
-  msg: ToServer,
-  server_context: ServerContext,
-) -> #(ServerModel, Effect(ToClient)) {
-  case msg {
-    SubmitRegister(username, email, password_text) -> {
-      let errors = validate_register(username, email, password_text)
-      case errors {
-        [] -> {
-          let session_id = lando_effect.get_ws_session()
-          let now = datetime.now_unix()
-          let hash = password.hash(password_text)
-          case
-            auth_sql.register_user(
+pub fn server_register(
+  username username: String,
+  email email: String,
+  password password_text: String,
+  server_context server_context: ServerContext,
+) -> Result(#(String, String), List(String)) {
+  let errors = validate_register(username, email, password_text)
+  case errors {
+    [] -> {
+      let session_id = lando_effect.get_ws_session()
+      let now = datetime.now_unix()
+      let hash = password.hash(password_text)
+      case
+        auth_sql.register_user(
+          db: server_context.db,
+          username:,
+          email:,
+          password_hash: hash,
+          bio: "",
+          image: "",
+          created_at: now,
+          updated_at: now,
+        )
+      {
+        Ok([user]) -> {
+          let assert Ok(_) =
+            auth_sql.create_session(
               db: server_context.db,
-              username:,
-              email:,
-              password_hash: hash,
-              bio: "",
-              image: "",
+              session_id: Some(session_id),
+              user_id: user.id,
               created_at: now,
-              updated_at: now,
+              expires_at: now + datetime.session_ttl_seconds,
             )
-          {
-            Ok([user]) -> {
-              let assert Ok(_) =
-                auth_sql.create_session(
-                  db: server_context.db,
-                  session_id: Some(session_id),
-                  user_id: user.id,
-                  created_at: now,
-                  expires_at: now + datetime.session_ttl_seconds,
-                )
-              #(
-                ServerModel,
-                lando_effect.send_to_client(Registered(
-                  username: user.username,
-                  image: user.image,
-                )),
-              )
-            }
-            _ -> #(
-              ServerModel,
-              lando_effect.send_to_client(RegisterError([
-                "Username or email already taken",
-              ])),
-            )
-          }
+          Ok(#(user.username, user.image))
         }
-        _ -> #(ServerModel, lando_effect.send_to_client(RegisterError(errors)))
+        _ -> Error(["Username or email already taken"])
       }
     }
+    _ -> Error(errors)
   }
 }
 

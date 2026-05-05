@@ -7,6 +7,7 @@ gleam_erlang = ">= 1.0.0 and < 2.0.0"
 gleam_http = ">= 4.0.0 and < 5.0.0"
 gleam_stdlib = ">= 0.60.0 and < 2.0.0"
 lando = { path = "../.." }
+libero = { path = "../../../libero" }
 lustre = ">= 5.6.0 and < 7.0.0"
 marmot = ">= 1.3.0 and < 2.0.0"
 mist = ">= 6.0.0 and < 7.0.0"
@@ -30,7 +31,7 @@ exclude = ["src/generated/"]
 pages_root = "src/pages"
 output_route = "src/generated/router.gleam"
 output_dispatch = "src/generated/page_dispatch.gleam"
-output_server_dispatch = "src/generated/server_dispatch.gleam"
+output_server_dispatch = "src/generated/rpc_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
 output_ws = "src/generated/ws_handler.gleam"
 sql_dir = "src/sql"

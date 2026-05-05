@@ -48,24 +48,13 @@ pub type Msg {
   ClickedTab(Tab)
   ClickedPage(Int)
   ClickedTag(String)
-  GotServerMsg(ToClient)
+  GotArticles(Result(#(List(ArticlePreview), Int), Nil))
 }
 
-pub type ToServer {
+type RpcMsg {
   SwitchTab(tab_name: String, tag: String)
   ChangePage(page: Int, tab_name: String, tag: String)
 }
-
-pub type ToClient {
-  HomeData(articles: List(ArticlePreview), tags: List(String), total: Int)
-  ArticleListUpdated(articles: List(ArticlePreview), total: Int)
-}
-
-pub type ServerModel {
-  ServerModel
-}
-
-// --- Client ---
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
   #(
@@ -84,30 +73,27 @@ pub fn update(
       let #(tab_name, tag) = tab_to_wire(tab)
       #(
         Model(..model, active_tab: tab, page: 1),
-        lando_effect.send_to_server(SwitchTab(tab_name:, tag:)),
+        lando_effect.rpc(SwitchTab(tab_name:, tag:), on_response: GotArticles),
       )
     }
     ClickedPage(page) -> {
       let #(tab_name, tag) = tab_to_wire(model.active_tab)
       #(
         Model(..model, page:),
-        lando_effect.send_to_server(ChangePage(page:, tab_name:, tag:)),
+        lando_effect.rpc(ChangePage(page:, tab_name:, tag:), on_response: GotArticles),
       )
     }
     ClickedTag(tag) -> {
       #(
         Model(..model, active_tab: TagFeed(tag:), page: 1),
-        lando_effect.send_to_server(SwitchTab(tab_name: "tag", tag:)),
+        lando_effect.rpc(SwitchTab(tab_name: "tag", tag:), on_response: GotArticles),
       )
     }
-    GotServerMsg(HomeData(articles:, tags:, total:)) -> #(
-      Model(..model, articles:, tags:, total:),
-      effect.none(),
-    )
-    GotServerMsg(ArticleListUpdated(articles:, total:)) -> #(
+    GotArticles(Ok(#(articles, total))) -> #(
       Model(..model, articles:, total:),
       effect.none(),
     )
+    GotArticles(Error(_)) -> #(model, effect.none())
   }
 }
 
@@ -278,49 +264,24 @@ pub fn load(server_context: ServerContext) -> Model {
   Model(articles:, tags:, active_tab: GlobalFeed, page: 1, total: count_row.count)
 }
 
-// --- Server ---
+// --- Server handlers ---
 
-pub fn server_init(
-  server_context: ServerContext,
-) -> #(ServerModel, Effect(ToClient)) {
-  let assert Ok(rows) =
-    articles_sql.list_global(db: server_context.db, limit: 10, offset: 0)
-  let articles = list.map(rows, fn(r) { to_preview(r.slug, r.title, r.description, r.created_at, r.username, r.image, r.fav_count) })
-
-  let assert Ok(tag_rows) = tags_sql.list_popular(db: server_context.db)
-  let tags = list.map(tag_rows, fn(r) { r.name })
-
-  let assert Ok([count_row]) =
-    articles_sql.count_global(db: server_context.db)
-  let total = count_row.count
-
-  #(ServerModel, lando_effect.send_to_client(HomeData(articles:, tags:, total:)))
+pub fn server_switch_tab(
+  tab_name tab_name: String,
+  tag tag: String,
+  server_context server_context: ServerContext,
+) -> Result(#(List(ArticlePreview), Int), Nil) {
+  Ok(fetch_tab_articles(server_context.db, tab_name, tag, 0))
 }
 
-pub fn server_update(
-  _model: ServerModel,
-  msg: ToServer,
-  server_context: ServerContext,
-) -> #(ServerModel, Effect(ToClient)) {
-  case msg {
-    SwitchTab(tab_name:, tag:) -> {
-      let #(articles, total) =
-        fetch_tab_articles(server_context.db, tab_name, tag, 0)
-      #(
-        ServerModel,
-        lando_effect.send_to_client(ArticleListUpdated(articles:, total:)),
-      )
-    }
-    ChangePage(page:, tab_name:, tag:) -> {
-      let offset = { page - 1 } * 10
-      let #(articles, total) =
-        fetch_tab_articles(server_context.db, tab_name, tag, offset)
-      #(
-        ServerModel,
-        lando_effect.send_to_client(ArticleListUpdated(articles:, total:)),
-      )
-    }
-  }
+pub fn server_change_page(
+  page page: Int,
+  tab_name tab_name: String,
+  tag tag: String,
+  server_context server_context: ServerContext,
+) -> Result(#(List(ArticlePreview), Int), Nil) {
+  let offset = { page - 1 } * 10
+  Ok(fetch_tab_articles(server_context.db, tab_name, tag, offset))
 }
 
 fn fetch_tab_articles(

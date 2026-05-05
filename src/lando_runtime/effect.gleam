@@ -20,6 +20,13 @@ pub fn send_to_server(_msg: a) -> Effect(b) {
   effect.none()
 }
 
+/// Call an RPC handler on the server. On the server this is a no-op
+/// (the update function is never called server-side). On the client,
+/// the generated views module replaces this with a typed transport call.
+pub fn rpc(_msg: a, on_response _on_response: fn(b) -> msg) -> Effect(msg) {
+  effect.none()
+}
+
 /// Send a ToClient variant to the connected client.
 /// Encodes the message as an ETF push frame and queues it for
 /// the WebSocket handler to send after the current dispatch.

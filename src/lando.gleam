@@ -113,8 +113,13 @@ fn run() -> Result(String, String) {
   use routes <- result.try(scanner.scan(config))
 
   // 1b. Scan for server_ handler endpoints via libero
+  // Prefix with ./ so derive_module_path can find /src/ boundary
+  let libero_src_dir = case string.starts_with(config.pages_root, "/") {
+    True -> config.pages_root
+    False -> "./" <> config.pages_root
+  }
   let handler_endpoints = case libero_scanner.scan(
-    src_dir: config.pages_root,
+    src_dir: libero_src_dir,
     context_type_name: "ServerContext",
   ) {
     Ok(endpoints) -> {
