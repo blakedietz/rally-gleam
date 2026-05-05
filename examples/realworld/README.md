@@ -1,6 +1,6 @@
 # Realworld (Conduit)
 
-A [RealWorld](https://github.com/gothinkster/realworld) implementation built with lando. Users can publish articles, comment, follow authors, and favorite posts. The app demonstrates most of lando's features: file-based routing, SSR with hydration, bidirectional WebSocket messaging, session auth, and the shared ClientContext pattern.
+A [RealWorld](https://github.com/gothinkster/realworld) implementation built with Lando. Users can publish articles, comment, follow authors, and favorite posts. The app demonstrates most of Lando's features: file-based routing, SSR with hydration, bidirectional WebSocket messaging, session auth, and the shared ClientContext pattern.
 
 ## Running it
 
@@ -9,7 +9,7 @@ bin/dev
 # => http://localhost:8080
 ```
 
-This runs marmot codegen (SQL), lando codegen (routes, handlers, client), builds the JS client, and starts the server.
+This runs marmot codegen (SQL), Lando codegen (routes, handlers, client), builds the JS client, and starts the server.
 
 ## What's here
 
@@ -56,7 +56,7 @@ Each page follows the same pattern:
 
 The login flow is a good example of how the pieces connect: the client sends `SubmitLogin(email, password)` as a `ToServer` message, `server_update` validates credentials and creates a session, then sends back `LoginSuccess(token)` as a `ToClient` message plus `send_to_client_context(SignedIn(user))` to update the navbar, and the client calls `navigate("/")` to go home.
 
-## What lando provides vs. what's hand-written
+## What Lando provides vs. what's hand-written
 
 **Generated** (`src/generated/`, `client/src/generated/`): router, SSR handler, WebSocket handler, client app shell, transport layer, codec, type mirrors. These are regenerated on every `bin/dev` run.
 

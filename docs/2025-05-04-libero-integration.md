@@ -82,7 +82,7 @@ pub fn update(client_context, model, msg) {
 // The generated views.gleam provides: login_server_login(email:, password:, on_response: GotLogin)
 ```
 
-## Libero's public API (what lando calls)
+## Libero's public API (what Lando calls)
 
 ```gleam
 import libero/scanner.{type HandlerEndpoint}
@@ -108,7 +108,7 @@ Generates JS type registration files so the ETF codec can reconstruct typed Glea
 
 ### Phase 1: Add libero dependency, wire up scanner
 
-1. Add `libero = { path = "../libero" }` to lando's gleam.toml
+1. Add `libero = { path = "../libero" }` to Lando's gleam.toml
 2. In `src/lando.gleam`, after route scanning, call `libero/scanner.scan(config.pages_root, "ServerContext")` to discover handler endpoints
 3. Verify scanner finds server_ functions in the realworld example pages
 4. Print discovered endpoints for debugging
@@ -119,9 +119,9 @@ Generates JS type registration files so the ETF codec can reconstruct typed Glea
 2. Write to `src/generated/server_dispatch.gleam` (replaces the old hand-rolled dispatch)
 3. The generated dispatch imports handler modules and calls their server_ functions directly
 
-### Phase 3: Replace lando's duplicated modules with libero imports
+### Phase 3: Replace Lando's duplicated modules with libero imports
 
-Remove from lando (now provided by libero):
+Remove from Lando (now provided by libero):
 - `src/lando/field_type.gleam` -> use `libero/field_type`
 - `src/lando/walker.gleam` -> use `libero/walker`
 - `src/lando_runtime/wire.gleam` -> use `libero/wire`
@@ -133,7 +133,7 @@ Remove from lando (now provided by libero):
 - `src/lando_runtime_ffi.erl` (encode/decode functions) -> use libero's FFI
 - `src/lando_runtime_wire_ffi.erl` -> use libero's FFI
 
-Keep in lando (framework-specific):
+Keep in Lando (framework-specific):
 - `src/lando_runtime/effect.gleam` (send_to_client, broadcast, navigate, topics interaction)
 - `src/lando_runtime/topics.gleam` + FFI (pg group pub/sub)
 - `src/lando_runtime/db.gleam` + FFI (SQLite helpers)
@@ -195,7 +195,7 @@ Keep in lando (framework-specific):
 
 The current `lando_effect.send_to_server(msg)` goes away. Client-to-server calls are now generated stubs that use libero's wire protocol directly.
 
-For server-to-client push (broadcast, send_to_client_context), these remain as lando framework effects. They're not RPC (no request/response), they're fire-and-forget pushes.
+For server-to-client push (broadcast, send_to_client_context), these remain as Lando framework effects. They're not RPC (no request/response), they're fire-and-forget pushes.
 
 So the effect module keeps:
 - `broadcast_to_page(msg)` / `broadcast_to_app(msg)` / `broadcast_to_session(msg)`

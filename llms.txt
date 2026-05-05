@@ -9,7 +9,7 @@ bash bin/new my_app
 cd my_app && bin/dev
 ```
 
-`bin/dev` runs the lando codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), builds the JS client, and starts the Mist server on port 8080.
+`bin/dev` runs the Lando codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), builds the JS client, and starts the Mist server on port 8080.
 
 ## Page module contract
 
@@ -93,13 +93,13 @@ my_app/
 │   ├── client_context.gleam # ClientContext type (cross-page client state)
 │   ├── pages/              # route = filesystem
 │   ├── sql/                # marmot .sql files
-│   └── generated/          # lando codegen output (never edit)
+│   └── generated/          # Lando codegen output (never edit)
 ├── client/                 # JS client (fully generated)
 ├── gleam.toml
 └── bin/dev
 ```
 
-## What lando generates
+## What Lando generates
 
 Running `gleam run -m lando` produces:
 

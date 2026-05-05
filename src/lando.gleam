@@ -217,7 +217,7 @@ fn run() -> Result(String, String) {
     }
   }
 
-  // 7. Read JS runtime files from the lando package
+  // 7. Read JS runtime files from the Lando package
   let rpc_ffi_path =
     config.lando_package_path <> "/src/lando_runtime/rpc_ffi.mjs"
   use rpc_ffi_content <- result.try(
