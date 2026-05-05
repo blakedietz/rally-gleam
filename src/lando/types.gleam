@@ -29,6 +29,7 @@ pub type ScanConfig {
     output_server_dispatch: String,
     output_ssr: String,
     output_ws: String,
+    output_http: String,
     sql_dir: String,
     client_root: String,
     lando_package_path: String,

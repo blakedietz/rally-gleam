@@ -128,6 +128,7 @@ fn test_scan_config() -> ScanConfig {
     output_server_dispatch: "",
     output_ssr: "",
     output_ws: "",
+    output_http: "",
     sql_dir: "",
     client_root: "client",
     lando_package_path: "",

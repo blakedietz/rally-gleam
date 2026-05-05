@@ -10,6 +10,7 @@ import lando/format
 import lando/generator
 import lando/generator/client
 import lando/generator/codec
+import lando/generator/http_handler
 import lando/generator/ssr_handler
 import lando/generator/ws_handler
 import lando/parser
@@ -64,6 +65,9 @@ fn read_config() -> Result(ScanConfig, String) {
   let output_ws =
     tom.get_string(lando_config, ["output_ws"])
     |> result.unwrap("src/generated/ws_handler.gleam")
+  let output_http =
+    tom.get_string(lando_config, ["output_http"])
+    |> result.unwrap("src/generated/http_handler.gleam")
   let sql_dir =
     tom.get_string(lando_config, ["sql_dir"])
     |> result.unwrap("src/sql")
@@ -94,6 +98,7 @@ fn read_config() -> Result(ScanConfig, String) {
     output_server_dispatch:,
     output_ssr:,
     output_ws:,
+    output_http:,
     sql_dir:,
     client_root:,
     lando_package_path:,
@@ -196,6 +201,16 @@ fn run() -> Result(String, String) {
   // 6. Generate WebSocket handler
   let ws_source = ws_handler.generate(contracts)
   use _ <- result.try(write_file(config.output_ws, ws_source))
+
+  // 6b. Generate HTTP handler (for non-WebSocket RPC clients)
+  case handler_endpoints {
+    [] -> Nil
+    _ -> {
+      let http_source = http_handler.generate(handler_endpoints)
+      let _ = write_file(config.output_http, http_source)
+      Nil
+    }
+  }
 
   // 7. Read JS runtime files from the lando package
   let rpc_ffi_path =

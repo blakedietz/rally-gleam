@@ -16,6 +16,7 @@ fn test_config(dir: String) -> ScanConfig {
     output_server_dispatch: "",
     output_ssr: "",
     output_ws: "",
+    output_http: "",
     sql_dir: "",
     client_root: "",
     lando_package_path: "",
