@@ -1,6 +1,6 @@
 # Rally Framework
 
-A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, Marmot for queries, ETF for wire format, libero for RPC plumbing.
+A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, ETF for wire format, libero for RPC plumbing.
 
 ## Quick start
 
@@ -9,7 +9,7 @@ bin/new my_app
 cd my_app && bin/dev
 ```
 
-`bin/dev` runs the Rally codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), builds the JS client, and starts the Mist server on port 8080.
+`bin/dev` runs the Rally codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), optionally runs Marmot for SQL codegen, builds the JS client, and starts the Mist server on port 8080.
 
 ## Page module contract
 
@@ -67,8 +67,8 @@ pub fn update(_cc, model, msg) {
 - `Model`/`Msg` and client functions are standard Lustre TEA
 - `server_*` functions run on the BEAM with full DB/session access
 - `load` is SSR data loading, runs server-side before first render
-- `ServerContext` is defined in `server_context.gleam`, holds server dependencies
-- `ClientContext` is defined in `client_context.gleam`, holds cross-page client state
+- `ServerContext` is defined in `server_context.gleam`, holds server dependencies. Also hosts `from_session` for SSR hydration.
+- `ClientContext` is defined in `client_context.gleam`, holds cross-page client state. Client-safe (no server imports).
 - `layout` wraps all pages if `src/pages/layout.gleam` exports `pub fn layout(client_context, content)`
 
 ### Effect primitives
@@ -115,7 +115,7 @@ Running `gleam run -m rally` produces:
 | `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, ETF codec |
 | `client/src/generated/views.gleam` | Per-page Model/Msg types, adapted init/update/view, typed RPC stub functions |
 | `client/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
-| `client/src/generated/codec.gleam` | Typed encode/decode wrappers, decoder FFI bindings |
+| `client/src/generated/codec.gleam` | decode_flags utility for SSR hydration |
 | `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
 | `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime) |
 
@@ -130,7 +130,7 @@ Running `gleam run -m rally` produces:
 | `parser.gleam` | Glance AST parser: extracts Model/Msg types, detects function signatures |
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
 | `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam |
-| `generator/codec.gleam` | Client codegen: types.gleam (ClientMsg), views.gleam (adapted page code + RPC stubs), codec files |
+| `generator/codec.gleam` | Client codegen: types.gleam (ClientMsg), views.gleam (adapted page code + RPC stubs), codec_ffi.mjs (ETF decoders), codec.gleam (decode_flags utility) |
 | `generator/ssr_handler.gleam` | SSR handler generation |
 | `generator/ws_handler.gleam` | WebSocket handler: calls rpc_dispatch.handle, drains push frames |
 | `generator/http_handler.gleam` | HTTP RPC handler generation |
@@ -213,7 +213,7 @@ RPC responses show round-trip latency (e.g. `rpc #3 (12.4ms)`). Connection lifec
 Pages with a `load` function get server-side rendered on first request:
 
 1. The SSR handler calls `load(server_context)` to get the page `Model`
-2. If `client_context.gleam` exports `pub fn from_session(server_context, session_id)`, it's called to build a `ClientContext`
+2. If `server_context.gleam` exports `pub fn from_session(server_context, session_id)`, it's called to build a `ClientContext`
 3. The page's `view(client_context, model)` renders HTML, wrapped in layout if present
 4. The model is base64-ETF encoded and embedded as flags
 5. On the client, `init()` reads the flags for instant hydration
@@ -231,7 +231,6 @@ output_server_dispatch = "src/generated/rpc_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
 output_ws = "src/generated/ws_handler.gleam"
 output_http = "src/generated/http_handler.gleam"
-sql_dir = "src/sql"
 client_root = "client"
 shell_file = "src/shell.html"
 ```
