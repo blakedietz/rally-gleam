@@ -207,13 +207,13 @@ fn app_gleam(
   let ctx_init = case has_client_context {
     True ->
       "  let flags = transport.read_flags()
-  let #(client_context, ctx_effects) = client_context.init()
+  let #(client_context, client_context_effects) = client_context.init()
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(model) -> #(hydrate_page(route, model), effect.none())
     Error(_) -> init_page(route, client_context)
   }
   #(Model(route:, page_model:, connection: Disconnected, client_context:),
-    effect.batch([init_transport(), " <> modem_init <> ", effect.map(ctx_effects, ClientContextUpdate), page_effects]))"
+    effect.batch([init_transport(), " <> modem_init <> ", effect.map(client_context_effects, ClientContextUpdate), page_effects]))"
     False ->
       "  let flags = transport.read_flags()
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
@@ -227,9 +227,9 @@ fn app_gleam(
   let ctx_update_arm = case has_client_context {
     True ->
       "
-    ClientContextUpdate(ctx_msg) -> {
-      let #(new_ctx, ctx_effects) = client_context.update(model.client_context, ctx_msg)
-      #(Model(..model, client_context: new_ctx), effect.map(ctx_effects, ClientContextUpdate))
+    ClientContextUpdate(client_context_msg) -> {
+      let #(new_client_context, client_context_effects) = client_context.update(model.client_context, client_context_msg)
+      #(Model(..model, client_context: new_client_context), effect.map(client_context_effects, ClientContextUpdate))
     }"
     False -> ""
   }

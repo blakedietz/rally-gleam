@@ -167,14 +167,14 @@ fn generate_load_arms(
           False -> "server_context"
         }
         let ctx_init = case use_session {
-          True -> "      let client_ctx = client_context.from_session(server_context, session_id)\n"
+          True -> "      let client_context = client_context.from_session(server_context, session_id)\n"
           False -> case has_client_context {
-            True -> "      let #(client_ctx, _) = client_context.init()\n"
+            True -> "      let #(client_context, _) = client_context.init()\n"
             False -> ""
           }
         }
         let view_call = case has_client_context {
-          True -> alias <> ".view(client_ctx, model)"
+          True -> alias <> ".view(client_context, model)"
           False -> alias <> ".view(model)"
         }
         let view_expr = case route.layout_module, has_client_context {
@@ -184,7 +184,7 @@ fn generate_load_arms(
             <> view_call
             <> "\n    let html = element.to_document_string("
             <> layout_alias
-            <> ".layout(client_ctx, page_view))\n"
+            <> ".layout(client_context, page_view))\n"
           }
           Some(layout), False -> {
             let layout_alias = last_segment(layout)

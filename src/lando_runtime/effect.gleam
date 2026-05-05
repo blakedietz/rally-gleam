@@ -89,16 +89,16 @@ fn do_push(msg: a) -> Nil {
 // --- FFI bindings ---
 
 @external(erlang, "lando_runtime_ffi", "put_ws_state")
-pub fn put_ws_state(conn: a, ctx: b, page: String) -> Nil {
+pub fn put_ws_state(conn: a, server_context: b, page: String) -> Nil {
   let _ = conn
-  let _ = ctx
+  let _ = server_context
   let _ = page
   panic as "put_ws_state: server-side only"
 }
 
-@external(erlang, "lando_runtime_ffi", "get_stored_ctx")
-pub fn get_stored_ctx() -> a {
-  panic as "get_stored_ctx: server-side only"
+@external(erlang, "lando_runtime_ffi", "get_stored_server_context")
+pub fn get_stored_server_context() -> a {
+  panic as "get_stored_server_context: server-side only"
 }
 
 @external(erlang, "lando_runtime_ffi", "get_ws_page")

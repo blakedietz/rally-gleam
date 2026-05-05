@@ -19,11 +19,12 @@ pub fn handle_request(
 ) -> response.Response(ResponseData) {
   case route {
     router.Home -> {
-      let client_ctx = client_context.from_session(server_context, session_id)
+      let client_context =
+        client_context.from_session(server_context, session_id)
       let model = pages_home_.load(server_context)
-      let page_view = pages_home_.view(client_ctx, model)
+      let page_view = pages_home_.view(client_context, model)
       let html =
-        element.to_document_string(layout.layout(client_ctx, page_view))
+        element.to_document_string(layout.layout(client_context, page_view))
       let flags = codec.encode_flags(model)
       let full_html =
         html <> "<script>window.__LANDO_FLAGS__='" <> flags <> "'</script>"

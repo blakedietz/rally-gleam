@@ -41,15 +41,15 @@ fn generate_frame_handler(
 ) {
   case msg {
     mist.Binary(data) -> {
-      let _ = effect.put_ws_state(conn, effect.get_stored_ctx(), \"\")
+      let _ = effect.put_ws_state(conn, effect.get_stored_server_context(), \"\")
 
       case wire.decode_call(data) {
         Ok(#(page, request_id, value)) -> {
           case request_id {
             0 -> {
-              let _ = effect.put_ws_state(conn, effect.get_stored_ctx(), page)
+              let _ = effect.put_ws_state(conn, effect.get_stored_server_context(), page)
               topics.join(\"page:\" <> page)
-              let #(m, _effects) = server_dispatch.init_server_model(page, effect.get_stored_ctx(), value)
+              let #(m, _effects) = server_dispatch.init_server_model(page, effect.get_stored_server_context(), value)
               let response_frame = wire.tag_response(0, wire.encode(Nil))
               let _ = mist.send_binary_frame(conn, response_frame)
               let new_state = dict.insert(state, page, m)
@@ -60,16 +60,16 @@ fn generate_frame_handler(
               let model = case dict.get(state, page) {
                 Ok(m) -> m
                 Error(_) -> {
-                  let _ = effect.put_ws_state(conn, effect.get_stored_ctx(), page)
+                  let _ = effect.put_ws_state(conn, effect.get_stored_server_context(), page)
                   topics.join(\"page:\" <> page)
-                  let #(m, _effects) = server_dispatch.init_server_model(page, effect.get_stored_ctx(), dynamic.nil())
+                  let #(m, _effects) = server_dispatch.init_server_model(page, effect.get_stored_server_context(), dynamic.nil())
                   m
                 }
               }
-              let _ = effect.put_ws_state(conn, effect.get_stored_ctx(), page)
+              let _ = effect.put_ws_state(conn, effect.get_stored_server_context(), page)
               let start = timestamp.system_time()
               let #(new_model, _effects) =
-                server_dispatch.handle_message(model, page, value, effect.get_stored_ctx())
+                server_dispatch.handle_message(model, page, value, effect.get_stored_server_context())
               let elapsed_ms =
                 timestamp.difference(start, timestamp.system_time())
                 |> duration.to_milliseconds()

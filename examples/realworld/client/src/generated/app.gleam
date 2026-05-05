@@ -66,7 +66,7 @@ pub fn main() {
 fn init(_flags: Nil) -> #(Model, Effect(Msg)) {
   let route = router.parse_route_from_url()
   let flags = transport.read_flags()
-  let #(client_context, ctx_effects) = client_context.init()
+  let #(client_context, client_context_effects) = client_context.init()
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(model) -> #(hydrate_page(route, model), effect.none())
     Error(_) -> init_page(route, client_context)
@@ -76,7 +76,7 @@ fn init(_flags: Nil) -> #(Model, Effect(Msg)) {
     effect.batch([
       init_transport(),
       modem.init(fn(uri) { UrlChanged(router.parse_route(uri)) }),
-      effect.map(ctx_effects, ClientContextUpdate),
+      effect.map(client_context_effects, ClientContextUpdate),
       page_effects,
     ]),
   )
@@ -419,12 +419,12 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       Model(..model, connection: Disconnected),
       effect.none(),
     )
-    ClientContextUpdate(ctx_msg) -> {
-      let #(new_ctx, ctx_effects) =
-        client_context.update(model.client_context, ctx_msg)
+    ClientContextUpdate(client_context_msg) -> {
+      let #(new_client_context, client_context_effects) =
+        client_context.update(model.client_context, client_context_msg)
       #(
-        Model(..model, client_context: new_ctx),
-        effect.map(ctx_effects, ClientContextUpdate),
+        Model(..model, client_context: new_client_context),
+        effect.map(client_context_effects, ClientContextUpdate),
       )
     }
   }

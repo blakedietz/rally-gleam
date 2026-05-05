@@ -7,7 +7,7 @@
 %% Erlang term shapes.
 
 -module(lando_runtime_ffi).
--export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0, unique_id/0, put_ws_state/3, get_ws_conn/0, get_ws_page/0, get_stored_ctx/0, push_outgoing_frame/1, drain_outgoing_frames/0, put_ws_session/1, get_ws_session/0, decode_lando_push/1]).
+-export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0, unique_id/0, put_ws_state/3, get_ws_conn/0, get_ws_page/0, get_stored_server_context/0, push_outgoing_frame/1, drain_outgoing_frames/0, put_ws_session/1, get_ws_session/0, decode_lando_push/1]).
 
 identity(X) -> X.
 
@@ -78,7 +78,7 @@ put_ws_state(Conn, Ctx, Page) ->
 
 get_ws_conn() -> get(lando_ws_conn).
 get_ws_page() -> get(lando_ws_page).
-get_stored_ctx() -> get(lando_ws_ctx).
+get_stored_server_context() -> get(lando_ws_ctx).
 
 %% Accumulate outgoing push frames in the process dictionary.
 %% Called by send_to_client / broadcast from within server_update.
