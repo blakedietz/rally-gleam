@@ -23,7 +23,9 @@ pub fn extract_session_id(cookie_header: String) -> Result(String, Nil) {
   })
 }
 
-/// Build a Set-Cookie header value for a new session.
+// HttpOnly: JS can't read the cookie (XSS protection).
+// SameSite=Lax (not Strict): allows top-level navigations from external
+// links to carry the session, which Strict would block.
 pub fn set_cookie_header(session_id: String) -> String {
   "lando_session="
   <> session_id

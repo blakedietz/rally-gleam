@@ -143,6 +143,8 @@ fn run_single_job(
           )
         }
         False -> {
+          // Quadratic backoff: 5s, 20s, 45s, 80s. Spreads retries without
+          // requiring jitter since jobs are single-writer (one poller).
           let backoff_seconds = next_attempts * next_attempts * 5
           let retry_at = unix_seconds() + backoff_seconds
           mark_retry(db, job.id, next_attempts, retry_at, reason)

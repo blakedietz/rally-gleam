@@ -143,6 +143,8 @@ fn run() -> Result(String, String) {
   use _ <- result.try(write_file(config.output_dispatch, dispatch_source))
 
   // 4. Detect client_context.gleam (needed by SSR handler and client codegen)
+  // String search for from_session is intentional: avoids parsing the file just
+  // to check for one function signature. Good enough for build-time detection.
   let client_context_path = dirname(config.pages_root) <> "/client_context.gleam"
   let #(has_client_context, has_from_session) = case simplifile.read(client_context_path) {
     Ok(source) -> #(True, string.contains(source, "pub fn from_session"))
@@ -189,7 +191,10 @@ fn run() -> Result(String, String) {
     }),
   )
 
-  // 8. Walk type graph for codec generation
+  // 8. Walk type graph for codec generation.
+  // Two-pass design: parse contracts first (can skip broken pages gracefully),
+  // then walk only types reachable from ToServer/ToClient to avoid generating
+  // unused codecs for helper types that never cross the wire.
   let seeds = collect_codec_seeds(contracts)
   let page_file_paths =
     list.map(routes, fn(r) {

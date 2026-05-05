@@ -9,6 +9,9 @@ import gleam/time/timestamp
 import logging
 import sqlight
 
+// WAL allows concurrent readers during writes. busy_timeout prevents
+// immediate SQLITE_BUSY failures under contention. foreign_keys is
+// per-connection in SQLite (off by default), so we enable it here.
 pub fn open(path: String) -> Result(sqlight.Connection, sqlight.Error) {
   use conn <- result.try(sqlight.open(path))
   use _ <- result.try(sqlight.exec("PRAGMA journal_mode=WAL;", on: conn))
@@ -58,6 +61,8 @@ pub fn query(
   result
 }
 
+// SAVEPOINT instead of BEGIN/COMMIT so transaction() calls can nest safely.
+// Each gets a unique name to avoid collisions in recursive calls.
 pub fn transaction(
   conn: sqlight.Connection,
   body: fn() -> Result(a, sqlight.Error),

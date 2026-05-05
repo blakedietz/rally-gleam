@@ -29,6 +29,8 @@ pub fn send_to_client(msg: a) -> Effect(b) {
 }
 
 /// Broadcast a message to all connections viewing the current page.
+/// Broadcasts via pg topics for other connections, plus push_outgoing_frame
+/// for the sender's own connection (which isn't subscribed to its own topic).
 pub fn broadcast_to_page(msg: a) -> Effect(b) {
   let page = get_ws_page()
   let frame = wire.tag_push(page, msg)

@@ -90,6 +90,7 @@ push_outgoing_frame(Frame) ->
     end,
     nil.
 
+%% Frames are prepended (O(1)) during dispatch, reversed here to preserve send order.
 drain_outgoing_frames() ->
     case get(lando_outgoing_frames) of
         undefined -> [];

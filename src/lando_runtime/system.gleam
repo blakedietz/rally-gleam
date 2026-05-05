@@ -9,6 +9,8 @@ import lando_runtime/wire
 import logging
 import sqlight
 
+// synchronous=OFF is safe here: this is observability data, not app state.
+// Losing a few recent messages on crash is acceptable for the throughput gain.
 pub fn open(path: String) -> Result(sqlight.Connection, sqlight.Error) {
   use conn <- result.try(sqlight.open(path))
   use _ <- result.try(sqlight.exec("PRAGMA journal_mode=WAL;", on: conn))
@@ -181,7 +183,8 @@ pub fn enqueue_now(name: String, payload: BitArray) -> Nil {
   jobs.enqueue(get_conn(), name, payload, 0)
 }
 
-/// Get the global system DB connection.
+// create_with_unique_name returns the existing value if already registered.
+// The panic lambda only runs if start() was never called.
 pub fn get_conn() -> sqlight.Connection {
   global_value.create_with_unique_name("lando_system_db", fn() {
     panic as "system.get_conn called before system.start"

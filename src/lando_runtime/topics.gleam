@@ -1,3 +1,7 @@
+// Topic pub/sub via OTP pg (process groups). Each WS handler process joins
+// topics on connect; broadcasts send frames to all members of a group.
+// Erlang-only because pg is a BEAM primitive with no JS equivalent.
+
 @external(erlang, "lando_runtime_topics_ffi", "start")
 pub fn start() -> Nil {
   panic as "topics: server-side only"
