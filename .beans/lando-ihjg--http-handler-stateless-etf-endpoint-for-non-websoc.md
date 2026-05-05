@@ -6,8 +6,6 @@ type: epic
 priority: deferred
 created_at: 2026-05-04T22:42:56Z
 updated_at: 2026-05-05T02:28:17Z
-blocked_by:
-    - lando-3gid
 ---
 
 Stateless ETF endpoint for non-WebSocket clients (CLI, other Gleam services).
