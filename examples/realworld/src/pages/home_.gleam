@@ -13,6 +13,7 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import generated/rpc_dispatch.{ChangePage, SwitchTab}
 import server_context.{type ServerContext}
 import sqlight
 
@@ -49,11 +50,6 @@ pub type Msg {
   ClickedPage(Int)
   ClickedTag(String)
   GotArticles(Result(#(List(ArticlePreview), Int), Nil))
-}
-
-type RpcMsg {
-  SwitchTab(tab_name: String, tag: String)
-  ChangePage(page: Int, tab_name: String, tag: String)
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {

@@ -11,6 +11,7 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import password
+import generated/rpc_dispatch.{Register}
 import server_context.{type ServerContext}
 
 pub type Model {
@@ -23,10 +24,6 @@ pub type Msg {
   UpdatedPassword(String)
   ClickedRegister
   GotRegister(Result(#(String, String), List(String)))
-}
-
-type RpcMsg {
-  Register(username: String, email: String, password: String)
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {

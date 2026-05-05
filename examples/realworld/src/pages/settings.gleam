@@ -11,6 +11,7 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import password
+import generated/rpc_dispatch.{Logout, UpdateSettings}
 import server_context.{type ServerContext}
 
 pub type Model {
@@ -34,11 +35,6 @@ pub type Msg {
   ClickedLogout
   GotUpdate(Result(#(String, String), List(String)))
   GotLogout(Result(Nil, Nil))
-}
-
-type RpcMsg {
-  UpdateSettings(image: String, username: String, bio: String, email: String, password: String)
-  Logout
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {

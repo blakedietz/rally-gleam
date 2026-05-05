@@ -12,6 +12,7 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import generated/rpc_dispatch.{PublishArticle}
 import server_context.{type ServerContext}
 import slug
 import sqlight
@@ -36,10 +37,6 @@ pub type Msg {
   RemovedTag(String)
   ClickedPublish
   GotPublish(Result(String, List(String)))
-}
-
-type RpcMsg {
-  PublishArticle(title: String, description: String, body: String, tags: List(String))
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
