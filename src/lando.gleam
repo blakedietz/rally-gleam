@@ -18,6 +18,7 @@ import lando/parser
 import lando/scanner
 import lando/types.{type PageContract, type ScanConfig, type ScannedRoute, type VariantInfo, ScanConfig}
 import lando/walker
+import libero/codegen_dispatch as libero_dispatch
 import libero/scanner as libero_scanner
 
 pub fn main() {
@@ -132,7 +133,20 @@ fn run() -> Result(String, String) {
       []
     }
   }
-  let _ = handler_endpoints
+  // 1c. Generate RPC dispatch from handler endpoints
+  case handler_endpoints {
+    [] -> Nil
+    _ -> {
+      let dispatch_src = libero_dispatch.generate(
+        endpoints: handler_endpoints,
+        context_module: "server_context",
+        context_type_name: "ServerContext",
+        wire_module_tag: "rpc",
+      )
+      let _ = write_file("src/generated/rpc_dispatch.gleam", dispatch_src)
+      Nil
+    }
+  }
 
   // 2. Parse each page module for its contract
   let contracts =
