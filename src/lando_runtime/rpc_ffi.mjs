@@ -882,6 +882,75 @@ export function decode_safe(buffer) {
   }
 }
 
+// ---------- Debug logging ----------
+
+function debugEnabled() {
+  return typeof window !== "undefined" && window.__LANDO_DEBUG__;
+}
+
+function formatRaw(value, depth = 0) {
+  if (value === undefined || value === null) return "Nil";
+  if (typeof value === "boolean") return value ? "True" : "False";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "bigint") return String(value);
+  if (value instanceof BitArray) return `<<${value.rawBuffer.length} bytes>>`;
+  if (value && value.__liberoRawBinary) return `<<${value.rawBuffer.length} bytes>>`;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    if (typeof value[0] === "string" && /^[a-z_]/.test(value[0])) {
+      const tag = pascalCase(value[0]);
+      if (value.length === 1) return tag;
+      const fields = value.slice(1).map(v => formatRaw(v, depth + 1));
+      return `${tag}(${fields.join(", ")})`;
+    }
+    const items = value.map(v => formatRaw(v, depth + 1));
+    return `#(${items.join(", ")})`;
+  }
+  if (value instanceof Empty) return "[]";
+  if (value instanceof NonEmpty) {
+    const items = gleamListToArray(value).map(v => formatRaw(v, depth + 1));
+    return `[${items.join(", ")}]`;
+  }
+  if (value instanceof Map) {
+    const pairs = [...value.entries()].map(([k, v]) => `${formatRaw(k)}: ${formatRaw(v, depth + 1)}`);
+    return `dict.from_list([${pairs.join(", ")}])`;
+  }
+  if (value instanceof CustomType) {
+    const name = value.constructor.name;
+    const keys = Object.keys(value);
+    if (keys.length === 0) return name;
+    const fields = keys.map(k => formatRaw(value[k], depth + 1));
+    return `${name}(${fields.join(", ")})`;
+  }
+  return String(value);
+}
+
+function pascalCase(snake) {
+  return snake.split("_").map(s => s.charAt(0).toUpperCase() + s.slice(1)).join("");
+}
+
+function logRpc(direction, label, data, extra) {
+  if (!debugEnabled()) return;
+  const colors = {
+    "->": "color: #e8a033; font-weight: bold",
+    "<-": "color: #33bbe8; font-weight: bold",
+    "<<": "color: #b833e8; font-weight: bold",
+  };
+  const arrow = direction;
+  const style = colors[arrow] || "";
+  const parts = [`%c${arrow} ${label}`, style];
+  if (extra) {
+    console.groupCollapsed(...parts);
+    console.log(formatRaw(data));
+    for (const [k, v] of Object.entries(extra)) {
+      console.log(`${k}:`, v);
+    }
+    console.groupEnd();
+  } else {
+    console.log(...parts, formatRaw(data));
+  }
+}
+
 // ---------- WebSocket ----------
 //
 // `send` opens the WebSocket lazily on first call and caches the
@@ -1037,6 +1106,7 @@ function ensureSocket(url) {
       const decoded = decode_value_raw(payload);
       if (Array.isArray(decoded) && typeof decoded[0] === "string"
           && decoded[1] !== undefined) {
+        logRpc("<<", `push ${decoded[0]}`, decoded[1]);
         const handler = pushHandlers.get(decoded[0]);
         if (handler) handler(decoded[1]);
       }
@@ -1061,6 +1131,7 @@ function ensureSocket(url) {
     if (entry) {
       responseCallbacks.delete(requestId);
       if (entry.timer) clearTimeout(entry.timer);
+      logRpc("<-", `rpc #${requestId}`, decoded);
       entry.callback(decoded);
     }
   });
@@ -1129,6 +1200,7 @@ export function send(url, module, msg, callback) {
   ensureSocket(url);
   const requestId = nextRequestId++;
   const payload = encode_call(module, requestId, msg);
+  logRpc("->", `rpc #${requestId}`, msg, { module });
 
   const timer = setTimeout(() => {
     // Remove from whichever state this request is in.
@@ -1160,6 +1232,7 @@ export function send(url, module, msg, callback) {
 export function send_page_init(url, module, params) {
   ensureSocket(url);
   const payload = encode_call(module, 0, params);
+  logRpc("->", `page_init ${module}`, params);
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(payload);
   } else {
