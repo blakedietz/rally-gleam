@@ -16,8 +16,7 @@ import lando_runtime/codec
 import server_context.{type ServerContext}
 import pages/about as pages_about
 import pages/home_ as pages_home_
-import pages/products/id_ as pages_products_id_
-import pages/products/new as pages_products_new
+import pages/users/id_ as pages_users_id_
 
 pub fn handle_request(
   route: router.Route,
@@ -40,17 +39,9 @@ pub fn handle_request(
       response.new(200)
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
     }
-    router.ProductsNew -> {
-      let model = pages_products_new.load(server_context)
-          let html = element.to_document_string(pages_products_new.view(model))
-      let flags = codec.encode_flags(model)
-      let full_html = html <> "<script>window.__LANDO_FLAGS__='" <> flags <> "'</script>"
-      response.new(200)
-      |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
-    }
-    router.ProductsId(id) -> {
-      let model = pages_products_id_.load(id, server_context)
-          let html = element.to_document_string(pages_products_id_.view(model))
+    router.UsersId(id) -> {
+      let model = pages_users_id_.load(id, server_context)
+          let html = element.to_document_string(pages_users_id_.view(model))
       let flags = codec.encode_flags(model)
       let full_html = html <> "<script>window.__LANDO_FLAGS__='" <> flags <> "'</script>"
       response.new(200)

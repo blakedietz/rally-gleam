@@ -13,8 +13,7 @@ import lustre/attribute.{type Attribute}
 pub type Route {
   Home
   About
-  ProductsNew
-  ProductsId(id: Int)
+  UsersId(id: Int)
   NotFound(uri: Uri)
 }
 
@@ -22,10 +21,9 @@ pub fn parse_route(uri: Uri) -> Route {
   case uri.path_segments(uri.path) {
     [] -> Home
     ["about"] -> About
-    ["products", "new"] -> ProductsNew
-    ["products", id] ->
+    ["users", id] ->
       case int.parse(id) {
-        Ok(id_val) -> ProductsId(id: id_val)
+        Ok(id_val) -> UsersId(id: id_val)
         Error(_) -> NotFound(uri:)
       }
     _ -> NotFound(uri:)
@@ -36,8 +34,7 @@ pub fn route_to_path(route route: Route) -> String {
   case route {
     Home -> "/"
     About -> "/about"
-    ProductsNew -> "/products/new"
-    ProductsId(id:) -> "/products/" <> int.to_string(id)
+    UsersId(id:) -> "/users/" <> int.to_string(id)
     NotFound(uri:) -> uri.to_string(uri)
   }
 }

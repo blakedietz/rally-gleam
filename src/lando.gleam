@@ -10,13 +10,11 @@ import lando/format
 import lando/generator
 import lando/generator/client
 import lando/generator/codec
-import lando/generator/server_dispatch
 import lando/generator/ssr_handler
 import lando/generator/ws_handler
-import libero/field_type
 import lando/parser
 import lando/scanner
-import lando/types.{type PageContract, type ScanConfig, type ScannedRoute, type VariantInfo, ScanConfig}
+import lando/types.{type ScanConfig, ScanConfig}
 import libero/walker
 import libero/codegen_dispatch as libero_dispatch
 import libero/scanner as libero_scanner
@@ -59,7 +57,7 @@ fn read_config() -> Result(ScanConfig, String) {
     |> result.unwrap("src/generated/page_dispatch.gleam")
   let output_server_dispatch =
     tom.get_string(lando_config, ["output_server_dispatch"])
-    |> result.unwrap("src/generated/server_dispatch.gleam")
+    |> result.unwrap("src/generated/rpc_dispatch.gleam")
   let output_ssr =
     tom.get_string(lando_config, ["output_ssr"])
     |> result.unwrap("src/generated/ssr_handler.gleam")
@@ -133,20 +131,6 @@ fn run() -> Result(String, String) {
       []
     }
   }
-  // 1c. Generate RPC dispatch from handler endpoints
-  case handler_endpoints {
-    [] -> Nil
-    _ -> {
-      let dispatch_src = libero_dispatch.generate(
-        endpoints: handler_endpoints,
-        context_module: "server_context",
-        context_type_name: "ServerContext",
-        wire_module_tag: "rpc",
-      )
-      let _ = write_file("src/generated/rpc_dispatch.gleam", dispatch_src)
-      Nil
-    }
-  }
 
   // 2. Parse each page module for its contract
   let contracts =
@@ -192,8 +176,13 @@ fn run() -> Result(String, String) {
     Error(_) -> #(False, False)
   }
 
-  // 5. Generate server dispatch
-  let sd_source = server_dispatch.generate(contracts)
+  // 5. Generate RPC dispatch via libero
+  let sd_source = libero_dispatch.generate(
+    endpoints: handler_endpoints,
+    context_module: "server_context",
+    context_type_name: "ServerContext",
+    wire_module_tag: "rpc",
+  )
   use _ <- result.try(write_file(config.output_server_dispatch, sd_source))
 
   // 6. Generate SSR handler
@@ -233,10 +222,8 @@ fn run() -> Result(String, String) {
   )
 
   // 8. Walk type graph for codec generation.
-  // Two-pass design: parse contracts first (can skip broken pages gracefully),
-  // then walk only types reachable from ToServer/ToClient to avoid generating
-  // unused codecs for helper types that never cross the wire.
-  let seeds = collect_codec_seeds(contracts)
+  // Seeds come from handler endpoint params/return types discovered by libero.
+  let seeds = libero_scanner.collect_seeds(handler_endpoints)
   let page_file_paths =
     list.map(routes, fn(r) {
       config.pages_root
@@ -285,27 +272,6 @@ fn run() -> Result(String, String) {
       n -> ", " <> int.to_string(n) <> " SQL queries"
     },
   )
-}
-
-/// Collect (module_path, type_name) seed pairs from all page contracts.
-/// Walks the field types of ToServer/ToClient variants to find
-/// user-defined types that need decoder generation.
-fn collect_codec_seeds(
-  contracts: List(#(ScannedRoute, PageContract)),
-) -> List(#(String, String)) {
-  contracts
-  |> list.flat_map(fn(pair) {
-    let #(_, contract) = pair
-    let to_server_types =
-      list.flat_map(contract.to_server_variants, collect_variant_user_types)
-    let to_client_types =
-      list.flat_map(contract.to_client_variants, collect_variant_user_types)
-    list.append(to_server_types, to_client_types)
-  })
-}
-
-fn collect_variant_user_types(v: VariantInfo) -> List(#(String, String)) {
-  list.flat_map(v.fields, fn(f) { field_type.collect_user_types(f.type_) })
 }
 
 /// Extract the last path segment of a module path for file lookup.

@@ -5,7 +5,6 @@ import libero/field_type.{IntField}
 import lando/generator
 import lando/generator/client
 import lando/generator/codec
-import lando/generator/server_dispatch
 import lando/generator/ssr_handler
 import gleam/option.{None}
 import lando/types.{
@@ -28,16 +27,10 @@ fn basic_routes() -> List(ScannedRoute) {
       layout_module: None, module_path: "pages/about",
     ),
     ScannedRoute(
-      segments: [StaticSegment("products"), StaticSegment("new")],
-      variant_name: "ProductsNew",
-      params: [],
-      layout_module: None, module_path: "pages/products/new",
-    ),
-    ScannedRoute(
-      segments: [StaticSegment("products"), DynamicSegment("id", IntParam)],
-      variant_name: "ProductsId",
+      segments: [StaticSegment("users"), DynamicSegment("id", IntParam)],
+      variant_name: "UsersId",
       params: [#("id", IntParam)],
-      layout_module: None, module_path: "pages/products/id_",
+      layout_module: None, module_path: "pages/users/id_",
     ),
   ]
 }
@@ -48,19 +41,10 @@ fn basic_contracts() -> List(#(ScannedRoute, PageContract)) {
     #(
       route,
       PageContract(
-        to_server_variants: [
-          VariantInfo("Increment", []),
-          VariantInfo("Decrement", []),
-        ],
-        to_client_variants: [
-          VariantInfo("CounterNewValue", [VariantField("value", IntField)]),
-        ],
         model_variants: [
           VariantInfo("Model", [VariantField("count", IntField)]),
         ],
         msg_variants: [],
-        has_server_update: True,
-        has_server_init: True,
         has_load: True,
         has_init: True,
         has_model: True,
@@ -85,12 +69,6 @@ pub fn dispatch_output_snapshot_test() {
   birdie.snap(output, "page_dispatch_gleam")
 }
 
-pub fn server_dispatch_snapshot_test() {
-  let contracts = basic_contracts()
-  let output = server_dispatch.generate(contracts)
-  birdie.snap(output, "server_dispatch_gleam")
-}
-
 pub fn ssr_handler_snapshot_test() {
   let contracts = basic_contracts()
   let shell = "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
@@ -103,7 +81,6 @@ pub fn transport_gleam_snapshot_test() {
   let contracts = basic_contracts()
   let config = test_scan_config()
   let files = client.generate_package(routes, contracts, config, "", "", False)
-  // Find the transport.gleam file
   let transport = list.find(files, fn(f: client.GeneratedFile) {
     string.ends_with(f.path, "transport.gleam")
   })

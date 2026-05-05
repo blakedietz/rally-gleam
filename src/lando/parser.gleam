@@ -27,20 +27,6 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
   let alias_map = build_alias_resolution_map(ast.imports)
   let type_alias_originals = build_type_alias_originals(ast.imports)
 
-  let to_server = extract_variants(
-    ast: ast,
-    type_name: "ToServer",
-    type_imports: type_imports,
-    alias_map: alias_map,
-    type_alias_originals: type_alias_originals,
-  )
-  let to_client = extract_variants(
-    ast: ast,
-    type_name: "ToClient",
-    type_imports: type_imports,
-    alias_map: alias_map,
-    type_alias_originals: type_alias_originals,
-  )
   let model_variants = extract_variants(
     ast: ast,
     type_name: "Model",
@@ -57,8 +43,6 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
   )
 
   let functions_list = ast.functions
-  let has_server_update = has_function(functions_list, "server_update")
-  let has_server_init = has_function(functions_list, "server_init")
   let has_load = has_function(functions_list, "load")
   let has_init = has_function(functions_list, "init")
   let has_model = has_custom_type(ast.custom_types, "Model")
@@ -70,12 +54,8 @@ pub fn parse_page(source: String) -> Result(PageContract, String) {
   let update_source = extract_function_source(source, functions_list, "update")
 
   Ok(PageContract(
-    to_server_variants: to_server,
-    to_client_variants: to_client,
     model_variants:,
     msg_variants:,
-    has_server_update:,
-    has_server_init:,
     has_load:,
     has_init:,
     has_model:,

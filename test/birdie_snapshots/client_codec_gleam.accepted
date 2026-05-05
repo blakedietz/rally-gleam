@@ -1,5 +1,5 @@
 ---
-version: 1.5.5
+version: 2.0.0
 title: client_codec_gleam
 file: ./test/lando/router_snapshot_test.gleam
 test_name: codec_gleam_snapshot_test
@@ -14,8 +14,7 @@ import gleam/dynamic.{type Dynamic}
 import generated/transport
 import generated/types.{  type HomeToServer, type HomeToClient,
   type AboutToServer, type AboutToClient,
-  type ProductsNewToServer, type ProductsNewToClient,
-  type ProductsIdToServer, type ProductsIdToClient}
+  type UsersIdToServer, type UsersIdToClient}
 
 /// Encode a Home ToServer message to ETF binary.
 pub fn encode_home_to_backend(msg: HomeToServer) -> BitArray {
@@ -27,13 +26,8 @@ pub fn encode_about_to_backend(msg: AboutToServer) -> BitArray {
   transport.encode(msg)
 }
 
-/// Encode a ProductsNew ToServer message to ETF binary.
-pub fn encode_products_new_to_backend(msg: ProductsNewToServer) -> BitArray {
-  transport.encode(msg)
-}
-
-/// Encode a ProductsId ToServer message to ETF binary.
-pub fn encode_products_id_to_backend(msg: ProductsIdToServer) -> BitArray {
+/// Encode a UsersId ToServer message to ETF binary.
+pub fn encode_users_id_to_backend(msg: UsersIdToServer) -> BitArray {
   transport.encode(msg)
 }
 
@@ -47,41 +41,10 @@ pub fn decode_about_to_frontend(data: BitArray) -> AboutToClient {
   transport.decode(data)
 }
 
-/// Decode a ProductsNew ToClient message from ETF binary.
-pub fn decode_products_new_to_frontend(data: BitArray) -> ProductsNewToClient {
+/// Decode a UsersId ToClient message from ETF binary.
+pub fn decode_users_id_to_frontend(data: BitArray) -> UsersIdToClient {
   transport.decode(data)
 }
 
-/// Decode a ProductsId ToClient message from ETF binary.
-pub fn decode_products_id_to_frontend(data: BitArray) -> ProductsIdToClient {
-  transport.decode(data)
-}
 
-/// Decode a raw push value into a typed HomeToClient constructor.
-@external(javascript, "./codec_ffi.mjs", "decode_push_home")
-pub fn decode_push_home(raw: Dynamic) -> HomeToClient {
-  let _ = raw
-  panic as "decode_push_home: client-side only"
-}
-
-/// Decode a raw push value into a typed AboutToClient constructor.
-@external(javascript, "./codec_ffi.mjs", "decode_push_about")
-pub fn decode_push_about(raw: Dynamic) -> AboutToClient {
-  let _ = raw
-  panic as "decode_push_about: client-side only"
-}
-
-/// Decode a raw push value into a typed ProductsNewToClient constructor.
-@external(javascript, "./codec_ffi.mjs", "decode_push_products_new")
-pub fn decode_push_products_new(raw: Dynamic) -> ProductsNewToClient {
-  let _ = raw
-  panic as "decode_push_products_new: client-side only"
-}
-
-/// Decode a raw push value into a typed ProductsIdToClient constructor.
-@external(javascript, "./codec_ffi.mjs", "decode_push_products_id")
-pub fn decode_push_products_id(raw: Dynamic) -> ProductsIdToClient {
-  let _ = raw
-  panic as "decode_push_products_id: client-side only"
-}
 

@@ -19,16 +19,14 @@ import generated/views
 pub type PageModel {
   HomePageModel(views.HomeModel)
   AboutPageModel(views.AboutModel)
-  ProductsNewPageModel(views.ProductsNewModel)
-  ProductsIdPageModel(views.ProductsIdModel)
+  UsersIdPageModel(views.UsersIdModel)
   NoPageModel
 }
 
 pub type PageMsg {
   HomePageMsg(views.HomeMsg)
   AboutPageMsg(views.AboutMsg)
-  ProductsNewPageMsg(views.ProductsNewMsg)
-  ProductsIdPageMsg(views.ProductsIdMsg)
+  UsersIdPageMsg(views.UsersIdMsg)
 }
 
 pub type Model {
@@ -73,18 +71,7 @@ fn init_transport() -> Effect(Msg) {
     let _ = transport.init("/ws")
     let _ = transport.register_on_connect(fn() { dispatch(TransportConnected) })
     let _ = transport.register_on_disconnect(fn(reason) { dispatch(TransportDisconnected(reason)) })
-    let _ = transport.register_push_handler("Home", fn(raw) {
-      dispatch(PageMsg(HomePageMsg(views.HomeGotServerMsg(codec.decode_push_home(raw)))))
-    })
-    let _ = transport.register_push_handler("About", fn(raw) {
-      dispatch(PageMsg(AboutPageMsg(views.AboutGotServerMsg(codec.decode_push_about(raw)))))
-    })
-    let _ = transport.register_push_handler("ProductsNew", fn(raw) {
-      dispatch(PageMsg(ProductsNewPageMsg(views.ProductsNewGotServerMsg(codec.decode_push_products_new(raw)))))
-    })
-    let _ = transport.register_push_handler("ProductsId", fn(raw) {
-      dispatch(PageMsg(ProductsIdPageMsg(views.ProductsIdGotServerMsg(codec.decode_push_products_id(raw)))))
-    })
+
     Nil
   })
 }
@@ -99,14 +86,10 @@ fn init_page(route: router.Route) -> #(PageModel, Effect(Msg)) {
       let #(m, e) = views.about_init()
       #(AboutPageModel(m), effect.map(e, fn(msg) { PageMsg(AboutPageMsg(msg)) }))
     }
-    router.ProductsNew -> {
-      let #(m, e) = views.products_new_init()
-      #(ProductsNewPageModel(m), effect.map(e, fn(msg) { PageMsg(ProductsNewPageMsg(msg)) }))
-    }
-    router.ProductsId(id) -> {
-      transport.send_page_init("ProductsId", id)
-      let #(m, e) = views.products_id_init(id)
-      #(ProductsIdPageModel(m), effect.map(e, fn(msg) { PageMsg(ProductsIdPageMsg(msg)) }))
+    router.UsersId(id) -> {
+      transport.send_page_init("UsersId", id)
+      let #(m, e) = views.users_id_init(id)
+      #(UsersIdPageModel(m), effect.map(e, fn(msg) { PageMsg(UsersIdPageMsg(msg)) }))
     }
     _ -> #(NoPageModel, effect.none())
   }
@@ -116,8 +99,7 @@ fn hydrate_page(route: router.Route, model: a) -> PageModel {
   case route {
     router.Home -> HomePageModel(model)
     router.About -> AboutPageModel(model)
-    router.ProductsNew -> ProductsNewPageModel(model)
-    router.ProductsId(id) -> ProductsIdPageModel(model)
+    router.UsersId(id) -> UsersIdPageModel(model)
     _ -> NoPageModel
   }
 }
@@ -132,12 +114,8 @@ fn reinit_server(route: router.Route) -> Effect(Msg) {
       transport.send_page_init("About", Nil)
       effect.none()
     }
-    router.ProductsNew -> {
-      transport.send_page_init("ProductsNew", Nil)
-      effect.none()
-    }
-    router.ProductsId(id) -> {
-      transport.send_page_init("ProductsId", id)
+    router.UsersId(id) -> {
+      transport.send_page_init("UsersId", id)
       effect.none()
     }
     _ -> effect.none()
@@ -154,13 +132,9 @@ fn update_page(page_model: PageModel, page_msg: PageMsg) -> #(PageModel, Effect(
       let #(new_m, e) = views.about_update(m, msg)
       #(AboutPageModel(new_m), effect.map(e, fn(msg) { PageMsg(AboutPageMsg(msg)) }))
     }
-    ProductsNewPageModel(m), ProductsNewPageMsg(msg) -> {
-      let #(new_m, e) = views.products_new_update(m, msg)
-      #(ProductsNewPageModel(new_m), effect.map(e, fn(msg) { PageMsg(ProductsNewPageMsg(msg)) }))
-    }
-    ProductsIdPageModel(m), ProductsIdPageMsg(msg) -> {
-      let #(new_m, e) = views.products_id_update(m, msg)
-      #(ProductsIdPageModel(new_m), effect.map(e, fn(msg) { PageMsg(ProductsIdPageMsg(msg)) }))
+    UsersIdPageModel(m), UsersIdPageMsg(msg) -> {
+      let #(new_m, e) = views.users_id_update(m, msg)
+      #(UsersIdPageModel(new_m), effect.map(e, fn(msg) { PageMsg(UsersIdPageMsg(msg)) }))
     }
     _, _ -> #(page_model, effect.none())
   }
@@ -172,10 +146,8 @@ fn render_page(page_model: PageModel) -> Element(Msg) {
       element.map(views.home_view(m), fn(msg) { PageMsg(HomePageMsg(msg)) })
     AboutPageModel(m) ->
       element.map(views.about_view(m), fn(msg) { PageMsg(AboutPageMsg(msg)) })
-    ProductsNewPageModel(m) ->
-      element.map(views.products_new_view(m), fn(msg) { PageMsg(ProductsNewPageMsg(msg)) })
-    ProductsIdPageModel(m) ->
-      element.map(views.products_id_view(m), fn(msg) { PageMsg(ProductsIdPageMsg(msg)) })
+    UsersIdPageModel(m) ->
+      element.map(views.users_id_view(m), fn(msg) { PageMsg(UsersIdPageMsg(msg)) })
     NoPageModel -> html.div([], [html.text("Page not found")])
   }
 }

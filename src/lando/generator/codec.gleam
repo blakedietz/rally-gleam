@@ -319,73 +319,15 @@ fn emit_codec_ffi(
 /// Generate the import statement for types.mjs constructor classes,
 /// used by push decoders to construct proper Gleam instances.
 fn emit_types_mjs_import(
-  contracts: List(#(ScannedRoute, PageContract)),
+  _contracts: List(#(ScannedRoute, PageContract)),
 ) -> String {
-  let ctor_names =
-    contracts
-    |> list.flat_map(fn(pair) {
-      let #(_route, contract) = pair
-      case contract.has_server_update, contract.to_client_variants {
-        True, variants if variants != [] ->
-          list.map(variants, fn(v) { v.name })
-        _, _ -> []
-      }
-    })
-    |> list.unique
-    |> string.join(", ")
-  case ctor_names {
-    "" -> ""
-    _ -> "import { " <> ctor_names <> " } from \"./types.mjs\";"
-  }
+  ""
 }
 
-/// Generate push decoder functions in codec_ffi.mjs.
-/// Each function converts a raw ETF-decoded value (atom-tagged array)
-/// into the proper Gleam ToClient constructor instance.
 fn emit_push_decoders(
-  contracts: List(#(ScannedRoute, PageContract)),
+  _contracts: List(#(ScannedRoute, PageContract)),
 ) -> String {
-  contracts
-  |> list.filter_map(fn(pair) {
-    let #(route, contract) = pair
-    case contract.has_server_update, contract.to_client_variants {
-      True, variants if variants != [] -> {
-        let fn_suffix = snake_case(route.variant_name)
-        Ok(emit_push_decoder_fn(fn_suffix, variants))
-      }
-      _, _ -> Error(Nil)
-    }
-  })
-  |> string.join("\n\n")
-}
-
-fn emit_push_decoder_fn(fn_suffix: String, variants: List(VariantInfo)) -> String {
-  let arms =
-    list.map(variants, fn(v) {
-      let atom_name = snake_case(v.name)
-      let args = case v.fields {
-        [] -> ""
-        fields ->
-          fields
-          |> list.index_map(fn(f, i) {
-            field_decoder_call(f.type_, "term[" <> int.to_string(i + 1) <> "]")
-          })
-          |> string.join(", ")
-      }
-      let ctor = case v.fields {
-        [] -> "new " <> v.name <> "()"
-        _ -> "new " <> v.name <> "(" <> args <> ")"
-      }
-      "    case \"" <> atom_name <> "\":\n"
-      <> "      return " <> ctor <> ";"
-    })
-  "\nexport function decode_push_" <> fn_suffix <> "(term) {\n"
-  <> "  const tag = Array.isArray(term) ? term[0] : term;\n"
-  <> "  switch (tag) {\n"
-  <> string.join(arms, "\n")
-  <> "\n    default:\n      throw new DecodeError(\"unknown push variant: \" + String(tag));\n"
-  <> "  }\n"
-  <> "}"
+  ""
 }
 
 fn emit_float_registrations(discovered: List(DiscoveredType)) -> String {
@@ -576,15 +518,9 @@ fn emit_types_gleam(
 
 fn emit_page_type_block(
   route: ScannedRoute,
-  contract: PageContract,
+  _contract: PageContract,
 ) -> String {
-  let prefix = route.variant_name
-  let to_server = emit_type_def(prefix <> "ToServer", contract.to_server_variants, prefix, contract)
-  let to_client = emit_type_def(prefix <> "ToClient", contract.to_client_variants, prefix, contract)
-
   "// " <> route.variant_name <> " — " <> route.module_path <> "\n"
-  <> to_server <> "\n\n"
-  <> to_client
 }
 
 fn emit_type_def(
@@ -736,36 +672,9 @@ fn emit_decode_functions(
 }
 
 fn emit_push_decode_functions(
-  contracts: List(#(ScannedRoute, PageContract)),
+  _contracts: List(#(ScannedRoute, PageContract)),
 ) -> List(String) {
-  list.filter_map(contracts, fn(pair) {
-    let #(route, contract) = pair
-    case contract.has_server_update, contract.to_client_variants {
-      True, variants if variants != [] -> {
-        let prefix = route.variant_name
-        let fn_suffix = walker.to_snake_case(prefix)
-        Ok(
-          "/// Decode a raw push value into a typed "
-          <> prefix
-          <> "ToClient constructor.\n"
-          <> "@external(javascript, \"./codec_ffi.mjs\", \"decode_push_"
-          <> fn_suffix
-          <> "\")\n"
-          <> "pub fn decode_push_"
-          <> fn_suffix
-          <> "(raw: Dynamic) -> "
-          <> prefix
-          <> "ToClient {\n"
-          <> "  let _ = raw\n"
-          <> "  panic as \"decode_push_"
-          <> fn_suffix
-          <> ": client-side only\"\n"
-          <> "}",
-        )
-      }
-      _, _ -> Error(Nil)
-    }
-  })
+  []
 }
 
 // ---------- Naming helpers ----------

@@ -404,29 +404,9 @@ fn connection_banner(connection: Connection) -> Element(Msg) {
 }
 
 fn generate_push_registrations(
-  contracts: List(#(ScannedRoute, PageContract)),
+  _contracts: List(#(ScannedRoute, PageContract)),
 ) -> String {
-  contracts
-  |> list.filter_map(fn(pair) {
-    let #(route, contract) = pair
-    case contract.has_server_update {
-      False -> Error(Nil)
-      True -> {
-        let vn = route.variant_name
-        let fn_suffix = to_snake_case(vn)
-        Ok(
-          "    let _ = transport.register_push_handler(\""
-          <> vn
-          <> "\", fn(raw) {\n"
-          <> "      dispatch(PageMsg("
-          <> vn <> "PageMsg(views." <> vn <> "GotServerMsg(codec.decode_push_"
-          <> fn_suffix <> "(raw)))))\n"
-          <> "    })",
-        )
-      }
-    }
-  })
-  |> string.join("\n")
+  ""
 }
 
 fn router_ffi_mjs() -> String {
