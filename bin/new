@@ -75,6 +75,7 @@ rm -f "$PROJECT_PATH/gleam.toml.bak"
 
 # Sample home page
 cat > "$PROJECT_PATH/src/pages/home_.gleam" <<'GLEAM'
+// Scaffolded by lando — yours to customize.
 import app_config.{type Context}
 import gleam/string
 import lustre/element.{type Element}
@@ -122,7 +123,7 @@ pub fn view(model: Model) -> Element(Msg) {
 pub fn server_update(
   model: ServerModel,
   msg: ToServer,
-  _ctx: Context,
+  _server_context: Context,
 ) -> #(ServerModel, Effect(ToClient)) {
   case msg {
     Increment -> #(ServerModel(count: model.count + 1), lando_effect.send_to_client(CounterNewValue(model.count + 1)))
@@ -130,13 +131,14 @@ pub fn server_update(
   }
 }
 
-pub fn server_init(_ctx: Context) -> ServerModel {
+pub fn server_init(_server_context: Context) -> ServerModel {
   ServerModel(count: 0)
 }
 GLEAM
 
 # Example layout (optional — delete or modify freely)
 cat > "$PROJECT_PATH/src/pages/layout.gleam" <<'GLEAM'
+// Scaffolded by lando — yours to customize.
 import lustre/element.{type Element}
 
 /// A layout wraps page content in shared chrome (header, footer, etc.).
@@ -155,6 +157,7 @@ GLEAM
 
 # app.gleam (server entry point)
 cat > "$PROJECT_PATH/src/app.gleam" <<'GLEAM'
+// Scaffolded by lando — yours to customize.
 import app_config.{Context}
 import mist.{type Connection, type ResponseData}
 import gleam/bytes_tree
@@ -173,7 +176,7 @@ import generated/ws_handler
 pub fn main() {
   let db = start_db()
   system.start("system.db")
-  let ctx = Context(db:)
+  let server_context = Context(db:)
 
   let handler = fn(req: Request(Connection)) -> Response(ResponseData) {
     let Request(path: path, method: method, ..) = req
@@ -181,7 +184,7 @@ pub fn main() {
       "/ws" -> mist.websocket(
         req,
         ws_handler.handler,
-        fn(conn) { ws_handler.on_init(conn, ctx) },
+        fn(conn) { ws_handler.on_init(conn, server_context) },
         ws_handler.on_close,
       )
       "/client.js" -> serve_client_js()
@@ -189,7 +192,7 @@ pub fn main() {
         case method {
           Get -> {
             let route = router.parse_route(request.to_uri(req))
-            ssr_handler.handle_request(route, ctx)
+            ssr_handler.handle_request(route, server_context)
           }
           _ -> response.new(405)
             |> response.set_body(mist.Bytes(bytes_tree.from_string("Not found")))
@@ -225,6 +228,7 @@ GLEAM
 
 # shell.html (HTML template for non-SSR routes and SPA fallback)
 cat > "$PROJECT_PATH/src/shell.html" <<'HTML'
+<!-- Scaffolded by lando — yours to customize. -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -241,6 +245,7 @@ HTML
 
 # app_config.gleam
 cat > "$PROJECT_PATH/src/app_config.gleam" <<'GLEAM'
+// Scaffolded by lando — yours to customize.
 import sqlight
 
 pub type Context {
