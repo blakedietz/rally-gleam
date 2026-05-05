@@ -243,7 +243,7 @@ fn run() -> Result(String, String) {
 
   // 10. Generate codec files for the client package
   let codec_files =
-    list.map(codec.generate(contracts, discovered, has_client_context), fn(f: codec.CodecFile) {
+    list.map(codec.generate(contracts, discovered, has_client_context, handler_endpoints), fn(f: codec.CodecFile) {
       client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
     })
 
