@@ -223,6 +223,22 @@ fn start_db() -> sqlight.Connection {
 }
 GLEAM
 
+# shell.html (HTML template for non-SSR routes and SPA fallback)
+cat > "$PROJECT_PATH/src/shell.html" <<'HTML'
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My App</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/_build/client/generated/app.mjs"></script>
+</body>
+</html>
+HTML
+
 # app_config.gleam
 cat > "$PROJECT_PATH/src/app_config.gleam" <<'GLEAM'
 import sqlight
