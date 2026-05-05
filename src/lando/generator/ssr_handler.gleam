@@ -6,8 +6,10 @@ import lando/types.{type ScannedRoute, type PageContract}
 pub fn generate(
   page_contracts: List(#(ScannedRoute, PageContract)),
   has_client_context: Bool,
+  has_from_session: Bool,
 ) -> String {
-  let load_arms = generate_load_arms(page_contracts, has_client_context)
+  let use_session = has_client_context && has_from_session
+  let load_arms = generate_load_arms(page_contracts, has_client_context, use_session)
   let has_load_pages = load_arms != ""
 
   let layout_imports = generate_layout_imports(page_contracts)
@@ -26,13 +28,30 @@ pub fn generate(
     <> layout_imports
     <> page_imports
 
-  let fn_body = case has_load_pages {
-    True ->
+  let fn_params = case has_load_pages, use_session {
+    True, True ->
       "
 pub fn handle_request(
   route: router.Route,
   server_context: ServerContext,
-) -> response.Response(ResponseData) {
+  session_id: String,
+) -> response.Response(ResponseData) {"
+    True, False ->
+      "
+pub fn handle_request(
+  route: router.Route,
+  server_context: ServerContext,
+) -> response.Response(ResponseData) {"
+    False, _ ->
+      "
+pub fn handle_request(
+  _route: router.Route,
+) -> response.Response(ResponseData) {"
+  }
+
+  let fn_body = case has_load_pages {
+    True ->
+      fn_params <> "
   case route {\n"
       <> load_arms
       <> "
@@ -43,10 +62,7 @@ pub fn handle_request(
   }
 }"
     False ->
-      "
-pub fn handle_request(
-  _route: router.Route,
-) -> response.Response(ResponseData) {
+      fn_params <> "
   serve_html_shell()
 }"
   }
@@ -120,6 +136,7 @@ fn generate_layout_imports(
 fn generate_load_arms(
   page_contracts: List(#(ScannedRoute, PageContract)),
   has_client_context: Bool,
+  use_session: Bool,
 ) -> String {
   page_contracts
   |> list.filter_map(fn(pair) {
@@ -137,9 +154,12 @@ fn generate_load_arms(
           True -> ", server_context"
           False -> "server_context"
         }
-        let ctx_init = case has_client_context {
-          True -> "      let #(ctx, _) = client_context.init()\n"
-          False -> ""
+        let ctx_init = case use_session {
+          True -> "      let ctx = client_context.from_session(server_context, session_id)\n"
+          False -> case has_client_context {
+            True -> "      let #(ctx, _) = client_context.init()\n"
+            False -> ""
+          }
         }
         let view_expr = case route.layout_module, has_client_context {
           Some(layout), True ->

@@ -139,9 +139,9 @@ fn run() -> Result(String, String) {
 
   // 4. Detect client_context.gleam (needed by SSR handler and client codegen)
   let client_context_path = dirname(config.pages_root) <> "/client_context.gleam"
-  let has_client_context = case simplifile.read(client_context_path) {
-    Ok(_) -> True
-    Error(_) -> False
+  let #(has_client_context, has_from_session) = case simplifile.read(client_context_path) {
+    Ok(source) -> #(True, string.contains(source, "pub fn from_session"))
+    Error(_) -> #(False, False)
   }
 
   // 5. Generate server dispatch
@@ -149,7 +149,7 @@ fn run() -> Result(String, String) {
   use _ <- result.try(write_file(config.output_server_dispatch, sd_source))
 
   // 6. Generate SSR handler
-  let ssr_source = ssr_handler.generate(contracts, has_client_context)
+  let ssr_source = ssr_handler.generate(contracts, has_client_context, has_from_session)
   use _ <- result.try(write_file(config.output_ssr, ssr_source))
 
   // 6. Generate WebSocket handler
