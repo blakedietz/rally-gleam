@@ -4,6 +4,7 @@ import gleam/int
 import gleam/result
 import gleam/time/timestamp
 import global_value
+import lando_runtime/jobs
 import lando_runtime/wire
 import logging
 import sqlight
@@ -24,10 +25,21 @@ pub fn open(path: String) -> Result(sqlight.Connection, sqlight.Error) {
   payload BLOB,
   elapsed_ms INTEGER
 );
+CREATE TABLE IF NOT EXISTS jobs (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  payload BLOB NOT NULL,
+  run_at INTEGER NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending',
+  last_error TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_page ON messages(page);
-CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp DESC);",
+CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_status_run_at ON jobs(status, run_at);",
     on: conn,
   ))
   Ok(conn)
@@ -142,6 +154,31 @@ pub fn start(path: String) -> Nil {
       Nil
     }
   }
+}
+
+/// Start the system DB with a background job runner.
+pub fn start_with_jobs(path: String, handler: jobs.JobHandler) -> Nil {
+  start(path)
+  let conn = get_conn()
+  case jobs.start_runner(conn, handler) {
+    Ok(_) -> logging.log(logging.Info, "Job runner started")
+    Error(_) -> logging.log(logging.Warning, "Failed to start job runner")
+  }
+}
+
+/// Enqueue a job to run at a specific time.
+pub fn enqueue(name: String, payload: BitArray, run_at: Int) -> Nil {
+  jobs.enqueue(get_conn(), name, payload, run_at)
+}
+
+/// Enqueue a job to run after a delay.
+pub fn enqueue_in(name: String, payload: BitArray, delay_seconds: Int) -> Nil {
+  jobs.enqueue_in(get_conn(), name, payload, delay_seconds)
+}
+
+/// Enqueue a job to run immediately.
+pub fn enqueue_now(name: String, payload: BitArray) -> Nil {
+  jobs.enqueue(get_conn(), name, payload, 0)
 }
 
 /// Get the global system DB connection.
