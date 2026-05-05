@@ -28,19 +28,19 @@ Trailing underscore marks a dynamic segment. Names ending in `_id` become `Int` 
 ```gleam
 // src/pages/login.gleam
 
-// -- Types --
+// -- Client --
 pub type Model { Model(email: String, password: String, errors: List(String)) }
 pub type Msg { UpdatedEmail(String); ClickedLogin; GotLogin(Result(#(String, String), List(String))) }
 
-// -- Client functions --
 pub fn init(client_context: ClientContext) -> #(Model, Effect(Msg))
 pub fn update(client_context: ClientContext, model: Model, msg: Msg) -> #(Model, Effect(Msg))
 pub fn view(client_context: ClientContext, model: Model) -> Element(Msg)
 
-// -- Server handler (the function signature IS the wire contract) --
+// -- Server --
+pub type ServerLogin { ServerLogin(email: String, password: String) }
+
 pub fn server_login(
-  email email: String,
-  password password: String,
+  msg msg: ServerLogin,
   server_context server_context: ServerContext,
 ) -> Result(#(String, String), List(String))
 
@@ -48,18 +48,16 @@ pub fn server_login(
 pub fn load(server_context: ServerContext) -> Model
 ```
 
-The handler-as-contract pattern: `pub fn server_*` functions with a `ServerContext` parameter and `Result` return type define the RPC contract. No ToServer/ToClient types, no ServerModel, no server_init/server_update. The function signature is scanned by libero and generates dispatch + client stubs automatically.
+The handler-as-contract pattern: define a single-variant type for the message, and a `pub fn server_*` function that receives it. The type is both the handler's input and the client's constructor for RPC calls. Libero scans these functions, generates dispatch and client stubs automatically.
 
 ### How client calls the server
 
-Pages define a local `RpcMsg` type whose variants match the handler wire names, and call `lando_effect.rpc(msg, on_response: callback)`:
+The message type defined alongside the handler is used directly in the client's update:
 
 ```gleam
-type RpcMsg { Login(email: String, password: String) }
-
 pub fn update(_cc, model, msg) {
   case msg {
-    ClickedLogin -> #(model, lando_effect.rpc(Login(email: model.email, password: model.password), on_response: GotLogin))
+    ClickedLogin -> #(model, lando_effect.rpc(ServerLogin(email: model.email, password: model.password), on_response: GotLogin))
     GotLogin(Ok(#(username, image))) -> // handle success
     GotLogin(Error(errors)) -> // handle errors
   }
