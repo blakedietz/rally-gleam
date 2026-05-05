@@ -1,7 +1,7 @@
 import birdie
 import gleam/list
 import gleam/string
-import lando/field_type.{IntField}
+import libero/field_type.{IntField}
 import lando/generator
 import lando/generator/client
 import lando/generator/codec

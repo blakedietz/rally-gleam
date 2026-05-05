@@ -4,7 +4,7 @@ import gleam/option.{Some}
 import gleam/string
 import lando/generator
 import lando/types.{type ScannedRoute, type PageContract, type ScanConfig}
-import lando/walker
+import libero/walker
 
 pub type GeneratedFile {
   GeneratedFile(path: String, content: String)

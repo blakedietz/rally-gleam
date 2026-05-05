@@ -9,7 +9,7 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
-import lando/field_type.{type FieldType}
+import libero/field_type.{type FieldType}
 import lando/types.{
   type ClientContextContract, type PageContract, type VariantInfo,
   ClientContextContract, PageContract, VariantField, VariantInfo,

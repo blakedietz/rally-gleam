@@ -10,9 +10,9 @@
 import gleam/int
 import gleam/list
 import gleam/string
-import lando/field_type.{type FieldType, UserType}
+import libero/field_type.{type FieldType, UserType}
 import lando/types.{type PageContract, type ScannedRoute, type VariantField, type VariantInfo, VariantInfo}
-import lando/walker.{type DiscoveredType, type DiscoveredVariant}
+import libero/walker.{type DiscoveredType, type DiscoveredVariant}
 
 pub type CodecFile {
   CodecFile(path: String, content: String)

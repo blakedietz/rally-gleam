@@ -13,11 +13,11 @@ import lando/generator/codec
 import lando/generator/server_dispatch
 import lando/generator/ssr_handler
 import lando/generator/ws_handler
-import lando/field_type
+import libero/field_type
 import lando/parser
 import lando/scanner
 import lando/types.{type PageContract, type ScanConfig, type ScannedRoute, type VariantInfo, ScanConfig}
-import lando/walker
+import libero/walker
 import libero/codegen_dispatch as libero_dispatch
 import libero/scanner as libero_scanner
 
@@ -244,8 +244,15 @@ fn run() -> Result(String, String) {
       <> last_module_segment(r.module_path)
       <> ".gleam"
     })
-  let discovered =
-    walker.walk(seeds, page_file_paths, config.pages_root)
+  let discovered = case walker.walk(seeds:, file_paths: page_file_paths) {
+    Ok(types) -> types
+    Error(errors) -> {
+      list.each(errors, fn(e) {
+        io.println_error("lando: walker error: " <> string.inspect(e))
+      })
+      []
+    }
+  }
 
   // 10. Generate codec files for the client package
   let codec_files =

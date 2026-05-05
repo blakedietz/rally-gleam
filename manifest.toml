@@ -24,6 +24,7 @@ packages = [
   { name = "global_value", version = "1.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "global_value", source = "hex", outer_checksum = "23F74C91A7B819C43ABCCBF49DAD5BB8799D81F2A3736BA9A534BD47F309FF4F" },
   { name = "houdini", version = "1.2.1", build_tools = ["gleam"], requirements = [], otp_app = "houdini", source = "hex", outer_checksum = "6F8AC2F12974567FB744BEA66AC93CEB76AAEA19AD28564623F76CDA9BC26A85" },
   { name = "justin", version = "1.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "justin", source = "hex", outer_checksum = "8B1C62269E8607D0A0ED698B7903984CE0BF7B6B3C0DEA3C6C8302B39402837B" },
+  { name = "libero", version = "6.0.0", build_tools = ["gleam"], requirements = ["glance", "gleam_stdlib", "glexer", "simplifile"], source = "local", path = "../libero" },
   { name = "logging", version = "1.5.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "logging", source = "hex", outer_checksum = "BC5F18CE5DD9686100229FE5409BDC3DD5C46D5A7DF2F804AD2D8F0DD6C5060E" },
   { name = "lustre", version = "5.6.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_json", "gleam_otp", "gleam_stdlib", "houdini"], otp_app = "lustre", source = "hex", outer_checksum = "EE558CD4DB9F09FCC16417ADF0183A3C2DAC3E4B21ED3AC0CAE859792AB810CA" },
   { name = "marmot", version = "1.2.1", build_tools = ["gleam"], requirements = ["argv", "gleam_stdlib", "gleam_time", "simplifile", "sqlight", "tom"], otp_app = "marmot", source = "hex", outer_checksum = "1A3F9CEEE3E2E366E38AD907EF6CBCA31DD945AF878691E4C19B52AF6EFCEDFA" },
@@ -48,6 +49,7 @@ gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
 glexer = { version = ">= 2.0.0 and < 3.0.0" }
 glinter = { version = ">= 2.16.0 and < 3.0.0" }
 global_value = { version = ">= 1.0.0 and < 2.0.0" }
+libero = { path = "../libero" }
 logging = { version = ">= 1.0.0 and < 2.0.0" }
 lustre = { version = ">= 5.6.0 and < 7.0.0" }
 marmot = { version = ">= 1.0.0 and < 2.0.0" }
