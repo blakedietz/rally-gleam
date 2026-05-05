@@ -395,7 +395,7 @@ pub fn editor_update(
     ClickedPublish -> #(
       model,
       lando_effect.rpc(
-        PublishArticle(
+        ServerPublishArticle(
           title: model.title,
           description: model.description,
           body: model.body,
@@ -524,20 +524,20 @@ pub fn home_update(
       let #(tab_name, tag) = tab_to_wire(tab)
       #(
         HomeModel(..model, active_tab: tab, page: 1),
-        lando_effect.rpc(SwitchTab(tab_name:, tag:), on_response: GotArticles),
+        lando_effect.rpc(ServerSwitchTab(tab_name:, tag:), on_response: GotArticles),
       )
     }
     ClickedPage(page) -> {
       let #(tab_name, tag) = tab_to_wire(model.active_tab)
       #(
         HomeModel(..model, page:),
-        lando_effect.rpc(ChangePage(page:, tab_name:, tag:), on_response: GotArticles),
+        lando_effect.rpc(ServerChangePage(page:, tab_name:, tag:), on_response: GotArticles),
       )
     }
     ClickedTag(tag) -> {
       #(
         HomeModel(..model, active_tab: TagFeed(tag:), page: 1),
-        lando_effect.rpc(SwitchTab(tab_name: "tag", tag:), on_response: GotArticles),
+        lando_effect.rpc(ServerSwitchTab(tab_name: "tag", tag:), on_response: GotArticles),
       )
     }
     GotArticles(Ok(#(articles, total))) -> #(
@@ -598,7 +598,7 @@ pub fn login_update(
     ClickedLogin -> #(
       model,
       lando_effect.rpc(
-        Login(email: model.email, password: model.password),
+        ServerLogin(email: model.email, password: model.password),
         on_response: GotLogin,
       ),
     )
@@ -767,7 +767,7 @@ pub fn register_update(
     ClickedRegister -> #(
       model,
       lando_effect.rpc(
-        Register(username: model.username, email: model.email, password: model.password),
+        ServerRegister(username: model.username, email: model.email, password: model.password),
         on_response: GotRegister,
       ),
     )
@@ -868,7 +868,7 @@ pub fn settings_update(
     ClickedUpdate -> #(
       model,
       lando_effect.rpc(
-        UpdateSettings(
+        ServerUpdateSettings(
           image: model.image,
           username: model.username,
           bio: model.bio,
@@ -880,7 +880,7 @@ pub fn settings_update(
     )
     ClickedLogout -> #(
       model,
-      lando_effect.rpc(Logout, on_response: GotLogout),
+      lando_effect.rpc(ServerLogout, on_response: GotLogout),
     )
     GotUpdate(Ok(#(username, image))) -> #(
       SettingsModel(..model, errors: []),

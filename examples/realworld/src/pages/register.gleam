@@ -11,7 +11,6 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import password
-import generated/rpc_dispatch.{Register}
 import server_context.{type ServerContext}
 
 pub type Model {
@@ -24,6 +23,10 @@ pub type Msg {
   UpdatedPassword(String)
   ClickedRegister
   GotRegister(Result(#(String, String), List(String)))
+}
+
+pub type ServerRegister {
+  ServerRegister(username: String, email: String, password: String)
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
@@ -42,7 +45,7 @@ pub fn update(
     ClickedRegister -> #(
       model,
       lando_effect.rpc(
-        Register(username: model.username, email: model.email, password: model.password),
+        ServerRegister(username: model.username, email: model.email, password: model.password),
         on_response: GotRegister,
       ),
     )
@@ -117,22 +120,20 @@ fn fieldset_input(
 // --- Server handler ---
 
 pub fn server_register(
-  username username: String,
-  email email: String,
-  password password_text: String,
+  msg msg: ServerRegister,
   server_context server_context: ServerContext,
 ) -> Result(#(String, String), List(String)) {
-  let errors = validate_register(username, email, password_text)
+  let errors = validate_register(msg.username, msg.email, msg.password)
   case errors {
     [] -> {
       let session_id = lando_effect.get_ws_session()
       let now = datetime.now_unix()
-      let hash = password.hash(password_text)
+      let hash = password.hash(msg.password)
       case
         auth_sql.register_user(
           db: server_context.db,
-          username:,
-          email:,
+          username: msg.username,
+          email: msg.email,
           password_hash: hash,
           bio: "",
           image: "",

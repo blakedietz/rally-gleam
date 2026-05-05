@@ -12,7 +12,6 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import generated/rpc_dispatch.{PublishArticle}
 import server_context.{type ServerContext}
 import slug
 import sqlight
@@ -37,6 +36,10 @@ pub type Msg {
   RemovedTag(String)
   ClickedPublish
   GotPublish(Result(String, List(String)))
+}
+
+pub type ServerPublishArticle {
+  ServerPublishArticle(title: String, description: String, body: String, tags: List(String))
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
@@ -80,7 +83,7 @@ pub fn update(
     ClickedPublish -> #(
       model,
       lando_effect.rpc(
-        PublishArticle(
+        ServerPublishArticle(
           title: model.title,
           description: model.description,
           body: model.body,
@@ -182,13 +185,10 @@ fn error_list(errors: List(String)) -> Element(msg) {
 // --- Server handler ---
 
 pub fn server_publish_article(
-  title title: String,
-  description description: String,
-  body body: String,
-  tags tags: List(String),
+  msg msg: ServerPublishArticle,
   server_context server_context: ServerContext,
 ) -> Result(String, List(String)) {
-  let errors = validate_article(title, body)
+  let errors = validate_article(msg.title, msg.body)
   case errors {
     [] -> {
       let session_id = lando_effect.get_ws_session()
@@ -201,21 +201,21 @@ pub fn server_publish_article(
       {
         Ok([user]) -> {
           let now = datetime.now_unix()
-          let article_slug = slug.unique_from_title(server_context.db, title)
+          let article_slug = slug.unique_from_title(server_context.db, msg.title)
           case
             articles_sql.create(
               db: server_context.db,
               slug: article_slug,
-              title:,
-              description:,
-              body:,
+              title: msg.title,
+              description: msg.description,
+              body: msg.body,
               author_id: user.id,
               created_at: now,
               updated_at: now,
             )
           {
             Ok([row]) -> {
-              save_tags(server_context.db, row.id, tags)
+              save_tags(server_context.db, row.id, msg.tags)
               Ok(row.slug)
             }
             _ -> Error(["Failed to create article"])

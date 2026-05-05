@@ -36,7 +36,8 @@ pub fn tag_response(
 }
 
 pub fn tag_push(module module: String, msg msg: a) -> BitArray {
-  libero_wire.tag_push(module:, msg:)
+  let data = libero_wire.encode(#(module, msg))
+  <<1, data:bits>>
 }
 
 pub fn variant_tag(value: Dynamic) -> Result(String, Nil) {

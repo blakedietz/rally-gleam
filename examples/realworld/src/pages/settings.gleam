@@ -11,7 +11,6 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import password
-import generated/rpc_dispatch.{Logout, UpdateSettings}
 import server_context.{type ServerContext}
 
 pub type Model {
@@ -35,6 +34,14 @@ pub type Msg {
   ClickedLogout
   GotUpdate(Result(#(String, String), List(String)))
   GotLogout(Result(Nil, Nil))
+}
+
+pub type ServerUpdateSettings {
+  ServerUpdateSettings(image: String, username: String, bio: String, email: String, password: String)
+}
+
+pub type ServerLogout {
+  ServerLogout
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
@@ -65,7 +72,7 @@ pub fn update(
     ClickedUpdate -> #(
       model,
       lando_effect.rpc(
-        UpdateSettings(
+        ServerUpdateSettings(
           image: model.image,
           username: model.username,
           bio: model.bio,
@@ -77,7 +84,7 @@ pub fn update(
     )
     ClickedLogout -> #(
       model,
-      lando_effect.rpc(Logout, on_response: GotLogout),
+      lando_effect.rpc(ServerLogout, on_response: GotLogout),
     )
     GotUpdate(Ok(#(username, image))) -> #(
       Model(..model, errors: []),
@@ -184,11 +191,7 @@ fn error_list(errors: List(String)) -> Element(msg) {
 // --- Server handlers ---
 
 pub fn server_update_settings(
-  image image: String,
-  username username: String,
-  bio bio: String,
-  email email: String,
-  password password_text: String,
+  msg msg: ServerUpdateSettings,
   server_context server_context: ServerContext,
 ) -> Result(#(String, String), List(String)) {
   let session_id = lando_effect.get_ws_session()
@@ -200,41 +203,41 @@ pub fn server_update_settings(
     )
   {
     Ok([user]) -> {
-      let errors = validate_settings(username, email)
+      let errors = validate_settings(msg.username, msg.email)
       case errors {
         [] -> {
           let now = datetime.now_unix()
-          case string.is_empty(string.trim(password_text)) {
+          case string.is_empty(string.trim(msg.password)) {
             True -> {
               let assert Ok(_) =
                 auth_sql.update_user(
                   db: server_context.db,
-                  image:,
-                  username:,
-                  bio:,
-                  email:,
+                  image: msg.image,
+                  username: msg.username,
+                  bio: msg.bio,
+                  email: msg.email,
                   now:,
                   user_id: user.id,
                 )
-              Ok(#(username, image))
+              Ok(#(msg.username, msg.image))
             }
             False -> {
-              case string.length(password_text) < 8 {
+              case string.length(msg.password) < 8 {
                 True -> Error(["Password must be at least 8 characters"])
                 False -> {
-                  let hash = password.hash(password_text)
+                  let hash = password.hash(msg.password)
                   let assert Ok(_) =
                     auth_sql.update_user_with_password(
                       db: server_context.db,
-                      image:,
-                      username:,
-                      bio:,
-                      email:,
+                      image: msg.image,
+                      username: msg.username,
+                      bio: msg.bio,
+                      email: msg.email,
                       password_hash: hash,
                       now:,
                       user_id: user.id,
                     )
-                  Ok(#(username, image))
+                  Ok(#(msg.username, msg.image))
                 }
               }
             }
@@ -248,6 +251,7 @@ pub fn server_update_settings(
 }
 
 pub fn server_logout(
+  msg _msg: ServerLogout,
   server_context server_context: ServerContext,
 ) -> Result(Nil, Nil) {
   let session_id = lando_effect.get_ws_session()

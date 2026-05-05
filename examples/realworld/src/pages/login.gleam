@@ -11,7 +11,6 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import password
-import generated/rpc_dispatch.{Login}
 import server_context.{type ServerContext}
 
 pub type Model {
@@ -23,6 +22,10 @@ pub type Msg {
   UpdatedPassword(String)
   ClickedLogin
   GotLogin(Result(#(String, String), List(String)))
+}
+
+pub type ServerLogin {
+  ServerLogin(email: String, password: String)
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
@@ -40,7 +43,7 @@ pub fn update(
     ClickedLogin -> #(
       model,
       lando_effect.rpc(
-        Login(email: model.email, password: model.password),
+        ServerLogin(email: model.email, password: model.password),
         on_response: GotLogin,
       ),
     )
@@ -116,16 +119,15 @@ fn fieldset_input(
 // --- Server handler ---
 
 pub fn server_login(
-  email email: String,
-  password password_text: String,
+  msg msg: ServerLogin,
   server_context server_context: ServerContext,
 ) -> Result(#(String, String), List(String)) {
-  let errors = validate_login(email, password_text)
+  let errors = validate_login(msg.email, msg.password)
   case errors {
     [] -> {
-      case auth_sql.find_user_by_email(db: server_context.db, email:) {
+      case auth_sql.find_user_by_email(db: server_context.db, email: msg.email) {
         Ok([user]) -> {
-          case password.verify(password_text, user.password_hash) {
+          case password.verify(msg.password, user.password_hash) {
             True -> {
               let session_id = lando_effect.get_ws_session()
               let now = datetime.now_unix()

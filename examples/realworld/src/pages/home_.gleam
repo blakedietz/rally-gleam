@@ -13,7 +13,6 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import generated/rpc_dispatch.{ChangePage, SwitchTab}
 import server_context.{type ServerContext}
 import sqlight
 
@@ -52,6 +51,14 @@ pub type Msg {
   GotArticles(Result(#(List(ArticlePreview), Int), Nil))
 }
 
+pub type ServerSwitchTab {
+  ServerSwitchTab(tab_name: String, tag: String)
+}
+
+pub type ServerChangePage {
+  ServerChangePage(page: Int, tab_name: String, tag: String)
+}
+
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
   #(
     Model(articles: [], tags: [], active_tab: GlobalFeed, page: 1, total: 0),
@@ -69,20 +76,20 @@ pub fn update(
       let #(tab_name, tag) = tab_to_wire(tab)
       #(
         Model(..model, active_tab: tab, page: 1),
-        lando_effect.rpc(SwitchTab(tab_name:, tag:), on_response: GotArticles),
+        lando_effect.rpc(ServerSwitchTab(tab_name:, tag:), on_response: GotArticles),
       )
     }
     ClickedPage(page) -> {
       let #(tab_name, tag) = tab_to_wire(model.active_tab)
       #(
         Model(..model, page:),
-        lando_effect.rpc(ChangePage(page:, tab_name:, tag:), on_response: GotArticles),
+        lando_effect.rpc(ServerChangePage(page:, tab_name:, tag:), on_response: GotArticles),
       )
     }
     ClickedTag(tag) -> {
       #(
         Model(..model, active_tab: TagFeed(tag:), page: 1),
-        lando_effect.rpc(SwitchTab(tab_name: "tag", tag:), on_response: GotArticles),
+        lando_effect.rpc(ServerSwitchTab(tab_name: "tag", tag:), on_response: GotArticles),
       )
     }
     GotArticles(Ok(#(articles, total))) -> #(
@@ -263,21 +270,18 @@ pub fn load(server_context: ServerContext) -> Model {
 // --- Server handlers ---
 
 pub fn server_switch_tab(
-  tab_name tab_name: String,
-  tag tag: String,
+  msg msg: ServerSwitchTab,
   server_context server_context: ServerContext,
 ) -> Result(#(List(ArticlePreview), Int), Nil) {
-  Ok(fetch_tab_articles(server_context.db, tab_name, tag, 0))
+  Ok(fetch_tab_articles(server_context.db, msg.tab_name, msg.tag, 0))
 }
 
 pub fn server_change_page(
-  page page: Int,
-  tab_name tab_name: String,
-  tag tag: String,
+  msg msg: ServerChangePage,
   server_context server_context: ServerContext,
 ) -> Result(#(List(ArticlePreview), Int), Nil) {
-  let offset = { page - 1 } * 10
-  Ok(fetch_tab_articles(server_context.db, tab_name, tag, offset))
+  let offset = { msg.page - 1 } * 10
+  Ok(fetch_tab_articles(server_context.db, msg.tab_name, msg.tag, offset))
 }
 
 fn fetch_tab_articles(

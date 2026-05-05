@@ -52,10 +52,7 @@ pub fn handle(
               case
                 trace.try_call(fn() {
                   pages_editor_handler.server_publish_article(
-                    title:,
-                    description:,
-                    body:,
-                    tags:,
+                    msg: wire.coerce(typed_msg),
                     server_context:,
                   )
                 })
@@ -88,9 +85,7 @@ pub fn handle(
               case
                 trace.try_call(fn() {
                   pages_home__handler.server_change_page(
-                    page:,
-                    tab_name:,
-                    tag:,
+                    msg: wire.coerce(typed_msg),
                     server_context:,
                   )
                 })
@@ -123,8 +118,7 @@ pub fn handle(
               case
                 trace.try_call(fn() {
                   pages_home__handler.server_switch_tab(
-                    tab_name:,
-                    tag:,
+                    msg: wire.coerce(typed_msg),
                     server_context:,
                   )
                 })
@@ -157,8 +151,7 @@ pub fn handle(
               case
                 trace.try_call(fn() {
                   pages_login_handler.server_login(
-                    email:,
-                    password:,
+                    msg: wire.coerce(typed_msg),
                     server_context:,
                   )
                 })
@@ -191,9 +184,7 @@ pub fn handle(
               case
                 trace.try_call(fn() {
                   pages_register_handler.server_register(
-                    username:,
-                    email:,
-                    password:,
+                    msg: wire.coerce(typed_msg),
                     server_context:,
                   )
                 })
@@ -225,7 +216,10 @@ pub fn handle(
             Logout -> {
               case
                 trace.try_call(fn() {
-                  pages_settings_handler.server_logout(server_context:)
+                  pages_settings_handler.server_logout(
+                    msg: wire.coerce(typed_msg),
+                    server_context:,
+                  )
                 })
               {
                 Ok(result) -> #(
@@ -256,11 +250,7 @@ pub fn handle(
               case
                 trace.try_call(fn() {
                   pages_settings_handler.server_update_settings(
-                    image:,
-                    username:,
-                    bio:,
-                    email:,
-                    password:,
+                    msg: wire.coerce(typed_msg),
                     server_context:,
                   )
                 })
