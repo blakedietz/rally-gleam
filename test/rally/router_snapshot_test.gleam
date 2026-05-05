@@ -129,7 +129,6 @@ fn test_scan_config() -> ScanConfig {
     output_ssr: "",
     output_ws: "",
     output_http: "",
-    sql_dir: "",
     client_root: "client",
     rally_package_path: "",
     shell_file: "",

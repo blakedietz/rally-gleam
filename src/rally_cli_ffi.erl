@@ -1,5 +1,5 @@
 -module(rally_cli_ffi).
--export([find_executable/1, run_executable/2, get_env/1, unique_id/0]).
+-export([find_executable/1, run_executable/2, unique_id/0]).
 
 find_executable(Name) ->
   case os:find_executable(binary_to_list(Name)) of
@@ -21,12 +21,6 @@ loop_until_exit(Port, Acc) ->
       loop_until_exit(Port, [Data | Acc]);
     {Port, {exit_status, Status}} ->
       {Status, lists:flatten(lists:reverse(Acc))}
-  end.
-
-get_env(Name) ->
-  case os:getenv(binary_to_list(Name)) of
-    false -> {error, nil};
-    Value -> {ok, list_to_binary(Value)}
   end.
 
 unique_id() ->

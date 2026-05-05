@@ -167,7 +167,7 @@ fn generate_load_arms(
           False -> "server_context"
         }
         let ctx_init = case use_session {
-          True -> "      let client_context = client_context.from_session(server_context, session_id)\n"
+          True -> "      let client_context = server_context.from_session(server_context, session_id)\n"
           False -> case has_client_context {
             True -> "      let #(client_context, _) = client_context.init()\n"
             False -> ""

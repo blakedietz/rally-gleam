@@ -30,7 +30,6 @@ pub type ScanConfig {
     output_ssr: String,
     output_ws: String,
     output_http: String,
-    sql_dir: String,
     client_root: String,
     rally_package_path: String,
     shell_file: String,

@@ -17,7 +17,6 @@ fn test_config(dir: String) -> ScanConfig {
     output_ssr: "",
     output_ws: "",
     output_http: "",
-    sql_dir: "",
     client_root: "",
     rally_package_path: "",
     shell_file: "",

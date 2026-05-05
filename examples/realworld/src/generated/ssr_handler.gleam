@@ -20,7 +20,7 @@ pub fn handle_request(
   case route {
     router.Home -> {
       let client_context =
-        client_context.from_session(server_context, session_id)
+        server_context.from_session(server_context, session_id)
       let model = pages_home_.load(server_context)
       let page_view = pages_home_.view(client_context, model)
       let html =

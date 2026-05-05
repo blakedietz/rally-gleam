@@ -66,9 +66,6 @@ fn read_config() -> Result(ScanConfig, String) {
   let output_http =
     tom.get_string(rally_config, ["output_http"])
     |> result.unwrap("src/generated/http_handler.gleam")
-  let sql_dir =
-    tom.get_string(rally_config, ["sql_dir"])
-    |> result.unwrap("src/sql")
   let client_root =
     tom.get_string(rally_config, ["client_root"])
     |> result.unwrap("client")
@@ -97,7 +94,6 @@ fn read_config() -> Result(ScanConfig, String) {
     output_ssr:,
     output_ws:,
     output_http:,
-    sql_dir:,
     client_root:,
     rally_package_path:,
     shell_file:,
@@ -167,13 +163,13 @@ fn run() -> Result(String, String) {
   let dispatch_source = generator.generate_dispatch(routes)
   use _ <- result.try(write_file(config.output_dispatch, dispatch_source))
 
-  // 4. Detect client_context.gleam (needed by SSR handler and client codegen)
-  // String search for from_session is intentional: avoids parsing the file just
-  // to check for one function signature. Good enough for build-time detection.
+  // 4. Detect client_context.gleam and server_context.gleam
   let client_context_path = dirname(config.pages_root) <> "/client_context.gleam"
-  let #(has_client_context, has_from_session) = case simplifile.read(client_context_path) {
-    Ok(source) -> #(True, string.contains(source, "pub fn from_session"))
-    Error(_) -> #(False, False)
+  let has_client_context = simplifile.is_file(client_context_path) |> result.unwrap(False)
+  let server_context_path = dirname(config.pages_root) <> "/server_context.gleam"
+  let has_from_session = case simplifile.read(server_context_path) {
+    Ok(source) -> string.contains(source, "pub fn from_session")
+    Error(_) -> False
   }
 
   // 5. Generate RPC dispatch via libero
@@ -259,17 +255,7 @@ fn run() -> Result(String, String) {
     list.flatten([codec_files, client_files, client_context_files]),
   ))
 
-  // 11. Run marmot for SQL query generation
-  let sql_count = run_marmot(config.sql_dir)
-
-  Ok(
-    int.to_string(list.length(routes))
-    <> " routes"
-    <> case sql_count {
-      0 -> ""
-      n -> ", " <> int.to_string(n) <> " SQL queries"
-    },
-  )
+  Ok(int.to_string(list.length(routes)) <> " routes")
 }
 
 /// Extract the last path segment of a module path for file lookup.
@@ -316,29 +302,3 @@ fn dirname(path: String) -> String {
   }
 }
 
-/// Scan a directory for .sql files and shell out to marmot if any are found.
-/// Returns the number of SQL files found.
-fn run_marmot(sql_dir: String) -> Int {
-  let sql_files = scan_sql_dir(sql_dir)
-  case sql_files {
-    [] -> 0
-    files -> {
-      let _ = run_executable("gleam", ["run", "-m", "marmot"])
-      list.length(files)
-    }
-  }
-}
-
-fn scan_sql_dir(dir: String) -> List(String) {
-  case simplifile.read_directory(at: dir) {
-    Ok(entries) -> {
-      entries
-      |> list.sort(string.compare)
-      |> list.filter(fn(entry) { string.ends_with(entry, ".sql") })
-    }
-    Error(_) -> []
-  }
-}
-
-@external(erlang, "rally_cli_ffi", "run_executable")
-fn run_executable(program: String, args: List(String)) -> Int

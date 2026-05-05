@@ -8,12 +8,5 @@ test_name: types_gleam_snapshot_test
 ////
 //// Mirrored page types for the client package.
 
-// Home — pages/home_
-
-
-// About — pages/about
-
-
-// UsersId — pages/users/id_
 
 
