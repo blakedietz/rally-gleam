@@ -135,7 +135,8 @@ Running `gleam run -m lando` produces:
 |---|---|
 | `effect.gleam` | `send_to_server`, `send_to_client`, `broadcast_to_page`/`broadcast_to_app`/`broadcast_to_session` (ETF push via process dict + pg), `send_to_client_context` (page-to-context messaging), `navigate` (client-side URL push via modem) |
 | `db.gleam` | SQLite helpers: `open` (WAL/busy/FK), `query` (timed wrapper with debug logging), `one` (List to Option), `bool_to_int`, `nullable_text`, `transaction` (nestable via SAVEPOINTs) |
-| `system.gleam` | Framework-owned system DB (separate from app DB): message logging for all ToServer/ToClient/broadcast messages, global connection via `global_value`. Future: background job queue, scheduled tasks |
+| `system.gleam` | Framework-owned system DB (separate from app DB): message logging, background job queue, global connection via `global_value` |
+| `jobs.gleam` | Durable background job runner: polling, execution, exponential backoff retry, dead-letter handling |
 | `session.gleam` | Session cookie generation (crypto-random 128-bit hex) and extraction, `set_cookie_header` (HttpOnly, SameSite=Lax, Secure) |
 | `topics.gleam` | Topic pub/sub using OTP `pg` process groups: join/leave/broadcast/receive for cross-process push delivery |
 | `wire.gleam` | ETF encode/decode, call envelope parsing, frame tagging, variant tagging, Dynamic coercion |
@@ -189,6 +190,70 @@ On WebSocket connect, the framework auto-subscribes to three implicit topics: `a
 - `global_value` — Global persistent storage (system DB connection)
 - `modem` — client-side URL routing for Lustre (generated client dependency)
 
+## SSR Hydration
+
+Pages with a `load` function get server-side rendered on first request:
+
+1. The SSR handler calls `load(server_context)` to get the page `Model`
+2. If `client_context.gleam` exports `pub fn from_session(server_context, session_id)`, it's called to build a `ClientContext` for the render
+3. The page's `view(client_context, model)` renders HTML, wrapped in layout if present
+4. The model is base64-ETF encoded and embedded: `<script>window.__LANDO_FLAGS__='...'</script>`
+5. On the client, `init()` reads the flags. If decode succeeds, `hydrate_page` wraps the model in the correct `PageModel` variant with no effects (instant takeover). If decode fails, `init_page` runs fresh.
+
+Routes without `load` serve the shell HTML template and boot as a pure SPA.
+
+## Shell HTML Template
+
+Configured via `shell_file` (default: `src/shell.html`):
+
+```toml
+[tools.lando]
+shell_file = "src/shell.html"
+```
+
+The template is the base HTML document for SPA routes. Must include a `<div id="app"></div>` mount point and a script tag for the client JS. The SSR handler falls back to this for routes without a `load` function.
+
+## System DB and Jobs
+
+Every lando app gets a framework-managed SQLite database (separate from the app DB) via `system.start("system.db")` or `system.start_with_jobs("system.db", handler)`.
+
+Provides:
+- **Message logging:** all ToServer dispatches are logged with session, page, payload, and elapsed time
+- **Background jobs:** durable queue with retry. Schema: `id, name, payload (BLOB), run_at, attempts, status, last_error, created_at`
+
+Job API:
+- `system.enqueue(name, payload, run_at)` — enqueue at a Unix timestamp
+- `system.enqueue_in(name, payload, delay_seconds)` — enqueue after delay
+- `system.enqueue_now(name, payload)` — enqueue immediately
+
+The job runner polls every 1s, fetches up to 10 pending jobs, runs them via the `JobHandler` function (`fn(String, BitArray) -> Result(Nil, String)`). Retries with exponential backoff (attempts^2 * 5s), max 5 attempts. Failed jobs go to `'dead'` status.
+
+The system DB connection is stored globally via `global_value` so any process can call `system.get_conn()` without threading the connection through parameters.
+
+## WebSocket Reconnection
+
+The JS transport (`rpc_ffi.mjs`) handles reconnection automatically:
+
+- On disconnect: exponential backoff from 500ms to 30s with full jitter
+- Push handlers survive reconnects (registered once, reused across connections)
+- Sends queued during disconnect are flushed on reconnect
+
+On the Gleam side, `TransportConnected` triggers `reinit_server(route)` which sends `send_page_init` with request_id 0 for the current route. The server re-initializes the `ServerModel` fresh, so the client picks up current state without a full page reload.
+
+Connection state (`Connected | Disconnected | Reconnecting`) is tracked in the app model and rendered as a banner via `connection_banner`.
+
+## ClientContext and from_session
+
+`client_context.gleam` holds cross-page client state (auth user, theme, etc.). If it exports:
+
+```gleam
+pub fn from_session(server_context: ServerContext, session_id: String) -> ClientContext
+```
+
+The SSR handler uses it to hydrate `ClientContext` from server state (e.g., looking up the authenticated user by session). This lets server-rendered pages include user-specific UI without a client round-trip.
+
+On the client, `ClientContext` is initialized via `client_context.init()` and updated through `ClientContextUpdate` messages. Pages can trigger context updates from server responses via `send_to_client_context`.
+
 ## Configuration
 
 In `gleam.toml`:
@@ -203,6 +268,7 @@ output_ssr = "src/generated/ssr_handler.gleam"
 output_ws = "src/generated/ws_handler.gleam"
 sql_dir = "src/sql"
 client_root = "client"
+shell_file = "src/shell.html"
 ```
 
 The lando package path is resolved from `[dependencies].lando.path` in the consumer's gleam.toml, defaulting to `".."`.
