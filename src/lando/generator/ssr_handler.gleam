@@ -155,9 +155,9 @@ fn generate_load_arms(
           False -> "server_context"
         }
         let ctx_init = case use_session {
-          True -> "      let ctx = client_context.from_session(server_context, session_id)\n"
+          True -> "      let client_ctx = client_context.from_session(server_context, session_id)\n"
           False -> case has_client_context {
-            True -> "      let #(ctx, _) = client_context.init()\n"
+            True -> "      let #(client_ctx, _) = client_context.init()\n"
             False -> ""
           }
         }
@@ -168,7 +168,7 @@ fn generate_load_arms(
             <> ".view(model)\n"
             <> "    let html = element.to_document_string("
             <> layout
-            <> ".layout(ctx, page_view))\n"
+            <> ".layout(client_ctx, page_view))\n"
           Some(layout), False ->
             "    let page_view = "
             <> alias

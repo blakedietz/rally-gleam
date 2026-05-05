@@ -144,6 +144,11 @@ pub fn send_page_init(page: String, params: a) -> Nil {
 
 @external(javascript, \"./rpc_ffi.mjs\", \"send_page_init\")
 fn send_page_init_raw(url: String, page: String, params: a) -> Nil
+
+/// Read SSR flags embedded in the page by the server.
+/// Returns empty string if not present.
+@external(javascript, \"./rpc_ffi.mjs\", \"read_flags\")
+pub fn read_flags() -> String
 "
 }
 
@@ -162,6 +167,7 @@ fn app_gleam(
   let page_model_type = generate_page_model_type(routes, contract_map)
   let page_msg_type = generate_page_msg_type(routes, contract_map)
   let init_page_fn = generate_init_page(routes, contract_map, has_client_context)
+  let hydrate_page_fn = generate_hydrate_page(routes, contract_map)
   let reinit_server_fn = generate_reinit_server(routes, contract_map)
   let update_page_fn = generate_update_page(routes, contract_map, has_client_context)
   let render_page_fn = generate_render_page(routes, contract_map, has_client_context)
@@ -200,12 +206,20 @@ fn app_gleam(
 
   let ctx_init = case has_client_context {
     True ->
-      "  let #(client_context, ctx_effects) = client_context.init()
-  let #(page_model, page_effects) = init_page(route, client_context)
+      "  let flags = transport.read_flags()
+  let #(client_context, ctx_effects) = client_context.init()
+  let #(page_model, page_effects) = case codec.decode_flags(flags) {
+    Ok(model) -> #(hydrate_page(route, model), effect.none())
+    Error(_) -> init_page(route, client_context)
+  }
   #(Model(route:, page_model:, connection: Disconnected, client_context:),
     effect.batch([init_transport(), " <> modem_init <> ", effect.map(ctx_effects, ClientContextUpdate), page_effects]))"
     False ->
-      "  let #(page_model, page_effects) = init_page(route)
+      "  let flags = transport.read_flags()
+  let #(page_model, page_effects) = case codec.decode_flags(flags) {
+    Ok(model) -> #(hydrate_page(route, model), effect.none())
+    Error(_) -> init_page(route)
+  }
   #(Model(route:, page_model:, connection: Disconnected),
     effect.batch([init_transport(), " <> modem_init <> ", page_effects]))"
   }
@@ -341,6 +355,8 @@ fn init_transport() -> Effect(Msg) {
 }
 
 " <> init_page_fn <> "
+
+" <> hydrate_page_fn <> "
 
 " <> reinit_server_fn <> "
 
@@ -541,6 +557,30 @@ fn generate_init_page(
   }
 
   sig <> "\n  case route {\n" <> arms <> "\n" <> not_found_arm <> "\n  }\n}"
+}
+
+fn generate_hydrate_page(
+  routes: List(ScannedRoute),
+  contract_map: dict.Dict(String, PageContract),
+) -> String {
+  let arms =
+    routes
+    |> list.filter_map(fn(route) {
+      case dict.get(contract_map, route.variant_name) {
+        Ok(contract) if contract.has_model -> {
+          let pattern = route_pattern(route)
+          Ok(
+            "    " <> pattern <> " -> " <> route.variant_name <> "PageModel(model)",
+          )
+        }
+        _ -> Error(Nil)
+      }
+    })
+    |> string.join("\n")
+
+  "fn hydrate_page(route: router.Route, model: a) -> PageModel {\n  case route {\n"
+  <> arms
+  <> "\n    _ -> NoPageModel\n  }\n}"
 }
 
 fn generate_reinit_server(

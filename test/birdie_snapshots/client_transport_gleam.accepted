@@ -62,3 +62,8 @@ pub fn send_page_init(page: String, params: a) -> Nil {
 @external(javascript, "./rpc_ffi.mjs", "send_page_init")
 fn send_page_init_raw(url: String, page: String, params: a) -> Nil
 
+/// Read SSR flags embedded in the page by the server.
+/// Returns empty string if not present.
+@external(javascript, "./rpc_ffi.mjs", "read_flags")
+pub fn read_flags() -> String
+

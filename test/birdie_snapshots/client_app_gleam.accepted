@@ -59,7 +59,11 @@ pub fn main() {
 
 fn init(_flags: Nil) -> #(Model, Effect(Msg)) {
   let route = router.parse_route_from_url()
-  let #(page_model, page_effects) = init_page(route)
+  let flags = transport.read_flags()
+  let #(page_model, page_effects) = case codec.decode_flags(flags) {
+    Ok(model) -> #(hydrate_page(route, model), effect.none())
+    Error(_) -> init_page(route)
+  }
   #(Model(route:, page_model:, connection: Disconnected),
     effect.batch([init_transport(), modem.init(fn(uri) { UrlChanged(router.parse_route(uri)) }), page_effects]))
 }
@@ -105,6 +109,16 @@ fn init_page(route: router.Route) -> #(PageModel, Effect(Msg)) {
       #(ProductsIdPageModel(m), effect.map(e, fn(msg) { PageMsg(ProductsIdPageMsg(msg)) }))
     }
     _ -> #(NoPageModel, effect.none())
+  }
+}
+
+fn hydrate_page(route: router.Route, model: a) -> PageModel {
+  case route {
+    router.Home -> HomePageModel(model)
+    router.About -> AboutPageModel(model)
+    router.ProductsNew -> ProductsNewPageModel(model)
+    router.ProductsId(id) -> ProductsIdPageModel(model)
+    _ -> NoPageModel
   }
 }
 

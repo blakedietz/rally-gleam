@@ -1200,3 +1200,13 @@ export function encode_call(module, requestId, msg) {
   encoder.encodeTerm(msg);
   return encoder.result();
 }
+
+/**
+ * Read SSR flags from window.__LANDO_FLAGS__ and clear them.
+ * Returns the base64 ETF string or empty string if not present.
+ */
+export function read_flags() {
+  const flags = window.__LANDO_FLAGS__ || "";
+  delete window.__LANDO_FLAGS__;
+  return flags;
+}
