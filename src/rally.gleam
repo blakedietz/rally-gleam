@@ -257,8 +257,12 @@ fn run() -> Result(String, String) {
     }
     False -> []
   }
+
+  // Copy layout modules to client package (tree-shaken)
+  let layout_files = copy_layout_modules(routes, config, server_symbols)
+
   use _ <- result.try(write_generated_files(
-    list.flatten([codec_files, client_files, client_context_files]),
+    list.flatten([codec_files, client_files, client_context_files, layout_files]),
   ))
 
   Ok(int.to_string(list.length(routes)) <> " routes")
@@ -306,6 +310,36 @@ fn dirname(path: String) -> String {
     [_last, ..rest] -> string.join(list.reverse(rest), "/")
     [] -> "."
   }
+}
+
+fn copy_layout_modules(
+  routes: List(types.ScannedRoute),
+  config: ScanConfig,
+  server_symbols: List(String),
+) -> List(client.GeneratedFile) {
+  routes
+  |> list.filter_map(fn(route) {
+    case route.layout_module {
+      option.Some(layout_module) -> Ok(layout_module)
+      option.None -> Error(Nil)
+    }
+  })
+  |> list.unique
+  |> list.filter_map(fn(layout_module) {
+    let file_path =
+      config.pages_root
+      <> "/"
+      <> last_module_segment(layout_module)
+      <> ".gleam"
+    case simplifile.read(file_path) {
+      Ok(source) -> {
+        let shaken = tree_shaker.shake(source, server_symbols:)
+        let dest = config.client_root <> "/src/" <> layout_module <> ".gleam"
+        Ok(client.GeneratedFile(dest, shaken))
+      }
+      Error(_) -> Error(Nil)
+    }
+  })
 }
 
 fn collect_server_symbols(
