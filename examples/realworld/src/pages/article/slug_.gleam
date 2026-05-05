@@ -11,7 +11,7 @@ import generated/sql/favorites_sql
 import generated/sql/follows_sql
 import generated/sql/tags_sql
 import generated/sql/users_sql
-import lando_runtime/effect as lando_effect
+import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
@@ -120,23 +120,23 @@ pub fn update(
   msg: Msg,
 ) -> #(Model, Effect(Msg)) {
   case msg {
-    ClickedFavorite -> #(model, lando_effect.send_to_server(ToggleFavorite))
+    ClickedFavorite -> #(model, rally_effect.send_to_server(ToggleFavorite))
     ClickedFollow(username) -> #(
       model,
-      lando_effect.send_to_server(ToggleFollow(username:)),
+      rally_effect.send_to_server(ToggleFollow(username:)),
     )
     UpdatedComment(val) -> #(Model(..model, comment_body: val), effect.none())
     ClickedSubmitComment -> #(
       Model(..model, comment_body: ""),
-      lando_effect.send_to_server(SubmitComment(body: model.comment_body)),
+      rally_effect.send_to_server(SubmitComment(body: model.comment_body)),
     )
     ClickedDeleteComment(id) -> #(
       model,
-      lando_effect.send_to_server(DeleteComment(id:)),
+      rally_effect.send_to_server(DeleteComment(id:)),
     )
     ClickedDeleteArticle -> #(
       model,
-      lando_effect.send_to_server(DeleteArticle),
+      rally_effect.send_to_server(DeleteArticle),
     )
     GotServerMsg(ArticleData(article, comments, is_favorited, is_following, favorites_count)) -> #(
       Model(
@@ -356,7 +356,7 @@ pub fn server_init(
   server_context: ServerContext,
   article_slug: String,
 ) -> #(ServerModel, Effect(ToClient)) {
-  let session_id = lando_effect.get_ws_session()
+  let session_id = rally_effect.get_ws_session()
   let maybe_user_id = get_user_id(server_context.db, session_id)
   case articles_sql.get_by_slug(db: server_context.db, slug: article_slug) {
     Ok([row]) -> {
@@ -394,7 +394,7 @@ pub fn server_init(
         get_follow_status(server_context.db, row.author_id, maybe_user_id)
       #(
         ServerModel(article_id: row.id, author_id: row.author_id),
-        lando_effect.send_to_client(ArticleData(
+        rally_effect.send_to_client(ArticleData(
           article:,
           comments:,
           is_favorited:,
@@ -405,7 +405,7 @@ pub fn server_init(
     }
     _ -> #(
       ServerModelEmpty,
-      lando_effect.send_to_client(ArticleError("Article not found")),
+      rally_effect.send_to_client(ArticleError("Article not found")),
     )
   }
 }
@@ -420,10 +420,10 @@ pub fn server_update(
       case model {
         ServerModelEmpty -> #(
           model,
-          lando_effect.send_to_client(ArticleError("No article loaded")),
+          rally_effect.send_to_client(ArticleError("No article loaded")),
         )
         ServerModel(article_id, _author_id) -> {
-          let session_id = lando_effect.get_ws_session()
+          let session_id = rally_effect.get_ws_session()
           case get_user_id(server_context.db, session_id) {
             Ok(user_id) -> {
               let assert Ok([row]) =
@@ -444,11 +444,11 @@ pub fn server_update(
                   #(
                     model,
                     effect.batch([
-                      lando_effect.send_to_client(FavoriteUpdated(
+                      rally_effect.send_to_client(FavoriteUpdated(
                         count: new_count,
                         is_favorited: False,
                       )),
-                      lando_effect.broadcast_to_page(FavoriteCountUpdated(
+                      rally_effect.broadcast_to_page(FavoriteCountUpdated(
                         count: new_count,
                       )),
                     ]),
@@ -465,11 +465,11 @@ pub fn server_update(
                   #(
                     model,
                     effect.batch([
-                      lando_effect.send_to_client(FavoriteUpdated(
+                      rally_effect.send_to_client(FavoriteUpdated(
                         count: new_count,
                         is_favorited: True,
                       )),
-                      lando_effect.broadcast_to_page(FavoriteCountUpdated(
+                      rally_effect.broadcast_to_page(FavoriteCountUpdated(
                         count: new_count,
                       )),
                     ]),
@@ -479,14 +479,14 @@ pub fn server_update(
             }
             Error(_) -> #(
               model,
-              lando_effect.send_to_client(ArticleError("You must be logged in")),
+              rally_effect.send_to_client(ArticleError("You must be logged in")),
             )
           }
         }
       }
     }
     ToggleFollow(username) -> {
-      let session_id = lando_effect.get_ws_session()
+      let session_id = rally_effect.get_ws_session()
       case get_user_id(server_context.db, session_id) {
         Ok(user_id) -> {
           case users_sql.get_id_by_username(db: server_context.db, username:) {
@@ -508,7 +508,7 @@ pub fn server_update(
                     )
                   #(
                     model,
-                    lando_effect.send_to_client(FollowUpdated(is_following: False)),
+                    rally_effect.send_to_client(FollowUpdated(is_following: False)),
                   )
                 }
                 False -> {
@@ -520,20 +520,20 @@ pub fn server_update(
                     )
                   #(
                     model,
-                    lando_effect.send_to_client(FollowUpdated(is_following: True)),
+                    rally_effect.send_to_client(FollowUpdated(is_following: True)),
                   )
                 }
               }
             }
             _ -> #(
               model,
-              lando_effect.send_to_client(ArticleError("User not found")),
+              rally_effect.send_to_client(ArticleError("User not found")),
             )
           }
         }
         Error(_) -> #(
           model,
-          lando_effect.send_to_client(ArticleError("You must be logged in")),
+          rally_effect.send_to_client(ArticleError("You must be logged in")),
         )
       }
     }
@@ -541,16 +541,16 @@ pub fn server_update(
       case model {
         ServerModelEmpty -> #(
           model,
-          lando_effect.send_to_client(ArticleError("No article loaded")),
+          rally_effect.send_to_client(ArticleError("No article loaded")),
         )
         ServerModel(article_id, _author_id) -> {
           case string.is_empty(string.trim(body)) {
             True -> #(
               model,
-              lando_effect.send_to_client(ArticleError("Comment can't be blank")),
+              rally_effect.send_to_client(ArticleError("Comment can't be blank")),
             )
             False -> {
-              let session_id = lando_effect.get_ws_session()
+              let session_id = rally_effect.get_ws_session()
               case get_user_id(server_context.db, session_id) {
                 Ok(user_id) -> {
                   let now = datetime.now_unix()
@@ -577,17 +577,17 @@ pub fn server_update(
                           username: user_row.username,
                           image: user_row.image,
                         )
-                      #(model, lando_effect.broadcast_to_page(CommentAdded(comment)))
+                      #(model, rally_effect.broadcast_to_page(CommentAdded(comment)))
                     }
                     _ -> #(
                       model,
-                      lando_effect.send_to_client(ArticleError("Failed to post comment")),
+                      rally_effect.send_to_client(ArticleError("Failed to post comment")),
                     )
                   }
                 }
                 Error(_) -> #(
                   model,
-                  lando_effect.send_to_client(ArticleError("You must be logged in")),
+                  rally_effect.send_to_client(ArticleError("You must be logged in")),
                 )
               }
             }
@@ -596,7 +596,7 @@ pub fn server_update(
       }
     }
     DeleteComment(id) -> {
-      let session_id = lando_effect.get_ws_session()
+      let session_id = rally_effect.get_ws_session()
       case get_user_id(server_context.db, session_id) {
         Ok(user_id) -> {
           case
@@ -607,13 +607,13 @@ pub fn server_update(
             )
           {
             Ok([_]) ->
-              #(model, lando_effect.broadcast_to_page(CommentRemoved(id:)))
+              #(model, rally_effect.broadcast_to_page(CommentRemoved(id:)))
             _ -> #(model, effect.none())
           }
         }
         Error(_) -> #(
           model,
-          lando_effect.send_to_client(ArticleError("You must be logged in")),
+          rally_effect.send_to_client(ArticleError("You must be logged in")),
         )
       }
     }
@@ -621,10 +621,10 @@ pub fn server_update(
       case model {
         ServerModelEmpty -> #(
           model,
-          lando_effect.send_to_client(ArticleError("No article loaded")),
+          rally_effect.send_to_client(ArticleError("No article loaded")),
         )
         ServerModel(article_id, author_id) -> {
-          let session_id = lando_effect.get_ws_session()
+          let session_id = rally_effect.get_ws_session()
           case get_user_id(server_context.db, session_id) {
             Ok(user_id) -> {
               case user_id == author_id {
@@ -634,17 +634,17 @@ pub fn server_update(
                       db: server_context.db,
                       article_id:,
                     )
-                  #(ServerModelEmpty, lando_effect.send_to_client(ArticleDeleted))
+                  #(ServerModelEmpty, rally_effect.send_to_client(ArticleDeleted))
                 }
                 False -> #(
                   model,
-                  lando_effect.send_to_client(ArticleError("You can only delete your own articles")),
+                  rally_effect.send_to_client(ArticleError("You can only delete your own articles")),
                 )
               }
             }
             Error(_) -> #(
               model,
-              lando_effect.send_to_client(ArticleError("You must be logged in")),
+              rally_effect.send_to_client(ArticleError("You must be logged in")),
             )
           }
         }

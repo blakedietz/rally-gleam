@@ -82,7 +82,7 @@ fn print_articles(articles: List(ArticlePreview)) {
 
 fn usage() {
   io.println(
-    "realworld-cli: ETF-over-HTTP client for the Lando realworld example
+    "realworld-cli: ETF-over-HTTP client for the Rally realworld example
 
 Usage:
   gleam run -- register <username> <email> <password>

@@ -1,11 +1,11 @@
-# Lando
+# Rally
 
 A full-stack web framework for Gleam on the BEAM. Write page modules, run the codegen, get a working web app with real-time client-server messaging over WebSockets.
 
 ## Quick start
 
 ```sh
-bash bin/new my_app
+bin/new my_app
 cd my_app && bin/dev
 ```
 
@@ -23,7 +23,7 @@ Types, state, and logic live in the page file until they need to be shared. A pa
 
 ### SQLite ships with every app
 
-Every lando app gets SQLite with WAL mode, busy timeout, and foreign keys enabled. No database selection step, no adapter pattern, no connection pooling config. One process, one file, one less thing to debug. Marmot generates type-safe query functions from `.sql` files via live SQLite introspection.
+Every rally app gets SQLite with WAL mode, busy timeout, and foreign keys enabled. No database selection step, no adapter pattern, no connection pooling config. One process, one file, one less thing to debug. Marmot generates type-safe query functions from `.sql` files via live SQLite introspection.
 
 ### ETF over the wire
 
@@ -78,15 +78,15 @@ pub fn server_update(model, msg, server_context) -> #(ServerModel, Effect(ToClie
 
 Both sides are TEA. The messaging contract is the type system: if `ToServer` has a variant, the server handles it. If `ToClient` has a variant, the client handles it via `GotServerMsg`.
 
-## Lando vs Lustre server components
+## Rally vs Lustre server components
 
 These are two different architectures for building full-stack Lustre apps. Neither is strictly better.
 
 **Lustre server components** run the TEA loop on the server: model, update, and view all execute server-side. On first connect, the server sends the full VDOM. On each subsequent update, it diffs the old and new VDOM and sends only the patch. The client is a thin JS shell (~10KB) that applies DOM patches and forwards events back to the server.
 
-**Lando** runs TEA on both sides. The client handles UI state locally (model, update, view run in the browser). The server has its own model and update function, and only gets involved when the client explicitly sends a domain message (`ToServer`). The server responds with domain messages (`ToClient`), not VDOM patches.
+**Rally** runs TEA on both sides. The client handles UI state locally (model, update, view run in the browser). The server has its own model and update function, and only gets involved when the client explicitly sends a domain message (`ToServer`). The server responds with domain messages (`ToClient`), not VDOM patches.
 
-| | Lustre server components | Lando |
+| | Lustre server components | Rally |
 |---|---|---|
 | **Where UI runs** | Server (model + update + view) | Client (model + update + view) |
 | **What goes over the wire** | VDOM patches down, DOM events up | Domain messages in both directions |
@@ -103,13 +103,13 @@ These are two different architectures for building full-stack Lustre apps. Neith
 
 Server components can also embed client-side Lustre components as web components for spots that need local interactivity, with the server pushing data via attributes and context providers. For apps that are 90% server-driven with a few interactive widgets, this hybrid approach works well.
 
-### When lando makes more sense
+### When rally makes more sense
 
 **Multiple client surfaces.** The explicit `ToServer`/`ToClient` message layer is a typed API contract. A web client sends messages over WebSocket. A CLI sends the same messages over HTTP. An AI agent uses the CLI. A JS SDK calls the same endpoints from a static site. One set of `server_update` functions serves all of them.
 
 With server components, the wire protocol is VDOM patches: only a browser can consume them. If you later need a CLI or SDK, you build a separate API layer, maintain two ways to invoke the same business logic, two auth paths, two testing surfaces.
 
-**Responsive local interactions.** For continuous client interactions (typing with live feedback, drag-and-drop, editors, optimistic updates), the server round-trip becomes perceptible. Lando keeps those interactions local and only crosses the network for things that actually need the server.
+**Responsive local interactions.** For continuous client interactions (typing with live feedback, drag-and-drop, editors, optimistic updates), the server round-trip becomes perceptible. Rally keeps those interactions local and only crosses the network for things that actually need the server.
 
 The cost is real: you write two update functions per page, you decide what belongs on the client vs. server for every interaction, the client bundle is larger, and you need a broadcast system for real-time multi-user features. But if your app has multiple client surfaces, the "overhead" of explicit domain messages is actually the architecture that enables them.
 

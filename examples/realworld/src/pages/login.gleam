@@ -4,7 +4,7 @@ import generated/sql/auth_sql
 import gleam/list
 import gleam/option.{Some}
 import gleam/string
-import lando_runtime/effect as lando_effect
+import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
@@ -42,7 +42,7 @@ pub fn update(
     UpdatedPassword(val) -> #(Model(..model, password: val), effect.none())
     ClickedLogin -> #(
       model,
-      lando_effect.rpc(
+      rally_effect.rpc(
         ServerLogin(email: model.email, password: model.password),
         on_response: GotLogin,
       ),
@@ -50,8 +50,8 @@ pub fn update(
     GotLogin(Ok(#(username, image))) -> #(
       model,
       effect.batch([
-        lando_effect.send_to_client_context(SignedIn(User(username:, image:))),
-        lando_effect.navigate("/"),
+        rally_effect.send_to_client_context(SignedIn(User(username:, image:))),
+        rally_effect.navigate("/"),
       ]),
     )
     GotLogin(Error(errors)) -> #(Model(..model, errors:), effect.none())
@@ -129,7 +129,7 @@ pub fn server_login(
         Ok([user]) -> {
           case password.verify(msg.password, user.password_hash) {
             True -> {
-              let session_id = lando_effect.get_ws_session()
+              let session_id = rally_effect.get_ws_session()
               let now = datetime.now_unix()
               let assert Ok(_) =
                 auth_sql.create_session(

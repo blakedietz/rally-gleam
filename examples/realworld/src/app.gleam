@@ -8,10 +8,10 @@ import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
 import gleam/list
 import gleam/string
-import lando_runtime/db
-import lando_runtime/migrate
-import lando_runtime/session
-import lando_runtime/system
+import rally_runtime/db
+import rally_runtime/migrate
+import rally_runtime/session
+import rally_runtime/system
 import mist.{type Connection, type ResponseData}
 import server_context.{ServerContext}
 import simplifile

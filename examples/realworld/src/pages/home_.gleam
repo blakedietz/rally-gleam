@@ -7,7 +7,7 @@ import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
-import lando_runtime/effect as lando_effect
+import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
@@ -76,20 +76,20 @@ pub fn update(
       let #(tab_name, tag) = tab_to_wire(tab)
       #(
         Model(..model, active_tab: tab, page: 1),
-        lando_effect.rpc(ServerSwitchTab(tab_name:, tag:), on_response: GotArticles),
+        rally_effect.rpc(ServerSwitchTab(tab_name:, tag:), on_response: GotArticles),
       )
     }
     ClickedPage(page) -> {
       let #(tab_name, tag) = tab_to_wire(model.active_tab)
       #(
         Model(..model, page:),
-        lando_effect.rpc(ServerChangePage(page:, tab_name:, tag:), on_response: GotArticles),
+        rally_effect.rpc(ServerChangePage(page:, tab_name:, tag:), on_response: GotArticles),
       )
     }
     ClickedTag(tag) -> {
       #(
         Model(..model, active_tab: TagFeed(tag:), page: 1),
-        lando_effect.rpc(ServerSwitchTab(tab_name: "tag", tag:), on_response: GotArticles),
+        rally_effect.rpc(ServerSwitchTab(tab_name: "tag", tag:), on_response: GotArticles),
       )
     }
     GotArticles(Ok(#(articles, total))) -> #(
@@ -292,7 +292,7 @@ fn fetch_tab_articles(
 ) -> #(List(ArticlePreview), Int) {
   case tab_name {
     "feed" -> {
-      let session_id = lando_effect.get_ws_session()
+      let session_id = rally_effect.get_ws_session()
       case get_user_id(db, session_id) {
         Ok(user_id) -> {
           let assert Ok(rows) =

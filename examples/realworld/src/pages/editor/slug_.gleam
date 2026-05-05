@@ -6,7 +6,7 @@ import generated/sql/tags_sql
 import gleam/list
 import gleam/option.{Some}
 import gleam/string
-import lando_runtime/effect as lando_effect
+import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
@@ -109,7 +109,7 @@ pub fn update(
     )
     ClickedUpdate -> #(
       model,
-      lando_effect.send_to_server(UpdateArticle(
+      rally_effect.send_to_server(UpdateArticle(
         title: model.title,
         description: model.description,
         body: model.body,
@@ -230,7 +230,7 @@ pub fn server_init(
   server_context: ServerContext,
   article_slug: String,
 ) -> #(ServerModel, Effect(ToClient)) {
-  let session_id = lando_effect.get_ws_session()
+  let session_id = rally_effect.get_ws_session()
   case
     auth_sql.find_user_by_session(
       db: server_context.db,
@@ -256,7 +256,7 @@ pub fn server_init(
                   article_id: article.id,
                   author_id: article.author_id,
                 ),
-                lando_effect.send_to_client(ArticleLoaded(
+                rally_effect.send_to_client(ArticleLoaded(
                   title: article.title,
                   description: article.description,
                   body: article.body,
@@ -266,7 +266,7 @@ pub fn server_init(
             }
             False -> #(
               ServerModelEmpty,
-              lando_effect.send_to_client(EditorErrors([
+              rally_effect.send_to_client(EditorErrors([
                 "You can only edit your own articles",
               ])),
             )
@@ -274,13 +274,13 @@ pub fn server_init(
         }
         _ -> #(
           ServerModelEmpty,
-          lando_effect.send_to_client(EditorErrors(["Article not found"])),
+          rally_effect.send_to_client(EditorErrors(["Article not found"])),
         )
       }
     }
     _ -> #(
       ServerModelEmpty,
-      lando_effect.send_to_client(EditorErrors([
+      rally_effect.send_to_client(EditorErrors([
         "You must be logged in to edit",
       ])),
     )
@@ -297,7 +297,7 @@ pub fn server_update(
       case model {
         ServerModelEmpty -> #(
           ServerModelEmpty,
-          lando_effect.send_to_client(EditorErrors(["No article loaded"])),
+          rally_effect.send_to_client(EditorErrors(["No article loaded"])),
         )
         ServerModel(article_id, _author_id) -> {
           let errors = validate_article(title, body)
@@ -323,12 +323,12 @@ pub fn server_update(
               save_tags(server_context.db, article_id, tags)
               #(
                 model,
-                lando_effect.send_to_client(ArticleUpdated(slug: new_slug)),
+                rally_effect.send_to_client(ArticleUpdated(slug: new_slug)),
               )
             }
             _ -> #(
               model,
-              lando_effect.send_to_client(EditorErrors(errors)),
+              rally_effect.send_to_client(EditorErrors(errors)),
             )
           }
         }

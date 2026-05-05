@@ -6,7 +6,7 @@ import generated/sql/tags_sql
 import gleam/list
 import gleam/option.{Some}
 import gleam/string
-import lando_runtime/effect as lando_effect
+import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
@@ -82,7 +82,7 @@ pub fn update(
     )
     ClickedPublish -> #(
       model,
-      lando_effect.rpc(
+      rally_effect.rpc(
         ServerPublishArticle(
           title: model.title,
           description: model.description,
@@ -94,7 +94,7 @@ pub fn update(
     )
     GotPublish(Ok(article_slug)) -> #(
       Model(..model, errors: []),
-      lando_effect.navigate("/article/" <> article_slug),
+      rally_effect.navigate("/article/" <> article_slug),
     )
     GotPublish(Error(errors)) -> #(Model(..model, errors:), effect.none())
   }
@@ -191,7 +191,7 @@ pub fn server_publish_article(
   let errors = validate_article(msg.title, msg.body)
   case errors {
     [] -> {
-      let session_id = lando_effect.get_ws_session()
+      let session_id = rally_effect.get_ws_session()
       case
         auth_sql.find_user_by_session(
           db: server_context.db,

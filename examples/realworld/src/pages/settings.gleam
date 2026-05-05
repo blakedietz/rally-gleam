@@ -4,7 +4,7 @@ import generated/sql/auth_sql
 import gleam/list
 import gleam/option.{Some}
 import gleam/string
-import lando_runtime/effect as lando_effect
+import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
@@ -71,7 +71,7 @@ pub fn update(
     UpdatedPassword(val) -> #(Model(..model, password: val), effect.none())
     ClickedUpdate -> #(
       model,
-      lando_effect.rpc(
+      rally_effect.rpc(
         ServerUpdateSettings(
           image: model.image,
           username: model.username,
@@ -84,18 +84,18 @@ pub fn update(
     )
     ClickedLogout -> #(
       model,
-      lando_effect.rpc(ServerLogout, on_response: GotLogout),
+      rally_effect.rpc(ServerLogout, on_response: GotLogout),
     )
     GotUpdate(Ok(#(username, image))) -> #(
       Model(..model, errors: []),
-      lando_effect.send_to_client_context(SignedIn(User(username:, image:))),
+      rally_effect.send_to_client_context(SignedIn(User(username:, image:))),
     )
     GotUpdate(Error(errors)) -> #(Model(..model, errors:), effect.none())
     GotLogout(Ok(_)) -> #(
       model,
       effect.batch([
-        lando_effect.send_to_client_context(SignedOut),
-        lando_effect.navigate("/"),
+        rally_effect.send_to_client_context(SignedOut),
+        rally_effect.navigate("/"),
       ]),
     )
     GotLogout(Error(_)) -> #(model, effect.none())
@@ -194,7 +194,7 @@ pub fn server_update_settings(
   msg msg: ServerUpdateSettings,
   server_context server_context: ServerContext,
 ) -> Result(#(String, String), List(String)) {
-  let session_id = lando_effect.get_ws_session()
+  let session_id = rally_effect.get_ws_session()
   case
     auth_sql.find_user_by_session(
       db: server_context.db,
@@ -260,7 +260,7 @@ pub fn server_logout(
   msg _msg: ServerLogout,
   server_context server_context: ServerContext,
 ) -> Result(Nil, Nil) {
-  let session_id = lando_effect.get_ws_session()
+  let session_id = rally_effect.get_ws_session()
   let assert Ok(_) =
     auth_sql.delete_session(
       db: server_context.db,

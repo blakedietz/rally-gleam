@@ -46,7 +46,7 @@ fn footer_view() -> Element(msg) {
       html.a([attr.class("logo-font"), attr.href("/")], [html.text("conduit")]),
       html.span([attr.class("attribution")], [
         html.text("Built with "),
-        html.a([attr.href("https://github.com/lando")], [html.text("Lando")]),
+        html.a([attr.href("https://github.com/rally")], [html.text("Rally")]),
       ]),
     ]),
   ])

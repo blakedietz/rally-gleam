@@ -1,15 +1,15 @@
-# Lando Framework
+# Rally Framework
 
 A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, Marmot for queries, ETF for wire format, libero for RPC plumbing.
 
 ## Quick start
 
 ```sh
-bash bin/new my_app
+bin/new my_app
 cd my_app && bin/dev
 ```
 
-`bin/dev` runs the Lando codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), builds the JS client, and starts the Mist server on port 8080.
+`bin/dev` runs the Rally codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), builds the JS client, and starts the Mist server on port 8080.
 
 ## Page module contract
 
@@ -57,7 +57,7 @@ The message type defined alongside the handler is used directly in the client's 
 ```gleam
 pub fn update(_cc, model, msg) {
   case msg {
-    ClickedLogin -> #(model, lando_effect.rpc(ServerLogin(email: model.email, password: model.password), on_response: GotLogin))
+    ClickedLogin -> #(model, rally_effect.rpc(ServerLogin(email: model.email, password: model.password), on_response: GotLogin))
     GotLogin(Ok(#(username, image))) -> // handle success
     GotLogin(Error(errors)) -> // handle errors
   }
@@ -73,7 +73,7 @@ pub fn update(_cc, model, msg) {
 
 ### Effect primitives
 
-Page modules import from `lando_runtime/effect`:
+Page modules import from `rally_runtime/effect`:
 
 - `rpc(msg, on_response: callback)` — calls a server handler via WebSocket RPC. On the server this is a no-op (update never runs server-side). On the client, the generated code encodes the msg and sends it over the transport.
 - `send_to_client(variant)` — server push: encodes as ETF push frame, queues for WS handler
@@ -93,15 +93,15 @@ my_app/
 │   ├── client_context.gleam # ClientContext type (cross-page client state)
 │   ├── pages/              # route = filesystem
 │   ├── sql/                # marmot .sql files
-│   └── generated/          # Lando codegen output (never edit)
+│   └── generated/          # Rally codegen output (never edit)
 ├── client/                 # JS client (fully generated)
 ├── gleam.toml
 └── bin/dev
 ```
 
-## What Lando generates
+## What Rally generates
 
-Running `gleam run -m lando` produces:
+Running `gleam run -m rally` produces:
 
 | File | Purpose |
 |---|---|
@@ -117,15 +117,15 @@ Running `gleam run -m lando` produces:
 | `client/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
 | `client/src/generated/codec.gleam` | Typed encode/decode wrappers, decoder FFI bindings |
 | `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
-| `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from lando_runtime) |
+| `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime) |
 
 ## Architecture
 
-### Codegen tool (`src/lando/`)
+### Codegen tool (`src/rally/`)
 
 | Module | Role |
 |---|---|
-| `lando.gleam` | CLI entry point, reads `[tools.lando]` from gleam.toml, runs pipeline |
+| `rally.gleam` | CLI entry point, reads `[tools.rally]` from gleam.toml, runs pipeline |
 | `scanner.gleam` | Recursively walks pages directory, produces `List(ScannedRoute)` |
 | `parser.gleam` | Glance AST parser: extracts Model/Msg types, detects function signatures |
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
@@ -138,7 +138,7 @@ Running `gleam run -m lando` produces:
 
 Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generates dispatch source), walker (BFS type graph), codegen_decoders (JS type registration), field_type (type representation), wire (ETF codec), trace (panic catching).
 
-### Runtime library (`src/lando_runtime/`)
+### Runtime library (`src/rally_runtime/`)
 
 | Module | Role |
 |---|---|
@@ -152,7 +152,7 @@ Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generat
 | `codec.gleam` | Base64 ETF serialization for SSR flags |
 | `ssr.gleam` | HTML rendering via lustre element |
 | `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect + dev-mode message inspector |
-| `lando_runtime_ffi.erl` | Erlang FFI: WS process state management, push frame accumulator |
+| `rally_runtime_ffi.erl` | Erlang FFI: WS process state management, push frame accumulator |
 
 ### Broadcast and Topics
 
@@ -190,10 +190,10 @@ Auto-enabled on localhost. All WebSocket messages are logged to the browser cons
 RPC responses show round-trip latency (e.g. `rpc #3 (12.4ms)`). Connection lifecycle events (connected, disconnected, reconnected) are also logged.
 
 **Console API:**
-- `window.__LANDO_MESSAGES__` — array of all messages with timestamps, direction, raw data, and formatted strings
-- `window.__LANDO_FORMAT__(value)` — format any ETF-decoded value as Gleam syntax
-- `window.__LANDO_DEBUG__ = false` — disable inspector
-- `window.__LANDO_DEBUG__ = true` — enable in production
+- `window.__RALLY_MESSAGES__` — array of all messages with timestamps, direction, raw data, and formatted strings
+- `window.__RALLY_FORMAT__(value)` — format any ETF-decoded value as Gleam syntax
+- `window.__RALLY_DEBUG__ = false` — disable inspector
+- `window.__RALLY_DEBUG__ = true` — enable in production
 
 **Server-side:** All messages are logged to `system.messages` SQLite table with session ID, page, direction, variant name, raw ETF payload, and elapsed time.
 
@@ -223,7 +223,7 @@ Pages with a `load` function get server-side rendered on first request:
 In `gleam.toml`:
 
 ```toml
-[tools.lando]
+[tools.rally]
 pages_root = "src/pages"
 output_route = "src/generated/router.gleam"
 output_dispatch = "src/generated/page_dispatch.gleam"

@@ -1,4 +1,4 @@
-name = "lando"
+name = "rally"
 version = "0.1.0"
 target = "erlang"
 

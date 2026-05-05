@@ -8,7 +8,7 @@ import generated/sql/articles_sql
 import generated/sql/auth_sql
 import generated/sql/follows_sql
 import generated/sql/users_sql
-import lando_runtime/effect as lando_effect
+import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
@@ -93,7 +93,7 @@ pub fn update(
   msg: Msg,
 ) -> #(Model, Effect(Msg)) {
   case msg {
-    ClickedFollow -> #(model, lando_effect.send_to_server(ToggleFollow))
+    ClickedFollow -> #(model, rally_effect.send_to_server(ToggleFollow))
     ClickedTab(tab) -> {
       let tab_name = case tab {
         MyArticles -> "my_articles"
@@ -101,7 +101,7 @@ pub fn update(
       }
       #(
         Model(..model, active_tab: tab),
-        lando_effect.send_to_server(SwitchTab(tab_name:)),
+        rally_effect.send_to_server(SwitchTab(tab_name:)),
       )
     }
     GotServerMsg(ProfileData(profile, articles, is_following)) -> #(
@@ -225,7 +225,7 @@ pub fn server_init(
   server_context: ServerContext,
   username: String,
 ) -> #(ServerModel, Effect(ToClient)) {
-  let session_id = lando_effect.get_ws_session()
+  let session_id = rally_effect.get_ws_session()
   let maybe_user_id = get_user_id(server_context.db, session_id)
   case users_sql.get_by_username(db: server_context.db, username:) {
     Ok([row]) -> {
@@ -235,7 +235,7 @@ pub fn server_init(
         get_follow_status(server_context.db, row.id, maybe_user_id)
       #(
         ServerModel(profile_user_id: row.id),
-        lando_effect.send_to_client(ProfileData(
+        rally_effect.send_to_client(ProfileData(
           profile:,
           articles:,
           is_following:,
@@ -256,7 +256,7 @@ pub fn server_update(
       case model {
         ServerModelEmpty -> #(model, effect.none())
         ServerModel(profile_user_id) -> {
-          let session_id = lando_effect.get_ws_session()
+          let session_id = rally_effect.get_ws_session()
           case get_user_id(server_context.db, session_id) {
             Ok(user_id) if user_id == profile_user_id -> #(
               model,
@@ -279,7 +279,7 @@ pub fn server_update(
                     )
                   #(
                     model,
-                    lando_effect.send_to_client(FollowUpdated(False)),
+                    rally_effect.send_to_client(FollowUpdated(False)),
                   )
                 }
                 False -> {
@@ -291,7 +291,7 @@ pub fn server_update(
                     )
                   #(
                     model,
-                    lando_effect.send_to_client(FollowUpdated(True)),
+                    rally_effect.send_to_client(FollowUpdated(True)),
                   )
                 }
               }
@@ -310,7 +310,7 @@ pub fn server_update(
               fetch_favorited_articles(server_context.db, profile_user_id)
             _ -> fetch_user_articles(server_context.db, profile_user_id)
           }
-          #(model, lando_effect.send_to_client(ProfileArticles(articles)))
+          #(model, rally_effect.send_to_client(ProfileArticles(articles)))
         }
       }
     }
