@@ -46,3 +46,20 @@ pub fn route_to_path(route route: Route) -> String {
 pub fn href(route route: Route) -> Attribute(msg) {
   attribute.href(route_to_path(route: route))
 }
+
+/// Read the browser's current location.
+@external(javascript, "./router_ffi.mjs", "currentUrl")
+fn current_url() -> String
+
+/// Parse the current browser URL into a Route.
+pub fn parse_route_from_url() -> Route {
+  let url = current_url()
+  let uri = case uri.parse(url) {
+    Ok(u) -> u
+    Error(_) -> {
+      let assert Ok(fallback) = uri.parse("http://localhost/")
+      fallback
+    }
+  }
+  parse_route(uri)
+}

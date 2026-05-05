@@ -7,6 +7,7 @@ pub fn generate(
   page_contracts: List(#(ScannedRoute, PageContract)),
   has_client_context: Bool,
   has_from_session: Bool,
+  shell_html: String,
 ) -> String {
   let use_session = has_client_context && has_from_session
   let load_arms = generate_load_arms(page_contracts, has_client_context, use_session)
@@ -67,16 +68,20 @@ pub fn handle_request(
 }"
   }
 
+  let escaped_shell =
+    shell_html
+    |> string.replace("\\", "\\\\")
+    |> string.replace("\"", "\\\"")
+    |> string.replace("\n", "\\n")
+
   header
   <> fn_body
   <> "
 
 fn serve_html_shell() -> response.Response(ResponseData) {
-  let html = \"<!DOCTYPE html>
-<html>
-<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>
-<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>
-</html>\"
+  let html = \""
+  <> escaped_shell
+  <> "\"
   response.new(200)
   |> response.set_header(\"content-type\", \"text/html\")
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
@@ -110,6 +115,13 @@ fn generate_page_imports(
 
 fn module_to_alias(module_path: String) -> String {
   string.replace(module_path, "/", "_")
+}
+
+fn last_segment(module_path: String) -> String {
+  case string.split(module_path, "/") |> list.last {
+    Ok(seg) -> seg
+    Error(_) -> module_path
+  }
 }
 
 fn generate_layout_imports(
@@ -161,25 +173,31 @@ fn generate_load_arms(
             False -> ""
           }
         }
+        let view_call = case has_client_context {
+          True -> alias <> ".view(client_ctx, model)"
+          False -> alias <> ".view(model)"
+        }
         let view_expr = case route.layout_module, has_client_context {
-          Some(layout), True ->
+          Some(layout), True -> {
+            let layout_alias = last_segment(layout)
             "    let page_view = "
-            <> alias
-            <> ".view(model)\n"
-            <> "    let html = element.to_document_string("
-            <> layout
+            <> view_call
+            <> "\n    let html = element.to_document_string("
+            <> layout_alias
             <> ".layout(client_ctx, page_view))\n"
-          Some(layout), False ->
+          }
+          Some(layout), False -> {
+            let layout_alias = last_segment(layout)
             "    let page_view = "
-            <> alias
-            <> ".view(model)\n"
-            <> "    let html = element.to_document_string("
-            <> layout
+            <> view_call
+            <> "\n    let html = element.to_document_string("
+            <> layout_alias
             <> ".layout(page_view))\n"
+          }
           None, _ ->
             "    let html = element.to_document_string("
-            <> alias
-            <> ".view(model))\n"
+            <> view_call
+            <> ")\n"
         }
         Ok(
           "    router."

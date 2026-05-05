@@ -266,6 +266,18 @@ fn pagination(current_page: Int, total: Int) -> Element(Msg) {
   }
 }
 
+// --- SSR ---
+
+pub fn load(server_context: ServerContext) -> Model {
+  let assert Ok(rows) =
+    articles_sql.list_global(db: server_context.db, limit: 10, offset: 0)
+  let articles = list.map(rows, fn(r) { to_preview(r.slug, r.title, r.description, r.created_at, r.username, r.image, r.fav_count) })
+  let assert Ok(tag_rows) = tags_sql.list_popular(db: server_context.db)
+  let tags = list.map(tag_rows, fn(r) { r.name })
+  let assert Ok([count_row]) = articles_sql.count_global(db: server_context.db)
+  Model(articles:, tags:, active_tab: GlobalFeed, page: 1, total: count_row.count)
+}
+
 // --- Server ---
 
 pub fn server_init(

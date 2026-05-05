@@ -19,6 +19,7 @@ fn test_config(dir: String) -> ScanConfig {
     sql_dir: "",
     client_root: "",
     lando_package_path: "",
+    shell_file: "",
   )
 }
 

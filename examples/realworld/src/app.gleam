@@ -1,3 +1,5 @@
+import generated/router
+import generated/ssr_handler
 import generated/ws_handler
 import gleam/bytes_tree
 import gleam/erlang/process
@@ -46,7 +48,16 @@ pub fn main() {
           False ->
             case method {
               Get -> {
-                let resp = serve_html_shell()
+                let session_id = case request.get_header(req, "cookie") {
+                  Ok(cookie) ->
+                    case session.extract_session_id(cookie) {
+                      Ok(id) -> id
+                      Error(_) -> session.generate_id()
+                    }
+                  Error(_) -> session.generate_id()
+                }
+                let route = router.parse_route(request.to_uri(req))
+                let resp = ssr_handler.handle_request(route, server_context, session_id)
                 case request.get_header(req, "cookie") {
                   Ok(cookie) ->
                     case session.extract_session_id(cookie) {
@@ -55,14 +66,14 @@ pub fn main() {
                         response.set_header(
                           resp,
                           "set-cookie",
-                          session.set_cookie_header(session.generate_id()),
+                          session.set_cookie_header(session_id),
                         )
                     }
                   Error(_) ->
                     response.set_header(
                       resp,
                       "set-cookie",
-                      session.set_cookie_header(session.generate_id()),
+                      session.set_cookie_header(session_id),
                     )
                 }
               }
@@ -84,27 +95,6 @@ pub fn main() {
   process.sleep_forever()
 }
 
-fn serve_html_shell() -> Response(ResponseData) {
-  let html =
-    "<!DOCTYPE html>
-<html>
-<head>
-  <meta charset='utf-8'>
-  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-  <title>Conduit</title>
-  <link href='https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css' rel='stylesheet' type='text/css'>
-  <link href='https://fonts.googleapis.com/css?family=Titillium+Web:700|Source+Serif+Pro:400,700|Merriweather+Sans:400,700|Source+Sans+Pro:400,300,600,700,300italic,400italic,600italic,700italic' rel='stylesheet' type='text/css'>
-  <link rel='stylesheet' href='https://demo.productionready.io/main.css'>
-</head>
-<body>
-  <div id='app'></div>
-  <script type='module' src='/_build/client/generated/app.mjs'></script>
-</body>
-</html>"
-  response.new(200)
-  |> response.set_header("content-type", "text/html")
-  |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
-}
 
 fn serve_static(path: String) -> Response(ResponseData) {
   let file_path = client_build_root <> "/" <> path

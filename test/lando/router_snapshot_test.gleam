@@ -93,7 +93,8 @@ pub fn server_dispatch_snapshot_test() {
 
 pub fn ssr_handler_snapshot_test() {
   let contracts = basic_contracts()
-  let output = ssr_handler.generate(contracts, False, False)
+  let shell = "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
+  let output = ssr_handler.generate(contracts, False, False, shell)
   birdie.snap(output, "ssr_handler_gleam")
 }
 
@@ -153,5 +154,6 @@ fn test_scan_config() -> ScanConfig {
     sql_dir: "",
     client_root: "client",
     lando_package_path: "",
+    shell_file: "",
   )
 }

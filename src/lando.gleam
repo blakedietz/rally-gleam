@@ -83,6 +83,10 @@ fn read_config() -> Result(ScanConfig, String) {
     }
   }
 
+  let shell_file =
+    tom.get_string(lando_config, ["shell_file"])
+    |> result.unwrap("src/shell.html")
+
   Ok(ScanConfig(
     pages_root:,
     output_route:,
@@ -93,6 +97,7 @@ fn read_config() -> Result(ScanConfig, String) {
     sql_dir:,
     client_root:,
     lando_package_path:,
+    shell_file:,
   ))
 }
 
@@ -149,7 +154,11 @@ fn run() -> Result(String, String) {
   use _ <- result.try(write_file(config.output_server_dispatch, sd_source))
 
   // 6. Generate SSR handler
-  let ssr_source = ssr_handler.generate(contracts, has_client_context, has_from_session)
+  let shell_html = case simplifile.read(config.shell_file) {
+    Ok(html) -> html
+    Error(_) -> "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
+  }
+  let ssr_source = ssr_handler.generate(contracts, has_client_context, has_from_session, shell_html)
   use _ <- result.try(write_file(config.output_ssr, ssr_source))
 
   // 6. Generate WebSocket handler

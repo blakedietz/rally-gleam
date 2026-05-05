@@ -64,11 +64,7 @@ pub fn handle_request(
 }
 
 fn serve_html_shell() -> response.Response(ResponseData) {
-  let html = "<!DOCTYPE html>
-<html>
-<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>
-<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>
-</html>"
+  let html = "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
   response.new(200)
   |> response.set_header("content-type", "text/html")
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))

@@ -32,6 +32,7 @@ pub type ScanConfig {
     sql_dir: String,
     client_root: String,
     lando_package_path: String,
+    shell_file: String,
   )
 }
 
