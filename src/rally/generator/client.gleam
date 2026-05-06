@@ -23,7 +23,7 @@ pub fn generate_package(
   [
     GeneratedFile(
       config.client_root <> "/gleam.toml",
-      client_gleam_toml(server_deps),
+      client_gleam_toml(server_deps, config.client_root),
     ),
     GeneratedFile(
       config.client_root <> "/src/generated/rpc_ffi.mjs",
@@ -78,11 +78,17 @@ pub fn parse_route_from_url() -> Route {
   server_router <> "\n" <> client_fns
 }
 
-fn client_gleam_toml(server_deps: dict.Dict(String, tom.Toml)) -> String {
+fn client_gleam_toml(
+  server_deps: dict.Dict(String, tom.Toml),
+  client_root: String,
+) -> String {
   let header =
     "name = \"client\"\nversion = \"0.1.0\"\ntarget = \"javascript\"\n\n[dependencies]\ngleam_stdlib = \">= 0.60.0 and < 2.0.0\"\nlustre = \">= 5.6.0 and < 7.0.0\"\nmodem = \">= 2.0.0 and < 3.0.0\"\n"
 
   let baseline = set.from_list(["gleam_stdlib", "lustre", "modem"])
+
+  let depth = list.length(string.split(client_root, "/"))
+  let prefix = string.repeat("../", depth)
 
   let extra_deps =
     server_deps
@@ -90,19 +96,19 @@ fn client_gleam_toml(server_deps: dict.Dict(String, tom.Toml)) -> String {
     |> list.filter(fn(pair) { !set.contains(baseline, pair.0) })
     |> list.filter(fn(pair) { pair.0 != "rally" && pair.0 != "marmot" })
     |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
-    |> list.map(fn(pair) { format_dep(pair.0, pair.1) })
+    |> list.map(fn(pair) { format_dep(pair.0, pair.1, prefix) })
     |> string.join("")
 
   header <> extra_deps
 }
 
-fn format_dep(name: String, value: tom.Toml) -> String {
+fn format_dep(name: String, value: tom.Toml, prefix: String) -> String {
   case value {
     tom.String(version) -> name <> " = \"" <> version <> "\"\n"
     tom.InlineTable(table) | tom.Table(table) -> {
       case dict.get(table, "path") {
         Ok(tom.String(path)) ->
-          name <> " = { path = \"../" <> path <> "\" }\n"
+          name <> " = { path = \"" <> prefix <> path <> "\" }\n"
         _ -> {
           let entries =
             dict.to_list(table)
@@ -281,16 +287,20 @@ fn app_gleam(
 
   let ctx_init = case has_client_context {
     True -> "  let flags = transport.read_flags()
+  let #(ctx_model, ctx_effects) = client_context.init()
+  let current_path = router.route_to_path(route)
+  let dark_mode = rally_effect.read_dark_mode()
+  let lang = rally_effect.read_lang()
   let client_context = case codec.decode_flags(transport.read_client_context()) {
-    Ok(ctx) -> ctx
-    Error(_) -> client_context.init().0
+    Ok(ctx) -> client_context.ClientContext(..ctx, current_path:, dark_mode:, lang:)
+    Error(_) -> client_context.ClientContext(..ctx_model, current_path:, dark_mode:, lang:)
   }
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(model) -> #(hydrate_page(route, model), effect.none())
     Error(_) -> init_page(route, client_context)
   }
   #(Model(route:, page_model:, connection: Disconnected, client_context:),
-    effect.batch([init_transport(), " <> modem_init <> ", page_effects]))"
+    effect.batch([init_transport(), " <> modem_init <> ", effect.map(ctx_effects, ClientContextUpdate), page_effects]))"
     False -> "  let flags = transport.read_flags()
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(model) -> #(hydrate_page(route, model), effect.none())
@@ -312,8 +322,9 @@ fn app_gleam(
 
   let url_changed_body = case has_client_context {
     True ->
-      "      let #(page_model, page_effects) = init_page(route, model.client_context)
-      #(Model(..model, route:, page_model:), page_effects)"
+      "      let new_client_context = client_context.ClientContext(..model.client_context, current_path: router.route_to_path(route))
+      let #(page_model, page_effects) = init_page(route, new_client_context)
+      #(Model(..model, route:, page_model:, client_context: new_client_context), page_effects)"
     False ->
       "      let #(page_model, page_effects) = init_page(route)
       #(Model(..model, route:, page_model:), page_effects)"
@@ -376,6 +387,7 @@ import modem
 import generated/codec
 import generated/router
 import generated/transport
+import rally_runtime/effect as rally_effect
 
 @external(javascript, \"../generated/codec_ffi.mjs\", \"ensure_decoders\")
 fn ensure_decoders() -> Nil

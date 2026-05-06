@@ -85,6 +85,25 @@ pub fn set_dark_mode(_enabled: Bool) -> Effect(a) {
   effect.none()
 }
 
+/// Set the language preference cookie.
+/// On the server, this is a no-op.
+pub fn set_lang(_lang: String) -> Effect(a) {
+  effect.none()
+}
+
+/// Read the dark mode preference from the cookie.
+/// Falls back to prefers-color-scheme media query.
+/// On the server, returns False.
+pub fn read_dark_mode() -> Bool {
+  False
+}
+
+/// Read the language preference from the cookie.
+/// On the server, returns "en".
+pub fn read_lang() -> String {
+  "en"
+}
+
 /// Broadcast a message to all connections in the current browser session.
 pub fn broadcast_to_session(msg: a) -> Effect(b) {
   let page = get_ws_page()

@@ -196,6 +196,28 @@ pub fn set_dark_mode(enabled: Bool) -> Effect(a) {
 fn do_set_dark_mode(_enabled: Bool) -> Nil {
   Nil
 }
+
+pub fn set_lang(lang: String) -> Effect(a) {
+  effect.from(fn(_dispatch) {
+    do_set_lang(lang)
+    Nil
+  })
+}
+
+@external(javascript, \"./rally_effect_ffi.mjs\", \"setLang\")
+fn do_set_lang(_lang: String) -> Nil {
+  Nil
+}
+
+@external(javascript, \"./rally_effect_ffi.mjs\", \"readDarkModeCookie\")
+pub fn read_dark_mode() -> Bool {
+  False
+}
+
+@external(javascript, \"./rally_effect_ffi.mjs\", \"readLangCookie\")
+pub fn read_lang() -> String {
+  \"en\"
+}
 "
 }
 
@@ -210,6 +232,22 @@ export function navigate(path) {
 export function setDarkMode(enabled) {
   document.documentElement.classList.toggle(\"dark\", enabled);
   document.cookie = \"__rally_dark_mode=\" + (enabled ? \"1\" : \"0\") + \";path=/;max-age=31536000;SameSite=Lax\";
+}
+
+export function setLang(lang) {
+  document.cookie = \"__rally_lang=\" + lang + \";path=/;max-age=31536000;SameSite=Lax\";
+}
+
+export function readDarkModeCookie() {
+  var c = document.cookie;
+  if (c.includes('__rally_dark_mode=1')) return true;
+  if (c.includes('__rally_dark_mode=0')) return false;
+  return window.matchMedia('(prefers-color-scheme:dark)').matches;
+}
+
+export function readLangCookie() {
+  var m = document.cookie.match(/(?:^|;)\\s*__rally_lang=([^;]+)/);
+  return m ? m[1] : 'en';
 }
 "
 }
