@@ -63,6 +63,7 @@ fn resolve_loop(
               ))
               let dest = client_root <> "/src/" <> module_path <> ".gleam"
               let file = client.GeneratedFile(dest, content)
+              let ffi_files = collect_ffi_files(src_root, client_root, module_path)
               let new_chain = list.append(chain, [module_path])
               let new_imports =
                 list.map(extract_imports(content), fn(imp) {
@@ -73,7 +74,7 @@ fn resolve_loop(
                 visited:,
                 src_root:,
                 client_root:,
-                acc: [file, ..acc],
+                acc: list.append([file, ..ffi_files], acc),
               )
             }
           }
@@ -88,6 +89,21 @@ fn extract_imports(source: String) -> List(String) {
     Error(_) -> []
     Ok(ast) ->
       list.map(ast.imports, fn(def) { def.definition.module })
+  }
+}
+
+fn collect_ffi_files(
+  src_root: String,
+  client_root: String,
+  module_path: String,
+) -> List(client.GeneratedFile) {
+  let ffi_path = src_root <> "/" <> module_path <> "_ffi.mjs"
+  case simplifile.read(ffi_path) {
+    Ok(content) -> {
+      let dest = client_root <> "/src/" <> module_path <> "_ffi.mjs"
+      [client.GeneratedFile(dest, content)]
+    }
+    Error(_) -> []
   }
 }
 
