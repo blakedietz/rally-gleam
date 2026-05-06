@@ -79,6 +79,12 @@ fn do_navigate(_path: String) -> Nil {
   Nil
 }
 
+/// Toggle dark mode. On the client, sets the cookie and toggles the class.
+/// On the server, this is a no-op.
+pub fn set_dark_mode(_enabled: Bool) -> Effect(a) {
+  effect.none()
+}
+
 /// Broadcast a message to all connections in the current browser session.
 pub fn broadcast_to_session(msg: a) -> Effect(b) {
   let page = get_ws_page()
