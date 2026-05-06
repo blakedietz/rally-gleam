@@ -547,7 +547,37 @@ fn extract_client_functions(
 ) -> List(String) {
   ast.functions
   |> list.filter(fn(def) { set.contains(client_fn_names, def.definition.name) })
-  |> list.map(fn(def) { extract_span_source(source, def.definition.location) })
+  |> list.map(fn(def) {
+    let fn_source = extract_span_source(source, def.definition.location)
+    let attrs =
+      def.attributes
+      |> list.filter_map(fn(attr) {
+        case attr.name {
+          "external" -> Ok(render_attribute(attr))
+          _ -> Error(Nil)
+        }
+      })
+    case attrs {
+      [] -> fn_source
+      _ -> string.join(attrs, "\n") <> "\n" <> fn_source
+    }
+  })
+}
+
+fn render_attribute(attr: glance.Attribute) -> String {
+  let args =
+    attr.arguments
+    |> list.map(render_attr_expr)
+    |> string.join(", ")
+  "@" <> attr.name <> "(" <> args <> ")"
+}
+
+fn render_attr_expr(expr: glance.Expression) -> String {
+  case expr {
+    glance.String(value:, ..) -> "\"" <> value <> "\""
+    glance.Variable(name:, ..) -> name
+    _ -> "..."
+  }
 }
 
 // -- Source extraction --
