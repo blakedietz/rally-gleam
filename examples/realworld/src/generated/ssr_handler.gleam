@@ -4,12 +4,12 @@ import client_context
 import generated/router
 import gleam/bytes_tree
 import gleam/http/response
-import rally_runtime/codec
-import rally_runtime/ssr
 import lustre/element
 import mist.{type ResponseData}
 import pages/home_ as pages_home_
 import pages/layout
+import rally_runtime/codec
+import rally_runtime/ssr
 import server_context.{type ServerContext}
 
 pub fn handle_request(

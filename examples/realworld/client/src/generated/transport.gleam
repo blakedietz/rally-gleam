@@ -57,3 +57,9 @@ fn send_page_init_raw(url: String, page: String, params: a) -> Nil
 /// Returns empty string if not present.
 @external(javascript, "./rpc_ffi.mjs", "read_flags")
 pub fn read_flags() -> String
+
+/// Type-level identity cast. The JS runtime representation is unchanged;
+/// this lets generated code bridge between Dynamic/generic and concrete types
+/// where the value is already the correct shape (decoded ETF, SSR flags).
+@external(javascript, "./rpc_ffi.mjs", "identity")
+pub fn coerce(value: a) -> b

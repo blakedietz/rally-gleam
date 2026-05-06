@@ -7,15 +7,26 @@
 import { setResultCtors, setOptionCtors, setListCtors, setDictFromList } from "./decoders_prelude.mjs";
 
 import { decode_int, decode_float, decode_string, decode_bool, decode_bit_array, decode_nil, decode_list_of, decode_option_of, decode_result_of, decode_dict_of, decode_tuple_of, DecodeError } from "./decoders_prelude.mjs";
-import { Ok, Error as ResultError, Empty, NonEmpty } from "../gleam_stdlib/gleam.mjs";
-import { Some, None } from "../gleam_stdlib/gleam/option.mjs";
-import { from_list as dictFromList } from "../gleam_stdlib/gleam/dict.mjs";
+import { Ok, Error as ResultError, Empty, NonEmpty } from "../../gleam_stdlib/gleam.mjs";
+import { Some, None } from "../../gleam_stdlib/gleam/option.mjs";
+import { from_list as dictFromList } from "../../gleam_stdlib/gleam/dict.mjs";
+import { registerConstructor } from "./rpc_ffi.mjs";
 
 
 setResultCtors(Ok, ResultError);
 setOptionCtors(Some, None);
 setListCtors(Empty, NonEmpty);
 setDictFromList(dictFromList);
+
+import { ArticlePreview } from "../pages/home_.mjs";
+
+let _codec_init_done = false;
+
+export function ensure_decoders() {
+  if (_codec_init_done) return;
+  _codec_init_done = true;
+  registerConstructor("article_preview", ArticlePreview, 7);
+}
 
 export function decode_pages_home__article_preview(term) {
   return new pages_home_$ArticlePreview(

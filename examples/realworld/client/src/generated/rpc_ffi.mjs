@@ -17,6 +17,27 @@ import {
 } from "../../gleam_stdlib/gleam/dict.mjs";
 import { InternalError } from "./error.mjs";
 
+// ---------- Custom type constructor registry ----------
+// Generated codec_ffi.mjs registers per-type constructors here at init
+// time. The ETF decoder (decodeTuple) looks up this registry when it
+// encounters an atom-tagged tuple for a custom type like {sponsor, ...}
+// and reconstructs the proper Gleam constructor instance.
+//
+// Each entry maps atom_name -> { ctor: class, fieldCount: number }
+
+const constructorRegistry = new Map();
+
+/**
+ * Register a custom type constructor for ETF decoding.
+ * Called by the generated codec_ffi.mjs at module init time.
+ * @param {string} atomName snake_case constructor name (e.g. "sponsor")
+ * @param {typeof import("../../gleam_stdlib/gleam.mjs").CustomType} ctor
+ * @param {number} fieldCount number of positional fields
+ */
+export function registerConstructor(atomName, ctor, fieldCount) {
+  constructorRegistry.set(atomName, { ctor, fieldCount });
+}
+
 // ---------- Error names ----------
 //
 // Error.name values set on exceptions thrown by the codec. Consumers
@@ -381,7 +402,16 @@ class ETFDecoder {
     if (name === "true") return true;
     if (name === "false") return false;
     if (name === "nil" || name === "undefined") return undefined;
-    // Return atom as string - typed decoder resolves constructors.
+    // Framework constructor atoms: when not in raw mode, return proper
+    // instances so Gleam pattern matching works on bare atoms too.
+    if (!this.raw) {
+      if (name === "none") return new None();
+      // Zero-arg custom types registered via constructorRegistry
+      const reg = constructorRegistry.get(name);
+      if (reg && reg.fieldCount === 0) return new reg.ctor();
+    }
+    // Return atom as string - unknown constructors are resolved
+    // by the generated typed decoders in a second pass.
     return name;
   }
 
@@ -408,8 +438,55 @@ class ETFDecoder {
         return elements;
       }
 
-      // Atom-tagged tuple: return as array with atom string as first element.
-      // Typed decoder (rpc_decoders_ffi.mjs) resolves the correct constructor.
+      // Framework constructor reconstruction: when not in raw mode,
+      // rebuild Ok, Error, Some, None directly so Gleam callbacks
+      // receive proper constructor instances for pattern matching.
+      if (!this.raw) {
+        switch (atomName) {
+          case "ok": {
+            const inner = arity >= 2 ? this.decodeTerm() : undefined;
+            // Skip any extra elements beyond the first (malformed ETF).
+            for (let i = 2; i < arity; i++) this.decodeTerm();
+            return new Ok(inner);
+          }
+          case "error": {
+            const inner = arity >= 2 ? this.decodeTerm() : undefined;
+            for (let i = 2; i < arity; i++) this.decodeTerm();
+            return new ResultError(inner);
+          }
+          case "some": {
+            const inner = arity >= 2 ? this.decodeTerm() : undefined;
+            for (let i = 2; i < arity; i++) this.decodeTerm();
+            return new Some(inner);
+          }
+          case "none":
+            // None is a zero-arg variant: ETF encodes as just the atom,
+            // but if it appears as {none} (1-tuple), skip extra elements.
+            for (let i = 1; i < arity; i++) this.decodeTerm();
+            return new None();
+        }
+      }
+
+      // Custom type reconstruction: check the constructor registry
+      // populated by codec_ffi.mjs at init time.
+      if (!this.raw) {
+        const reg = constructorRegistry.get(atomName);
+        if (reg) {
+          const fields = [];
+          for (let i = 1; i < arity; i++) {
+            fields.push(this.decodeTerm());
+          }
+          // Pad with undefined if ETF arity < registered field count
+          while (fields.length < reg.fieldCount) fields.push(undefined);
+          // Truncate if ETF arity > registered field count
+          fields.length = reg.fieldCount;
+          return new reg.ctor(...fields);
+        }
+      }
+
+      // Unknown custom type: return as raw array with atom string as
+      // first element. The generated typed decoders (codec_ffi.mjs)
+      // resolve these in a second pass.
       const elements = [atomName];
       for (let i = 1; i < arity; i++) {
         elements.push(this.decodeTerm());
@@ -888,7 +965,8 @@ export function decode_safe(buffer) {
 function debugEnabled() {
   if (typeof window === "undefined") return false;
   if (window.__RALLY_DEBUG__ !== undefined) return window.__RALLY_DEBUG__;
-  return location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  // Auto-enable on any non-HTTPS origin (dev servers use HTTP)
+  return location.protocol === "http:";
 }
 
 function formatRaw(value, depth = 0) {
@@ -1035,6 +1113,26 @@ function makeConnectionError(message) {
   return new ResultError(new InternalError("", message));
 }
 
+// Detect libero dispatch-layer errors in decoded RPC responses.
+// These are Result.Error variants wrapping MalformedRequest, UnknownFunction, or InternalError.
+function isDispatchError(decoded) {
+  if (decoded && decoded.constructor && decoded.constructor.name === "Error") {
+    const inner = decoded[0];
+    return inner instanceof MalformedRequest
+      || inner instanceof UnknownFunction
+      || inner instanceof InternalError;
+  }
+  return false;
+}
+
+function formatDispatchError(decoded) {
+  const inner = decoded[0];
+  if (inner instanceof UnknownFunction) return "UnknownFunction(\"" + inner.name + "\")";
+  if (inner instanceof InternalError) return "InternalError(trace: " + inner.trace_id + ", message: \"" + inner.message + "\")";
+  if (inner instanceof MalformedRequest) return "MalformedRequest";
+  return String(inner);
+}
+
 function clearAllPending(reason) {
   const error = makeConnectionError(reason);
   for (const entry of pendingSends) {
@@ -1079,14 +1177,8 @@ function cancelReconnect() {
   }
 }
 
-function ensureSocket(url) {
+export function ensureSocket(url) {
   if (ws !== null) {
-    if (ws.url !== url) {
-      throw new Error(
-        "Libero only supports a single WebSocket connection. " +
-        "Already connected to " + ws.url + ", cannot connect to " + url,
-      );
-    }
     return;
   }
 
@@ -1094,6 +1186,7 @@ function ensureSocket(url) {
   let sock;
   try {
     sock = new WebSocket(url);
+    if (typeof window !== "undefined") window.__RALLY_WS__ = sock;
   } catch (e) {
     clearAllPending("WebSocket constructor failed: " + (e && e.message ? e.message : String(e)));
     scheduleReconnect();
@@ -1109,16 +1202,22 @@ function ensureSocket(url) {
     }
     reconnectAttempts = 0;
     cancelReconnect();
-    for (const entry of pendingSends) {
-      ws.send(entry.payload);
-      if (entry.callback) {
-        responseCallbacks.set(entry.requestId, { callback: entry.callback, timer: entry.timer });
-      }
-    }
-    pendingSends = [];
+    // Fire onConnect listeners first (triggers page_init which establishes
+    // the server-side session), then flush pending RPC calls.
     for (const listener of onConnectListeners) {
       try { listener(); } catch (_) { /* swallow listener exceptions */ }
     }
+    // Small delay to let page_init reach the server before RPC calls.
+    // Without this, pending sends race with the WS handler setup.
+    setTimeout(() => {
+      for (const entry of pendingSends) {
+        ws.send(entry.payload);
+        if (entry.callback) {
+          responseCallbacks.set(entry.requestId, { callback: entry.callback, timer: entry.timer });
+        }
+      }
+      pendingSends = [];
+    }, 50);
   });
 
   ws.addEventListener("message", (event) => {
@@ -1131,15 +1230,13 @@ function ensureSocket(url) {
     const payload = bytes.slice(1);
 
     if (tag === 0x01) {
-      // Push frame: payload is ETF-encoded {module, value}. Decode in
-      // raw mode so atoms stay as strings and tuples stay as arrays;
-      // matches the response-frame path on the same socket so push
-      // handlers and response handlers see the same runtime shapes for
-      // shared types. Consumers route raw values through their generated
-      // typed decoders the same way response handlers do.
+      // Push frame: payload is ETF-encoded {module, value}. Decode
+      // through the typed pipeline so Gleam callbacks receive proper
+      // constructor instances (Ok, Error, custom types) rather than
+      // raw arrays with string atoms.
       let decoded;
       try {
-        decoded = decode_value_raw(payload);
+        decoded = decode_value(payload);
       } catch (e) {
         console.warn("rally: failed to decode push frame", e);
         return;
@@ -1163,11 +1260,13 @@ function ensureSocket(url) {
     const requestId = view.getUint32(1);
     const responsePayload = bytes.slice(5);
 
-    // Per-endpoint decoders expect fully raw ETF (atoms as strings,
-    // tuples as arrays, no Gleam constructors).
+    // Decode through the typed pipeline so Gleam callbacks receive
+    // proper constructor instances (Ok, Error, custom types) rather
+    // than raw arrays with string atoms. formatRaw already handles
+    // CustomType instances for the inspector.
     let decoded;
     try {
-      decoded = decode_value_raw(responsePayload);
+      decoded = decode_value(responsePayload);
     } catch (e) {
       console.warn(`rally: failed to decode response #${requestId}`, e);
       const entry = responseCallbacks.get(requestId);
@@ -1191,6 +1290,10 @@ function ensureSocket(url) {
         logRpc("<-", `rpc #${requestId} (${ms}ms)`, decoded);
       } else {
         logRpc("<-", `rpc #${requestId}`, decoded);
+      }
+      // Warn on framework-level errors so they're visible in dev
+      if (isDispatchError(decoded)) {
+        console.error("[rally] RPC #" + requestId + " failed:", formatDispatchError(decoded));
       }
       entry.callback(decoded);
     }
@@ -1347,3 +1450,4 @@ export function read_flags() {
   delete window.__RALLY_FLAGS__;
   return flags;
 }
+

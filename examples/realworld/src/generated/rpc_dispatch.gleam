@@ -11,19 +11,26 @@ import pages/register as pages_register_handler
 import pages/settings as pages_settings_handler
 import server_context.{type ServerContext}
 
+/// Pre-register all constructor atoms that may appear in client ETF
+/// payloads, so binary_to_term([safe]) can decode them. Called once
+/// on the first RPC call; subsequent calls are a no-op (persistent_term
+/// lookup).
+@external(erlang, "generated@rpc_atoms", "ensure")
+fn ensure_atoms() -> Nil
+
 pub type ClientMsg {
-  PublishArticle(
+  ServerPublishArticle(
     title: String,
     description: String,
     body: String,
     tags: List(String),
   )
-  ChangePage(page: Int, tab_name: String, tag: String)
-  SwitchTab(tab_name: String, tag: String)
-  Login(email: String, password: String)
-  Register(username: String, email: String, password: String)
-  Logout
-  UpdateSettings(
+  ServerChangePage(page: Int, tab_name: String, tag: String)
+  ServerSwitchTab(tab_name: String, tag: String)
+  ServerLogin(email: String, password: String)
+  ServerRegister(username: String, email: String, password: String)
+  ServerLogout
+  ServerUpdateSettings(
     image: String,
     username: String,
     bio: String,
@@ -36,19 +43,20 @@ pub fn handle(
   server_context server_context: ServerContext,
   data data: BitArray,
 ) -> #(BitArray, ServerContext) {
+  ensure_atoms()
   case wire.decode_call(data) {
     Ok(#("rpc", request_id, msg)) -> {
       case wire.variant_tag(msg) {
-        Ok("publish_article")
-        | Ok("change_page")
-        | Ok("switch_tab")
-        | Ok("login")
-        | Ok("register")
-        | Ok("logout")
-        | Ok("update_settings") -> {
+        Ok("server_publish_article")
+        | Ok("server_change_page")
+        | Ok("server_switch_tab")
+        | Ok("server_login")
+        | Ok("server_register")
+        | Ok("server_logout")
+        | Ok("server_update_settings") -> {
           let typed_msg: ClientMsg = wire.coerce(msg)
           case typed_msg {
-            PublishArticle(title:, description:, body:, tags:) -> {
+            ServerPublishArticle(title:, description:, body:, tags:) -> {
               case
                 trace.try_call(fn() {
                   pages_editor_handler.server_publish_article(
@@ -81,7 +89,7 @@ pub fn handle(
                 }
               }
             }
-            ChangePage(page:, tab_name:, tag:) -> {
+            ServerChangePage(page:, tab_name:, tag:) -> {
               case
                 trace.try_call(fn() {
                   pages_home__handler.server_change_page(
@@ -114,7 +122,7 @@ pub fn handle(
                 }
               }
             }
-            SwitchTab(tab_name:, tag:) -> {
+            ServerSwitchTab(tab_name:, tag:) -> {
               case
                 trace.try_call(fn() {
                   pages_home__handler.server_switch_tab(
@@ -147,7 +155,7 @@ pub fn handle(
                 }
               }
             }
-            Login(email:, password:) -> {
+            ServerLogin(email:, password:) -> {
               case
                 trace.try_call(fn() {
                   pages_login_handler.server_login(
@@ -180,7 +188,7 @@ pub fn handle(
                 }
               }
             }
-            Register(username:, email:, password:) -> {
+            ServerRegister(username:, email:, password:) -> {
               case
                 trace.try_call(fn() {
                   pages_register_handler.server_register(
@@ -213,7 +221,7 @@ pub fn handle(
                 }
               }
             }
-            Logout -> {
+            ServerLogout -> {
               case
                 trace.try_call(fn() {
                   pages_settings_handler.server_logout(
@@ -246,7 +254,7 @@ pub fn handle(
                 }
               }
             }
-            UpdateSettings(image:, username:, bio:, email:, password:) -> {
+            ServerUpdateSettings(image:, username:, bio:, email:, password:) -> {
               case
                 trace.try_call(fn() {
                   pages_settings_handler.server_update_settings(

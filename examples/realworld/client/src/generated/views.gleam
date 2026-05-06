@@ -11,12 +11,12 @@ import generated/types.{
 }
 import gleam/int
 import gleam/string
-import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import rally_runtime/effect as rally_effect
 
 // ArticleSlug — pages/article/slug_
 pub type ArticleSlugModel {
