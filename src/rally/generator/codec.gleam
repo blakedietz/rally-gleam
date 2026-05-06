@@ -216,7 +216,7 @@ pub fn read_dark_mode() -> Bool {
 
 @external(javascript, \"./rally_effect_ffi.mjs\", \"readLangCookie\")
 pub fn read_lang() -> String {
-  \"en\"
+  \"\"
 }
 "
 }
@@ -247,7 +247,7 @@ export function readDarkModeCookie() {
 
 export function readLangCookie() {
   var m = document.cookie.match(/(?:^|;)\\s*__rally_lang=([^;]+)/);
-  return m ? m[1] : 'en';
+  return m ? m[1] : '';
 }
 "
 }
