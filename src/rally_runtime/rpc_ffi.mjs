@@ -15,7 +15,7 @@ import {
   from_list as dictFromList,
   to_list as dictToList,
 } from "../../gleam_stdlib/gleam/dict.mjs";
-import { InternalError } from "./error.mjs";
+import { MalformedRequest, UnknownFunction, InternalError } from "./error.mjs";
 
 // ---------- Custom type constructor registry ----------
 // Generated codec_ffi.mjs registers per-type constructors here at init
