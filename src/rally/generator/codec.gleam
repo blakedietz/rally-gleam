@@ -183,6 +183,18 @@ pub fn from(f: fn(fn(a) -> Nil) -> Nil) -> Effect(a) {
 pub fn get_ws_session() -> String {
   \"\"
 }
+
+pub fn set_dark_mode(enabled: Bool) -> Effect(a) {
+  effect.from(fn(_dispatch) {
+    do_set_dark_mode(enabled)
+    Nil
+  })
+}
+
+@external(javascript, \"./rally_effect_ffi.mjs\", \"setDarkMode\")
+fn do_set_dark_mode(_enabled: Bool) -> Nil {
+  Nil
+}
 "
 }
 
@@ -192,6 +204,11 @@ fn emit_rally_effect_ffi() -> String {
 export function navigate(path) {
   globalThis.history?.pushState(null, \"\", path);
   globalThis.dispatchEvent(new PopStateEvent(\"popstate\"));
+}
+
+export function setDarkMode(enabled) {
+  document.documentElement.classList.toggle(\"dark\", enabled);
+  document.cookie = \"__rally_dark_mode=\" + (enabled ? \"1\" : \"0\") + \";path=/;max-age=31536000;SameSite=Lax\";
 }
 "
 }

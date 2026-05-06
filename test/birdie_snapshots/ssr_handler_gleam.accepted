@@ -56,7 +56,7 @@ pub fn handle_request(
   }
 }
 fn serve_html_shell() -> response.Response(ResponseData) {
-  let html = "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
+  let html = "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><script>(function(){var c=document.cookie;if(c.includes('__rally_dark_mode=1')||(!c.includes('__rally_dark_mode=')&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})()</script></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
   response.new(200)
   |> response.set_header("content-type", "text/html")
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))

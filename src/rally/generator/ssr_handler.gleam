@@ -111,8 +111,12 @@ fn context_script(server_context: ServerContext, session_id: String) -> String {
 }"
   }
 
+  let dark_mode_script =
+    "<script>(function(){var c=document.cookie;if(c.includes('__rally_dark_mode=1')||(!c.includes('__rally_dark_mode=')&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})()</script>"
+  let shell_with_dark =
+    string.replace(shell_html, "</head>", dark_mode_script <> "</head>")
   let escaped_shell =
-    shell_html
+    shell_with_dark
     |> string.replace("\\", "\\\\")
     |> string.replace("\"", "\\\"")
     |> string.replace("\n", "\\n")
