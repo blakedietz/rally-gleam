@@ -379,11 +379,7 @@ fn write_file(path: String, content: String) -> Result(Nil, String) {
     True -> format.format_gleam(content)
     False -> content
   }
-  let _ = simplifile.create_directory_all(dirname(path))
-  simplifile.write(path, formatted)
-  |> result.map_error(fn(e) {
-    "Failed to write " <> path <> ": " <> string.inspect(e)
-  })
+  write_if_changed(path, formatted)
 }
 
 fn write_generated_files(
@@ -394,12 +390,21 @@ fn write_generated_files(
       True -> format.format_gleam(file.content)
       False -> file.content
     }
-    let _ = simplifile.create_directory_all(dirname(file.path))
-    simplifile.write(file.path, formatted)
-    |> result.map_error(fn(e) {
-      "Failed to write " <> file.path <> ": " <> string.inspect(e)
-    })
+    write_if_changed(file.path, formatted)
   })
+}
+
+fn write_if_changed(path: String, content: String) -> Result(Nil, String) {
+  case simplifile.read(path) {
+    Ok(existing) if existing == content -> Ok(Nil)
+    _ -> {
+      let _ = simplifile.create_directory_all(dirname(path))
+      simplifile.write(path, content)
+      |> result.map_error(fn(e) {
+        "Failed to write " <> path <> ": " <> string.inspect(e)
+      })
+    }
+  }
 }
 
 fn dirname(path: String) -> String {
