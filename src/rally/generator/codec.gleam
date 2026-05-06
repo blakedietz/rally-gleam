@@ -274,7 +274,7 @@ fn emit_constructor_registrations(
       let calls =
         list.map(variants, fn(v) {
           let #(_, class_name, atom_name, field_count) = v
-          "registerConstructor(\""
+          "  registerConstructor(\""
           <> atom_name
           <> "\", "
           <> class_name
@@ -283,7 +283,13 @@ fn emit_constructor_registrations(
           <> ");"
         })
         |> string.join("\n")
-      imports <> "\n\n" <> calls <> "\n"
+      imports <> "\n\n"
+      <> "let _codec_init_done = false;\n\n"
+      <> "export function ensure_decoders() {\n"
+      <> "  if (_codec_init_done) return;\n"
+      <> "  _codec_init_done = true;\n"
+      <> calls
+      <> "\n}\n"
     }
   }
 }
