@@ -232,7 +232,7 @@ fn generate_load_arms(
             <> view_call
             <> "\n    let html = element.to_document_string("
             <> layout_alias
-            <> ".layout(client_context, page_view))\n"
+            <> ".layout(client_context, fn(x) { x }, page_view))\n"
           }
           Some(layout), False -> {
             let layout_alias = last_segment(layout)

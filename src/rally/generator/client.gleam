@@ -342,7 +342,7 @@ fn app_gleam(
   let view_body = case layout_module, has_client_context {
     Ok(layout), True -> {
       let layout_alias = last_segment(layout)
-      "  " <> layout_alias <> ".layout(model.client_context,
+      "  " <> layout_alias <> ".layout(model.client_context, ClientContextUpdate,
     html.div([attr.class(\"rally-app\")], [
       " <> render_page_call <> ",
       connection_banner(model.connection),
