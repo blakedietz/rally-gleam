@@ -71,8 +71,13 @@ fn context_script(server_context: ServerContext, session_id: String) -> String {
     False -> ""
   }
 
-  let fn_body = case has_load_pages, use_session {
-    True, True ->
+  let shell_call = case use_session {
+    True -> "serve_html_shell(server_context, session_id)"
+    False -> "serve_html_shell()"
+  }
+
+  let fn_body = case has_load_pages {
+    True ->
       fn_params
       <> "
   case route {\n"
@@ -81,25 +86,17 @@ fn context_script(server_context: ServerContext, session_id: String) -> String {
     router.NotFound(_) ->
       response.new(404)
       |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not found\")))
-    _ -> serve_html_shell(server_context, session_id)
+    _ -> "
+      <> shell_call
+      <> "
   }
 }"
-    True, False ->
+    False ->
       fn_params
       <> "
-  case route {\n"
-      <> load_arms
+  "
+      <> shell_call
       <> "
-    router.NotFound(_) ->
-      response.new(404)
-      |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not found\")))
-    _ -> serve_html_shell()
-  }
-}"
-    False, _ ->
-      fn_params
-      <> "
-  serve_html_shell()
 }"
   }
 
