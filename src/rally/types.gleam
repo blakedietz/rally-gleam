@@ -66,6 +66,7 @@ pub type PageContract {
     msg_variants: List(VariantInfo),
     has_load: Bool,
     has_init: Bool,
+    has_init_loaded: Bool,
     has_model: Bool,
     param_names: List(String),
     source: String,

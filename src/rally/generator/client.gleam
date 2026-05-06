@@ -246,7 +246,7 @@ fn app_gleam(
   let page_msg_type = generate_page_msg_type(routes, contract_map)
   let init_page_fn =
     generate_init_page(routes, contract_map, has_client_context)
-  let hydrate_page_fn = generate_hydrate_page(routes, contract_map)
+  let hydrate_page_fn = generate_hydrate_page(routes, contract_map, has_client_context)
   let reinit_server_fn = generate_reinit_server(routes, contract_map)
   let update_page_fn =
     generate_update_page(routes, contract_map, has_client_context)
@@ -296,14 +296,14 @@ fn app_gleam(
     Error(_) -> client_context.ClientContext(..ctx_model, current_path:, dark_mode:, lang:)
   }
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
-    Ok(model) -> #(hydrate_page(route, model), effect.none())
+    Ok(data) -> hydrate_page(route, data, client_context)
     Error(_) -> init_page(route, client_context)
   }
   #(Model(route:, page_model:, connection: Disconnected, client_context:),
     effect.batch([init_transport(), " <> modem_init <> ", effect.map(ctx_effects, ClientContextUpdate), page_effects]))"
     False -> "  let flags = transport.read_flags()
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
-    Ok(model) -> #(hydrate_page(route, model), effect.none())
+    Ok(data) -> hydrate_page(route, data)
     Error(_) -> init_page(route)
   }
   #(Model(route:, page_model:, connection: Disconnected),
@@ -322,12 +322,22 @@ fn app_gleam(
 
   let url_changed_body = case has_client_context {
     True ->
-      "      let new_client_context = client_context.ClientContext(..model.client_context, current_path: router.route_to_path(route))
-      let #(page_model, page_effects) = init_page(route, new_client_context)
-      #(Model(..model, route:, page_model:, client_context: new_client_context), page_effects)"
+      "      case route == model.route {
+        True -> #(model, effect.none())
+        False -> {
+          let new_client_context = client_context.ClientContext(..model.client_context, current_path: router.route_to_path(route))
+          let #(page_model, page_effects) = init_page(route, new_client_context)
+          #(Model(..model, route:, page_model:, client_context: new_client_context), page_effects)
+        }
+      }"
     False ->
-      "      let #(page_model, page_effects) = init_page(route)
-      #(Model(..model, route:, page_model:), page_effects)"
+      "      case route == model.route {
+        True -> #(model, effect.none())
+        False -> {
+          let #(page_model, page_effects) = init_page(route)
+          #(Model(..model, route:, page_model:), page_effects)
+        }
+      }"
   }
 
   let page_msg_body = case has_client_context {
@@ -638,19 +648,44 @@ fn generate_init_page(
 fn generate_hydrate_page(
   routes: List(ScannedRoute),
   contract_map: dict.Dict(String, PageContract),
+  has_client_context: Bool,
 ) -> String {
   let arms =
     routes
     |> list.filter_map(fn(route) {
       case dict.get(contract_map, route.variant_name) {
+        Ok(contract) if contract.has_model && contract.has_init_loaded -> {
+          let alias = page_module_alias(route)
+          let pattern = route_pattern(route)
+          let call_args = case has_client_context {
+            True -> "(client_context, transport.coerce(data))"
+            False -> "(transport.coerce(data))"
+          }
+          Ok(
+            "    "
+            <> pattern
+            <> " -> {\n"
+            <> "      let #(m, e) = "
+            <> alias
+            <> ".init_loaded"
+            <> call_args
+            <> "\n"
+            <> "      #("
+            <> route.variant_name
+            <> "PageModel(m), effect.map(e, fn(msg) { PageMsg("
+            <> route.variant_name
+            <> "PageMsg(msg)) }))\n"
+            <> "    }",
+          )
+        }
         Ok(contract) if contract.has_model -> {
           let pattern = route_pattern(route)
           Ok(
             "    "
             <> pattern
-            <> " -> "
+            <> " -> #("
             <> route.variant_name
-            <> "PageModel(transport.coerce(model))",
+            <> "PageModel(transport.coerce(data)), effect.none())",
           )
         }
         _ -> Error(Nil)
@@ -658,9 +693,17 @@ fn generate_hydrate_page(
     })
     |> string.join("\n")
 
-  "fn hydrate_page(route: router.Route, model: a) -> PageModel {\n  case route {\n"
+  let sig = case has_client_context {
+    True ->
+      "fn hydrate_page(route: router.Route, data: a, client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {"
+    False ->
+      "fn hydrate_page(route: router.Route, data: a) -> #(PageModel, Effect(Msg)) {"
+  }
+
+  sig
+  <> "\n  case route {\n"
   <> arms
-  <> "\n    _ -> NoPageModel\n  }\n}"
+  <> "\n    _ -> #(NoPageModel, effect.none())\n  }\n}"
 }
 
 fn generate_reinit_server(

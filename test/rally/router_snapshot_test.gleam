@@ -52,6 +52,7 @@ fn basic_contracts() -> List(#(ScannedRoute, PageContract)) {
         msg_variants: [],
         has_load: True,
         has_init: True,
+        has_init_loaded: False,
         has_model: True,
         param_names: [],
         source: "",

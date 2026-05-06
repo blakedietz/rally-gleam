@@ -43,7 +43,7 @@ pub fn generate(
     False -> ""
   }
   let load_page_imports = case has_load_pages {
-    True -> "import lustre/element\nimport rally_runtime/ssr\n"
+    True -> "import gleam/string\nimport lustre/element\n"
     False -> ""
   }
 
@@ -146,7 +146,19 @@ fn serve_html_shell() -> response.Response(ResponseData) {
 "
   }
 
-  header <> fn_body <> ctx_script <> shell_fn
+  let shell_html_fn = case has_load_pages {
+    True ->
+      "
+fn shell_html() -> String {
+  \""
+      <> escaped_shell
+      <> "\"
+}
+"
+    False -> ""
+  }
+
+  header <> fn_body <> ctx_script <> shell_fn <> shell_html_fn
 }
 
 fn generate_page_imports(
@@ -244,22 +256,24 @@ fn generate_load_arms(
         let view_expr = case route.layout_module, has_client_context {
           Some(layout), True -> {
             let layout_alias = last_segment(layout)
-            "    let page_view = "
+            "    let page_view = element.map("
             <> view_call
-            <> "\n    let html = element.to_document_string("
+            <> ", fn(_) { Nil })\n"
+            <> "    let rendered = element.to_string("
             <> layout_alias
-            <> ".layout(client_context, fn(x) { x }, page_view))\n"
+            <> ".layout(client_context, fn(_) { Nil }, page_view))\n"
           }
           Some(layout), False -> {
             let layout_alias = last_segment(layout)
-            "    let page_view = "
+            "    let page_view = element.map("
             <> view_call
-            <> "\n    let html = element.to_document_string("
+            <> ", fn(_) { Nil })\n"
+            <> "    let rendered = element.to_string("
             <> layout_alias
             <> ".layout(page_view))\n"
           }
           None, _ ->
-            "    let html = element.to_document_string("
+            "    let rendered = element.to_string("
             <> view_call
             <> ")\n"
         }
@@ -268,14 +282,51 @@ fn generate_load_arms(
             "      let ctx_tag = context_script(server_context, session_id)\n"
           False -> ""
         }
+        let flags_target = case contract.has_init_loaded {
+          True -> "data"
+          False -> "model"
+        }
         let flags_line =
-          "      let flags = codec.encode_flags(model)\n"
+          "      let flags = codec.encode_flags(" <> flags_target <> ")\n"
           <> "      let flags_tag = \"<script>window.__RALLY_FLAGS__='\" <> flags <> \"'</script>\"\n"
         let full_html_line = case use_session {
           True ->
-            "      let full_html = html <> ctx_tag <> flags_tag\n"
+            "      let shell = shell_html()\n"
+            <> "      let full_html = string.replace(shell, \"<div id='app'></div>\", \"<div id='app'>\" <> rendered <> \"</div>\")\n"
+            <> "        <> ctx_tag <> flags_tag\n"
           False ->
-            "      let full_html = html <> flags_tag\n"
+            "      let shell = shell_html()\n"
+            <> "      let full_html = string.replace(shell, \"<div id='app'></div>\", \"<div id='app'>\" <> rendered <> \"</div>\")\n"
+            <> "        <> flags_tag\n"
+        }
+        let load_line = case contract.has_init_loaded, has_client_context {
+          True, True ->
+            "      let data = "
+            <> alias
+            <> ".load("
+            <> load_args
+            <> ctx_arg
+            <> ")\n"
+            <> "      let #(model, _) = "
+            <> alias
+            <> ".init_loaded(client_context, data)\n"
+          True, False ->
+            "      let data = "
+            <> alias
+            <> ".load("
+            <> load_args
+            <> ctx_arg
+            <> ")\n"
+            <> "      let #(model, _) = "
+            <> alias
+            <> ".init_loaded(data)\n"
+          False, _ ->
+            "      let model = "
+            <> alias
+            <> ".load("
+            <> load_args
+            <> ctx_arg
+            <> ")\n"
         }
         Ok(
           "    router."
@@ -283,12 +334,7 @@ fn generate_load_arms(
           <> pattern
           <> " -> {\n"
           <> ctx_init
-          <> "      let model = "
-          <> alias
-          <> ".load("
-          <> load_args
-          <> ctx_arg
-          <> ")\n"
+          <> load_line
           <> "      "
           <> view_expr
           <> ctx_script

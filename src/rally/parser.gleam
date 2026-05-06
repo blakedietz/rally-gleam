@@ -52,7 +52,10 @@ pub fn parse_page(
   let functions_list = ast.functions
   let has_load = has_function(functions_list, "load")
   let has_init = has_function(functions_list, "init")
-  let has_model = has_custom_type(ast.custom_types, "Model")
+  let has_init_loaded = has_function(functions_list, "init_loaded")
+  let has_model =
+    has_custom_type(ast.custom_types, "Model")
+    || has_type_alias(ast.type_aliases, "Model")
 
   let param_names = extract_init_params_from_ast(functions_list)
 
@@ -65,6 +68,7 @@ pub fn parse_page(
     msg_variants:,
     has_load:,
     has_init:,
+    has_init_loaded:,
     has_model:,
     param_names:,
     source:,
@@ -333,6 +337,13 @@ fn has_custom_type(
   name: String,
 ) -> Bool {
   list.any(custom_types, fn(def) { def.definition.name == name })
+}
+
+fn has_type_alias(
+  type_aliases: List(glance.Definition(glance.TypeAlias)),
+  name: String,
+) -> Bool {
+  list.any(type_aliases, fn(def) { def.definition.name == name })
 }
 
 /// Extract parameter names from the `init` function AST.
