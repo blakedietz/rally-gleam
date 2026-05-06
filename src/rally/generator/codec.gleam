@@ -187,11 +187,11 @@ fn emit_codec_ffi(discovered: List(DiscoveredType)) -> String {
     <> "decode_result_of, decode_dict_of, decode_tuple_of, DecodeError } from \""
     <> "./decoders_prelude.mjs\";\n"
     <> "import { Ok, Error as ResultError, Empty, NonEmpty } from \""
-    <> "../gleam_stdlib/gleam.mjs\";\n"
+    <> "../../gleam_stdlib/gleam.mjs\";\n"
     <> "import { Some, None } from \""
-    <> "../gleam_stdlib/gleam/option.mjs\";\n"
+    <> "../../gleam_stdlib/gleam/option.mjs\";\n"
     <> "import { from_list as dictFromList } from \""
-    <> "../gleam_stdlib/gleam/dict.mjs\";\n"
+    <> "../../gleam_stdlib/gleam/dict.mjs\";\n"
     <> "import { registerConstructor } from \"./rpc_ffi.mjs\";\n"
 
   let ctor_setters =
