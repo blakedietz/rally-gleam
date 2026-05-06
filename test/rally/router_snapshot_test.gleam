@@ -83,6 +83,28 @@ pub fn ssr_handler_snapshot_test() {
   birdie.snap(output, "ssr_handler_gleam")
 }
 
+pub fn ssr_handler_with_client_context_snapshot_test() {
+  let contracts = basic_contracts()
+  let shell =
+    "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
+  let output = ssr_handler.generate(contracts, True, True, shell)
+  birdie.snap(output, "ssr_handler_with_client_context_gleam")
+}
+
+pub fn app_gleam_with_client_context_snapshot_test() {
+  let routes = basic_routes()
+  let contracts = basic_contracts()
+  let config = test_scan_config()
+  let files =
+    client.generate_package(routes, contracts, config, dict.new(), "", "", True)
+  let app =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+  let assert Ok(file) = app
+  birdie.snap(file.content, "client_app_with_client_context_gleam")
+}
+
 pub fn transport_gleam_snapshot_test() {
   let routes = basic_routes()
   let contracts = basic_contracts()
