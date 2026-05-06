@@ -79,7 +79,7 @@ pub fn ssr_handler_snapshot_test() {
   let contracts = basic_contracts()
   let shell =
     "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
-  let output = ssr_handler.generate(contracts, False, False, shell)
+  let output = ssr_handler.generate(contracts, False, False, "server_context", shell)
   birdie.snap(output, "ssr_handler_gleam")
 }
 
@@ -87,7 +87,7 @@ pub fn ssr_handler_with_client_context_snapshot_test() {
   let contracts = basic_contracts()
   let shell =
     "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
-  let output = ssr_handler.generate(contracts, True, True, shell)
+  let output = ssr_handler.generate(contracts, True, True, "server_context", shell)
   birdie.snap(output, "ssr_handler_with_client_context_gleam")
 }
 

@@ -183,9 +183,17 @@ fn run() -> Result(String, String) {
     simplifile.is_file(client_context_path) |> result.unwrap(False)
   let server_context_path =
     dirname(config.pages_root) <> "/server_context.gleam"
-  let has_from_session = case simplifile.read(server_context_path) {
-    Ok(source) -> string.contains(source, "pub fn from_session")
-    Error(_) -> False
+  let client_context_server_path =
+    dirname(config.pages_root) <> "/client_context_server.gleam"
+  let #(has_from_session, from_session_module) = case
+    simplifile.read(client_context_server_path)
+  {
+    Ok(source) ->
+      case string.contains(source, "pub fn from_session") {
+        True -> #(True, "client_context_server")
+        False -> check_server_context_from_session(server_context_path)
+      }
+    _ -> check_server_context_from_session(server_context_path)
   }
 
   // 5. Generate RPC dispatch via libero
@@ -211,6 +219,7 @@ fn run() -> Result(String, String) {
       contracts,
       has_client_context,
       has_from_session,
+      from_session_module,
       shell_html,
     )
   use _ <- result.try(write_file(config.output_ssr, ssr_source))
@@ -459,6 +468,19 @@ fn copy_layout_modules(
       Error(_) -> Error(Nil)
     }
   })
+}
+
+fn check_server_context_from_session(
+  path: String,
+) -> #(Bool, String) {
+  case simplifile.read(path) {
+    Ok(source) ->
+      case string.contains(source, "pub fn from_session") {
+        True -> #(True, "server_context")
+        False -> #(False, "server_context")
+      }
+    _ -> #(False, "server_context")
+  }
 }
 
 fn collect_server_symbols(
