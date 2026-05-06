@@ -11,6 +11,7 @@ import glance
 import gleam/int
 import gleam/list
 import gleam/option
+import gleam/set
 import gleam/string
 import libero/field_type.{type FieldType, UserType}
 import libero/scanner.{type HandlerEndpoint}
@@ -30,9 +31,16 @@ pub fn generate(
   endpoints: List(HandlerEndpoint),
   server_symbols: List(String),
 ) -> List(CodecFile) {
+  let existing_type_names =
+    list.map(discovered, fn(t) { t.type_name })
+    |> set.from_list
   let all_discovered = case client_context_source {
-    option.Some(source) ->
-      list.append(discovered, discover_client_context(source))
+    option.Some(source) -> {
+      let cc_types =
+        discover_client_context(source)
+        |> list.filter(fn(t) { !set.contains(existing_type_names, t.type_name) })
+      list.append(discovered, cc_types)
+    }
     option.None -> discovered
   }
   let codec_files = [
