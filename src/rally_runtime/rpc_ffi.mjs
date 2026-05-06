@@ -1451,3 +1451,9 @@ export function read_flags() {
   return flags;
 }
 
+export function read_client_context() {
+  const ctx = window.__RALLY_CLIENT_CONTEXT__ || "";
+  delete window.__RALLY_CLIENT_CONTEXT__;
+  return ctx;
+}
+

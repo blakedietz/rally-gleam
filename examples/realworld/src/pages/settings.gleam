@@ -4,13 +4,13 @@ import generated/sql/auth_sql
 import gleam/list
 import gleam/option.{Some}
 import gleam/string
-import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import password
+import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 
 pub type Model {
@@ -37,7 +37,13 @@ pub type Msg {
 }
 
 pub type ServerUpdateSettings {
-  ServerUpdateSettings(image: String, username: String, bio: String, email: String, password: String)
+  ServerUpdateSettings(
+    image: String,
+    username: String,
+    bio: String,
+    email: String,
+    password: String,
+  )
 }
 
 pub type ServerLogout {
@@ -46,14 +52,7 @@ pub type ServerLogout {
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
   #(
-    Model(
-      image: "",
-      username: "",
-      bio: "",
-      email: "",
-      password: "",
-      errors: [],
-    ),
+    Model(image: "", username: "", bio: "", email: "", password: "", errors: []),
     effect.none(),
   )
 }
@@ -262,10 +261,7 @@ pub fn server_logout(
 ) -> Result(Nil, Nil) {
   let session_id = rally_effect.get_ws_session()
   let assert Ok(_) =
-    auth_sql.delete_session(
-      db: server_context.db,
-      session_id: Some(session_id),
-    )
+    auth_sql.delete_session(db: server_context.db, session_id: Some(session_id))
   Ok(Nil)
 }
 

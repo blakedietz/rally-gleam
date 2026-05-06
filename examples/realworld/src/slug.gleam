@@ -48,14 +48,13 @@ fn slug_exists(
   exclude_params: List(sqlight.Value),
 ) -> Bool {
   let #(query, params) = case exclude_params {
-    [] -> #(
-      "SELECT 1 FROM articles WHERE slug = ?1 LIMIT 1",
-      [sqlight.text(slug)],
-    )
-    _ -> #(
-      "SELECT 1 FROM articles WHERE slug = ?1 AND id != ?2 LIMIT 1",
-      [sqlight.text(slug), ..exclude_params],
-    )
+    [] -> #("SELECT 1 FROM articles WHERE slug = ?1 LIMIT 1", [
+      sqlight.text(slug),
+    ])
+    _ -> #("SELECT 1 FROM articles WHERE slug = ?1 AND id != ?2 LIMIT 1", [
+      sqlight.text(slug),
+      ..exclude_params
+    ])
   }
   case
     sqlight.query(query, on: db, with: params, expecting: decode.success(Nil))

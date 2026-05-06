@@ -45,21 +45,26 @@ pub fn shake(
         |> set.union(reachable_private)
 
       // Collect all symbols referenced by client code (for import filtering)
-      let client_refs = collect_all_client_refs(ast, all_client_fn_names, server_set)
+      let client_refs =
+        collect_all_client_refs(ast, all_client_fn_names, server_set)
 
       // Reconstruct source with only client-safe parts
       let client_imports = filter_imports(ast.imports, server_set, client_refs)
       let client_types = filter_types(ast.custom_types, server_set, client_refs)
-      let client_constants = filter_constants(ast.constants, all_client_fn_names, ast)
-      let client_functions = extract_client_functions(ast, all_client_fn_names, source)
+      let client_constants =
+        filter_constants(ast.constants, all_client_fn_names, ast)
+      let client_functions =
+        extract_client_functions(ast, all_client_fn_names, source)
 
       let import_lines = list.map(client_imports, render_import)
-      let type_lines = list.map(client_types, fn(ct) {
-        extract_span_source(source, ct.definition.location)
-      })
-      let const_lines = list.map(client_constants, fn(c) {
-        extract_span_source(source, c.definition.location)
-      })
+      let type_lines =
+        list.map(client_types, fn(ct) {
+          extract_span_source(source, ct.definition.location)
+        })
+      let const_lines =
+        list.map(client_constants, fn(c) {
+          extract_span_source(source, c.definition.location)
+        })
 
       string.join(
         list.flatten([import_lines, type_lines, const_lines, client_functions]),
@@ -193,8 +198,7 @@ fn extract_expr_refs(expr: glance.Expression) -> List(String) {
         }),
       )
     }
-    glance.Fn(body:, ..) ->
-      list.flat_map(body, extract_statement_refs)
+    glance.Fn(body:, ..) -> list.flat_map(body, extract_statement_refs)
     glance.Block(statements:, ..) ->
       list.flat_map(statements, extract_statement_refs)
     glance.Case(subjects:, clauses:, ..) -> {
@@ -205,16 +209,12 @@ fn extract_expr_refs(expr: glance.Expression) -> List(String) {
         }),
       )
     }
-    glance.Tuple(elements:, ..) ->
-      list.flat_map(elements, extract_expr_refs)
+    glance.Tuple(elements:, ..) -> list.flat_map(elements, extract_expr_refs)
     glance.List(elements:, rest:, ..) -> {
-      list.append(
-        list.flat_map(elements, extract_expr_refs),
-        case rest {
-          Some(r) -> extract_expr_refs(r)
-          None -> []
-        },
-      )
+      list.append(list.flat_map(elements, extract_expr_refs), case rest {
+        Some(r) -> extract_expr_refs(r)
+        None -> []
+      })
     }
     glance.RecordUpdate(record:, fields:, ..) -> {
       list.append(
@@ -227,14 +227,11 @@ fn extract_expr_refs(expr: glance.Expression) -> List(String) {
         }),
       )
     }
-    glance.FieldAccess(container:, ..) ->
-      extract_expr_refs(container)
+    glance.FieldAccess(container:, ..) -> extract_expr_refs(container)
     glance.BinaryOperator(left:, right:, ..) ->
       list.append(extract_expr_refs(left), extract_expr_refs(right))
-    glance.NegateInt(value:, ..) ->
-      extract_expr_refs(value)
-    glance.NegateBool(value:, ..) ->
-      extract_expr_refs(value)
+    glance.NegateInt(value:, ..) -> extract_expr_refs(value)
+    glance.NegateBool(value:, ..) -> extract_expr_refs(value)
     glance.Panic(message:, ..) ->
       case message {
         Some(v) -> extract_expr_refs(v)
@@ -245,8 +242,7 @@ fn extract_expr_refs(expr: glance.Expression) -> List(String) {
         Some(v) -> extract_expr_refs(v)
         None -> []
       }
-    glance.TupleIndex(tuple:, ..) ->
-      extract_expr_refs(tuple)
+    glance.TupleIndex(tuple:, ..) -> extract_expr_refs(tuple)
     glance.FnCapture(function:, arguments_before:, arguments_after:, ..) -> {
       list.flatten([
         extract_expr_refs(function),
@@ -290,7 +286,9 @@ fn collect_all_client_refs(
 ) -> Set(String) {
   let client_fns =
     ast.functions
-    |> list.filter(fn(def) { set.contains(client_fn_names, def.definition.name) })
+    |> list.filter(fn(def) {
+      set.contains(client_fn_names, def.definition.name)
+    })
 
   let body_refs =
     list.flat_map(client_fns, fn(def) { extract_all_refs(def.definition) })
@@ -380,10 +378,11 @@ fn extract_statement_all_refs(stmt: glance.Statement) -> List(String) {
 fn extract_expr_all_refs(expr: glance.Expression) -> List(String) {
   case expr {
     glance.Variable(name:, ..) -> [name]
-    glance.FieldAccess(container: glance.Variable(name:, ..), label:, ..) ->
-      [name, label]
-    glance.FieldAccess(container:, ..) ->
-      extract_expr_all_refs(container)
+    glance.FieldAccess(container: glance.Variable(name:, ..), label:, ..) -> [
+      name,
+      label,
+    ]
+    glance.FieldAccess(container:, ..) -> extract_expr_all_refs(container)
     glance.Call(function:, arguments:, ..) ->
       list.append(
         extract_expr_all_refs(function),
@@ -395,8 +394,7 @@ fn extract_expr_all_refs(expr: glance.Expression) -> List(String) {
           }
         }),
       )
-    glance.Fn(body:, ..) ->
-      list.flat_map(body, extract_statement_all_refs)
+    glance.Fn(body:, ..) -> list.flat_map(body, extract_statement_all_refs)
     glance.Block(statements:, ..) ->
       list.flat_map(statements, extract_statement_all_refs)
     glance.Case(subjects:, clauses:, ..) ->
@@ -409,13 +407,10 @@ fn extract_expr_all_refs(expr: glance.Expression) -> List(String) {
     glance.Tuple(elements:, ..) ->
       list.flat_map(elements, extract_expr_all_refs)
     glance.List(elements:, rest:, ..) ->
-      list.append(
-        list.flat_map(elements, extract_expr_all_refs),
-        case rest {
-          Some(r) -> extract_expr_all_refs(r)
-          None -> []
-        },
-      )
+      list.append(list.flat_map(elements, extract_expr_all_refs), case rest {
+        Some(r) -> extract_expr_all_refs(r)
+        None -> []
+      })
     glance.RecordUpdate(record:, fields:, ..) ->
       list.append(
         extract_expr_all_refs(record),
@@ -551,18 +546,18 @@ fn extract_client_functions(
   source: String,
 ) -> List(String) {
   ast.functions
-  |> list.filter(fn(def) {
-    set.contains(client_fn_names, def.definition.name)
-  })
-  |> list.map(fn(def) {
-    extract_span_source(source, def.definition.location)
-  })
+  |> list.filter(fn(def) { set.contains(client_fn_names, def.definition.name) })
+  |> list.map(fn(def) { extract_span_source(source, def.definition.location) })
 }
 
 // -- Source extraction --
 
 fn extract_span_source(source: String, span: glance.Span) -> String {
-  string.slice(from: source, at_index: span.start, length: span.end - span.start)
+  string.slice(
+    from: source,
+    at_index: span.start,
+    length: span.end - span.start,
+  )
 }
 
 // -- Import rendering --

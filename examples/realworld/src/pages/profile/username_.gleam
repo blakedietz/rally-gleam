@@ -1,19 +1,19 @@
 import client_context.{type ClientContext}
 import datetime
-import gleam/int
-import gleam/list
-import gleam/option.{type Option, None, Some}
-import gleam/result
 import generated/sql/articles_sql
 import generated/sql/auth_sql
 import generated/sql/follows_sql
 import generated/sql/users_sql
-import rally_runtime/effect as rally_effect
+import gleam/int
+import gleam/list
+import gleam/option.{type Option, None, Some}
+import gleam/result
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 import sqlight
 
@@ -75,7 +75,10 @@ pub type ServerModel {
 
 // --- Client ---
 
-pub fn init(_client_context: ClientContext, _username: String) -> #(Model, Effect(Msg)) {
+pub fn init(
+  _client_context: ClientContext,
+  _username: String,
+) -> #(Model, Effect(Msg)) {
   #(
     Model(
       profile: None,
@@ -175,7 +178,11 @@ fn articles_toggle(active_tab: ProfileTab) -> Element(Msg) {
   html.div([attr.class("articles-toggle")], [
     html.ul([attr.class("nav nav-pills outline-active")], [
       tab_link("My Articles", MyArticles, active_tab == MyArticles),
-      tab_link("Favorited Articles", FavoritedArticles, active_tab == FavoritedArticles),
+      tab_link(
+        "Favorited Articles",
+        FavoritedArticles,
+        active_tab == FavoritedArticles,
+      ),
     ]),
   ])
 }
@@ -187,7 +194,11 @@ fn tab_link(label: String, tab: ProfileTab, is_active: Bool) -> Element(Msg) {
   }
   html.li([attr.class("nav-item")], [
     html.a(
-      [attr.class(active_class), attr.href("#"), event.on_click(ClickedTab(tab))],
+      [
+        attr.class(active_class),
+        attr.href("#"),
+        event.on_click(ClickedTab(tab)),
+      ],
       [html.text(label)],
     ),
   ])
@@ -201,21 +212,29 @@ fn article_preview(article: ArticlePreview) -> Element(Msg) {
       ]),
       html.div([attr.class("info")], [
         html.a(
-          [attr.class("author"), attr.href("/profile/" <> article.author_username)],
+          [
+            attr.class("author"),
+            attr.href("/profile/" <> article.author_username),
+          ],
           [html.text(article.author_username)],
         ),
-        html.span([attr.class("date")], [html.text(int.to_string(article.created_at))]),
+        html.span([attr.class("date")], [
+          html.text(int.to_string(article.created_at)),
+        ]),
       ]),
       html.button([attr.class("btn btn-outline-primary btn-sm pull-xs-right")], [
         html.i([attr.class("ion-heart")], []),
         html.text(" " <> int.to_string(article.favorites_count)),
       ]),
     ]),
-    html.a([attr.class("preview-link"), attr.href("/article/" <> article.slug)], [
-      html.h1([], [html.text(article.title)]),
-      html.p([], [html.text(article.description)]),
-      html.span([], [html.text("Read more...")]),
-    ]),
+    html.a(
+      [attr.class("preview-link"), attr.href("/article/" <> article.slug)],
+      [
+        html.h1([], [html.text(article.title)]),
+        html.p([], [html.text(article.description)]),
+        html.span([], [html.text("Read more...")]),
+      ],
+    ),
   ])
 }
 
@@ -229,7 +248,8 @@ pub fn server_init(
   let maybe_user_id = get_user_id(server_context.db, session_id)
   case users_sql.get_by_username(db: server_context.db, username:) {
     Ok([row]) -> {
-      let profile = Profile(username: row.username, bio: row.bio, image: row.image)
+      let profile =
+        Profile(username: row.username, bio: row.bio, image: row.image)
       let articles = fetch_user_articles(server_context.db, row.id)
       let is_following =
         get_follow_status(server_context.db, row.id, maybe_user_id)
@@ -258,10 +278,7 @@ pub fn server_update(
         ServerModel(profile_user_id) -> {
           let session_id = rally_effect.get_ws_session()
           case get_user_id(server_context.db, session_id) {
-            Ok(user_id) if user_id == profile_user_id -> #(
-              model,
-              effect.none(),
-            )
+            Ok(user_id) if user_id == profile_user_id -> #(model, effect.none())
             Ok(user_id) -> {
               let assert Ok([existing]) =
                 follows_sql.is_following(
@@ -277,10 +294,7 @@ pub fn server_update(
                       follower_id: user_id,
                       followed_id: profile_user_id,
                     )
-                  #(
-                    model,
-                    rally_effect.send_to_client(FollowUpdated(False)),
-                  )
+                  #(model, rally_effect.send_to_client(FollowUpdated(False)))
                 }
                 False -> {
                   let assert Ok(_) =
@@ -289,10 +303,7 @@ pub fn server_update(
                       follower_id: user_id,
                       followed_id: profile_user_id,
                     )
-                  #(
-                    model,
-                    rally_effect.send_to_client(FollowUpdated(True)),
-                  )
+                  #(model, rally_effect.send_to_client(FollowUpdated(True)))
                 }
               }
             }
@@ -361,8 +372,7 @@ fn fetch_user_articles(
   db: sqlight.Connection,
   user_id: Int,
 ) -> List(ArticlePreview) {
-  let assert Ok(rows) =
-    articles_sql.list_by_author(db:, author_id: user_id)
+  let assert Ok(rows) = articles_sql.list_by_author(db:, author_id: user_id)
   list.map(rows, fn(r) {
     ArticlePreview(
       slug: r.slug,
@@ -380,8 +390,7 @@ fn fetch_favorited_articles(
   db: sqlight.Connection,
   user_id: Int,
 ) -> List(ArticlePreview) {
-  let assert Ok(rows) =
-    articles_sql.list_favorited_by_user(db:, user_id:)
+  let assert Ok(rows) = articles_sql.list_favorited_by_user(db:, user_id:)
   list.map(rows, fn(r) {
     ArticlePreview(
       slug: r.slug,

@@ -17,7 +17,10 @@ import rally/types.{
 
 /// Parse a page module source to extract the contract.
 /// Uses Glance AST parsing for robust type extraction.
-pub fn parse_page(source: String, module_path module_path: String) -> Result(PageContract, String) {
+pub fn parse_page(
+  source: String,
+  module_path module_path: String,
+) -> Result(PageContract, String) {
   use ast <- result.try(
     glance.module(source)
     |> result.map_error(fn(e) { "Parse error: " <> string.inspect(e) }),
@@ -27,22 +30,24 @@ pub fn parse_page(source: String, module_path module_path: String) -> Result(Pag
   let alias_map = build_alias_resolution_map(ast.imports)
   let type_alias_originals = build_type_alias_originals(ast.imports)
 
-  let model_variants = extract_variants(
-    ast: ast,
-    type_name: "Model",
-    type_imports: type_imports,
-    alias_map: alias_map,
-    type_alias_originals: type_alias_originals,
-    module_path: module_path,
-  )
-  let msg_variants = extract_variants(
-    ast: ast,
-    type_name: "Msg",
-    type_imports: type_imports,
-    alias_map: alias_map,
-    type_alias_originals: type_alias_originals,
-    module_path: module_path,
-  )
+  let model_variants =
+    extract_variants(
+      ast: ast,
+      type_name: "Model",
+      type_imports: type_imports,
+      alias_map: alias_map,
+      type_alias_originals: type_alias_originals,
+      module_path: module_path,
+    )
+  let msg_variants =
+    extract_variants(
+      ast: ast,
+      type_name: "Msg",
+      type_imports: type_imports,
+      alias_map: alias_map,
+      type_alias_originals: type_alias_originals,
+      module_path: module_path,
+    )
 
   let functions_list = ast.functions
   let has_load = has_function(functions_list, "load")
@@ -124,9 +129,7 @@ fn extract_variants(
   type_alias_originals type_alias_originals: Dict(String, String),
   module_path module_path: String,
 ) -> List(VariantInfo) {
-  case
-    list.find(ast.custom_types, fn(d) { d.definition.name == type_name })
-  {
+  case list.find(ast.custom_types, fn(d) { d.definition.name == type_name }) {
     Error(Nil) -> []
     Ok(ct_def) -> {
       let custom_type = ct_def.definition
@@ -134,10 +137,8 @@ fn extract_variants(
         let fields =
           list.map(variant.fields, fn(field) {
             let #(label, type_) = case field {
-              glance.LabelledVariantField(item:, label:) ->
-                #(label, item)
-              glance.UnlabelledVariantField(item:) ->
-                #("value", item)
+              glance.LabelledVariantField(item:, label:) -> #(label, item)
+              glance.UnlabelledVariantField(item:) -> #("value", item)
             }
             VariantField(
               label:,
@@ -232,7 +233,8 @@ fn resolve_named_type(
   case field_type.builtin_field_type(name:, parameters: params, recurse:) {
     Ok(ft) -> ft
     Error(Nil) -> {
-      let resolved_module = dict.get(type_imports, name) |> result.unwrap(or: module_path)
+      let resolved_module =
+        dict.get(type_imports, name) |> result.unwrap(or: module_path)
       let type_name =
         dict.get(type_alias_originals, name) |> result.unwrap(or: name)
       field_type.UserType(

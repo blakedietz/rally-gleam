@@ -4,13 +4,13 @@ import generated/sql/auth_sql
 import gleam/list
 import gleam/option.{Some}
 import gleam/string
-import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import password
+import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 
 pub type Model {
@@ -45,7 +45,11 @@ pub fn update(
     ClickedRegister -> #(
       model,
       rally_effect.rpc(
-        ServerRegister(username: model.username, email: model.email, password: model.password),
+        ServerRegister(
+          username: model.username,
+          email: model.email,
+          password: model.password,
+        ),
         on_response: GotRegister,
       ),
     )

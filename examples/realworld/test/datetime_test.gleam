@@ -1,5 +1,5 @@
-import gleeunit/should
 import datetime
+import gleeunit/should
 
 pub fn now_unix_returns_plausible_timestamp_test() {
   let ts = datetime.now_unix()

@@ -267,21 +267,35 @@ pub fn cascade_delete_test() {
     )
 
   // Delete the article first (cascades to comments, article_tags)
-  let assert Ok(Nil) =
-    sqlight.exec("DELETE FROM articles WHERE id = 1", on: db)
+  let assert Ok(Nil) = sqlight.exec("DELETE FROM articles WHERE id = 1", on: db)
 
   let count_decoder = decode.field(0, decode.int, decode.success)
 
   let assert Ok(comments_after_article_delete) =
-    sqlight.query("SELECT COUNT(*) FROM comments", on: db, with: [], expecting: count_decoder)
+    sqlight.query(
+      "SELECT COUNT(*) FROM comments",
+      on: db,
+      with: [],
+      expecting: count_decoder,
+    )
 
   // Now delete the user (cascades to sessions, follows, favorites)
   let assert Ok(Nil) = sqlight.exec("DELETE FROM users WHERE id = 1", on: db)
 
   let assert Ok(sessions) =
-    sqlight.query("SELECT COUNT(*) FROM sessions", on: db, with: [], expecting: count_decoder)
+    sqlight.query(
+      "SELECT COUNT(*) FROM sessions",
+      on: db,
+      with: [],
+      expecting: count_decoder,
+    )
   let assert Ok(follows) =
-    sqlight.query("SELECT COUNT(*) FROM follows", on: db, with: [], expecting: count_decoder)
+    sqlight.query(
+      "SELECT COUNT(*) FROM follows",
+      on: db,
+      with: [],
+      expecting: count_decoder,
+    )
 
   birdie.snap(
     string.inspect(#(comments_after_article_delete, sessions, follows)),

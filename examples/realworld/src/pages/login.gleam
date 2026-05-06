@@ -4,13 +4,13 @@ import generated/sql/auth_sql
 import gleam/list
 import gleam/option.{Some}
 import gleam/string
-import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import password
+import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 
 pub type Model {
@@ -125,7 +125,9 @@ pub fn server_login(
   let errors = validate_login(msg.email, msg.password)
   case errors {
     [] -> {
-      case auth_sql.find_user_by_email(db: server_context.db, email: msg.email) {
+      case
+        auth_sql.find_user_by_email(db: server_context.db, email: msg.email)
+      {
         Ok([user]) -> {
           case password.verify(msg.password, user.password_hash) {
             True -> {

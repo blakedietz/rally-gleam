@@ -6,12 +6,12 @@ import generated/sql/tags_sql
 import gleam/list
 import gleam/option.{Some}
 import gleam/string
-import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 import slug
 import sqlight
@@ -39,7 +39,12 @@ pub type Msg {
 }
 
 pub type ServerPublishArticle {
-  ServerPublishArticle(title: String, description: String, body: String, tags: List(String))
+  ServerPublishArticle(
+    title: String,
+    description: String,
+    body: String,
+    tags: List(String),
+  )
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
@@ -63,7 +68,10 @@ pub fn update(
 ) -> #(Model, Effect(Msg)) {
   case msg {
     UpdatedTitle(val) -> #(Model(..model, title: val), effect.none())
-    UpdatedDescription(val) -> #(Model(..model, description: val), effect.none())
+    UpdatedDescription(val) -> #(
+      Model(..model, description: val),
+      effect.none(),
+    )
     UpdatedBody(val) -> #(Model(..model, body: val), effect.none())
     UpdatedTagInput(val) -> #(Model(..model, tag_input: val), effect.none())
     AddedTag -> {
@@ -201,7 +209,8 @@ pub fn server_publish_article(
       {
         Ok([user]) -> {
           let now = datetime.now_unix()
-          let article_slug = slug.unique_from_title(server_context.db, msg.title)
+          let article_slug =
+            slug.unique_from_title(server_context.db, msg.title)
           case
             articles_sql.create(
               db: server_context.db,
@@ -241,7 +250,11 @@ fn validate_article(title: String, body: String) -> List(String) {
   errors
 }
 
-fn save_tags(db: sqlight.Connection, article_id: Int, tags: List(String)) -> Nil {
+fn save_tags(
+  db: sqlight.Connection,
+  article_id: Int,
+  tags: List(String),
+) -> Nil {
   list.each(tags, fn(tag) {
     let assert Ok(_) = tags_sql.create_or_ignore(db:, name: tag)
     let assert Ok([row]) = tags_sql.get_id_by_name(db:, name: tag)

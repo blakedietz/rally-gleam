@@ -75,9 +75,7 @@ pub fn run(
 
   case pending {
     [] -> {
-      io.println(
-        "  migrations: up to date (v" <> int.to_string(current) <> ")",
-      )
+      io.println("  migrations: up to date (v" <> int.to_string(current) <> ")")
       Ok(Nil)
     }
     _ -> run_pending(conn, dir, pending)
@@ -135,16 +133,11 @@ fn run_pending(
       use sql <- result.try(
         simplifile.read(path)
         |> result.map_error(fn(e) {
-          FileReadFailed(
-            filename: file,
-            message: simplifile.describe_error(e),
-          )
+          FileReadFailed(filename: file, message: simplifile.describe_error(e))
         }),
       )
 
-      io.println(
-        "  migration " <> int.to_string(num) <> ": " <> file,
-      )
+      io.println("  migration " <> int.to_string(num) <> ": " <> file)
 
       use _ <- result.try(
         sqlight.exec("BEGIN", on: conn)

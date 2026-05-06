@@ -6,12 +6,12 @@ import generated/sql/tags_sql
 import gleam/list
 import gleam/option.{Some}
 import gleam/string
-import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 import slug
 import sqlight
@@ -67,7 +67,10 @@ pub type ServerModel {
 
 // --- Client ---
 
-pub fn init(_client_context: ClientContext, _slug: String) -> #(Model, Effect(Msg)) {
+pub fn init(
+  _client_context: ClientContext,
+  _slug: String,
+) -> #(Model, Effect(Msg)) {
   #(
     Model(
       slug: "",
@@ -90,7 +93,10 @@ pub fn update(
 ) -> #(Model, Effect(Msg)) {
   case msg {
     UpdatedTitle(val) -> #(Model(..model, title: val), effect.none())
-    UpdatedDescription(val) -> #(Model(..model, description: val), effect.none())
+    UpdatedDescription(val) -> #(
+      Model(..model, description: val),
+      effect.none(),
+    )
     UpdatedBody(val) -> #(Model(..model, body: val), effect.none())
     UpdatedTagInput(val) -> #(Model(..model, tag_input: val), effect.none())
     AddedTag -> {
@@ -266,9 +272,11 @@ pub fn server_init(
             }
             False -> #(
               ServerModelEmpty,
-              rally_effect.send_to_client(EditorErrors([
-                "You can only edit your own articles",
-              ])),
+              rally_effect.send_to_client(
+                EditorErrors([
+                  "You can only edit your own articles",
+                ]),
+              ),
             )
           }
         }
@@ -280,9 +288,11 @@ pub fn server_init(
     }
     _ -> #(
       ServerModelEmpty,
-      rally_effect.send_to_client(EditorErrors([
-        "You must be logged in to edit",
-      ])),
+      rally_effect.send_to_client(
+        EditorErrors([
+          "You must be logged in to edit",
+        ]),
+      ),
     )
   }
 }
@@ -304,7 +314,12 @@ pub fn server_update(
           case errors {
             [] -> {
               let now = datetime.now_unix()
-              let new_slug = slug.unique_from_title_excluding(server_context.db, title, article_id)
+              let new_slug =
+                slug.unique_from_title_excluding(
+                  server_context.db,
+                  title,
+                  article_id,
+                )
               let assert Ok(_) =
                 articles_sql.update(
                   db: server_context.db,
@@ -316,20 +331,14 @@ pub fn server_update(
                   article_id:,
                 )
               let assert Ok(_) =
-                tags_sql.unlink_from_article(
-                  db: server_context.db,
-                  article_id:,
-                )
+                tags_sql.unlink_from_article(db: server_context.db, article_id:)
               save_tags(server_context.db, article_id, tags)
               #(
                 model,
                 rally_effect.send_to_client(ArticleUpdated(slug: new_slug)),
               )
             }
-            _ -> #(
-              model,
-              rally_effect.send_to_client(EditorErrors(errors)),
-            )
+            _ -> #(model, rally_effect.send_to_client(EditorErrors(errors)))
           }
         }
       }
@@ -350,7 +359,11 @@ fn validate_article(title: String, body: String) -> List(String) {
   errors
 }
 
-fn save_tags(db: sqlight.Connection, article_id: Int, tags: List(String)) -> Nil {
+fn save_tags(
+  db: sqlight.Connection,
+  article_id: Int,
+  tags: List(String),
+) -> Nil {
   list.each(tags, fn(tag) {
     let assert Ok(_) = tags_sql.create_or_ignore(db:, name: tag)
     let assert Ok([row]) = tags_sql.get_id_by_name(db:, name: tag)

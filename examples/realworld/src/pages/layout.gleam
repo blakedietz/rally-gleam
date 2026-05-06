@@ -1,10 +1,13 @@
-import gleam/option.{None, Some}
 import client_context.{type ClientContext}
+import gleam/option.{None, Some}
 import lustre/attribute as attr
 import lustre/element.{type Element}
 import lustre/element/html
 
-pub fn layout(client_context: ClientContext, content: Element(msg)) -> Element(msg) {
+pub fn layout(
+  client_context: ClientContext,
+  content: Element(msg),
+) -> Element(msg) {
   html.div([], [
     nav(client_context),
     content,
@@ -15,8 +18,11 @@ pub fn layout(client_context: ClientContext, content: Element(msg)) -> Element(m
 fn nav(client_context: ClientContext) -> Element(msg) {
   html.nav([attr.class("navbar navbar-light")], [
     html.div([attr.class("container")], [
-      html.a([attr.class("navbar-brand"), attr.href("/")], [html.text("conduit")]),
-      html.ul([attr.class("nav navbar-nav pull-xs-right")],
+      html.a([attr.class("navbar-brand"), attr.href("/")], [
+        html.text("conduit"),
+      ]),
+      html.ul(
+        [attr.class("nav navbar-nav pull-xs-right")],
         case client_context.current_user {
           None -> [
             nav_link("/", "Home"),
@@ -29,7 +35,8 @@ fn nav(client_context: ClientContext) -> Element(msg) {
             nav_link("/settings", "Settings"),
             nav_link("/profile/" <> user.username, user.username),
           ]
-        }),
+        },
+      ),
     ]),
   ])
 }

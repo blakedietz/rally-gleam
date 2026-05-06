@@ -14,12 +14,7 @@ pub type JobHandler =
   fn(String, BitArray) -> Result(Nil, String)
 
 pub type Job {
-  Job(
-    id: Int,
-    name: String,
-    payload: BitArray,
-    attempts: Int,
-  )
+  Job(id: Int, name: String, payload: BitArray, attempts: Int)
 }
 
 type Msg {
@@ -140,8 +135,12 @@ fn run_single_job(
           mark_dead(db, job.id, reason)
           logging.log(
             logging.Warning,
-            "Job " <> job.name <> " dead-lettered after "
-            <> int.to_string(max_attempts) <> " attempts: " <> reason,
+            "Job "
+              <> job.name
+              <> " dead-lettered after "
+              <> int.to_string(max_attempts)
+              <> " attempts: "
+              <> reason,
           )
         }
         False -> {

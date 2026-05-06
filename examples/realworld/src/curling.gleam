@@ -8,11 +8,11 @@ import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
 import gleam/list
 import gleam/string
+import mist.{type Connection, type ResponseData}
 import rally_runtime/db
 import rally_runtime/migrate
 import rally_runtime/session
 import rally_runtime/system
-import mist.{type Connection, type ResponseData}
 import server_context.{ServerContext}
 import simplifile
 import sqlight
@@ -58,7 +58,8 @@ pub fn main() {
                   Error(_) -> session.generate_id()
                 }
                 let route = router.parse_route(request.to_uri(req))
-                let resp = ssr_handler.handle_request(route, server_context, session_id)
+                let resp =
+                  ssr_handler.handle_request(route, server_context, session_id)
                 case request.get_header(req, "cookie") {
                   Ok(cookie) ->
                     case session.extract_session_id(cookie) {
@@ -95,7 +96,6 @@ pub fn main() {
     |> mist.start
   process.sleep_forever()
 }
-
 
 fn serve_static(path: String) -> Response(ResponseData) {
   let file_path = client_build_root <> "/" <> path

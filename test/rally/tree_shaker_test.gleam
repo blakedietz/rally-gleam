@@ -195,8 +195,7 @@ pub fn load(server_context: ServerContext) -> Model {
 }
 "
 
-  let result =
-    tree_shaker.shake(source, server_symbols: ["ServerContext"])
+  let result = tree_shaker.shake(source, server_symbols: ["ServerContext"])
 
   result |> string.contains("pub fn load(") |> should.be_false()
   result |> string.contains("pub fn init()") |> should.be_true()

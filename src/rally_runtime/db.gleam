@@ -72,15 +72,13 @@ pub fn transaction(
   let assert Ok(_) = sqlight.exec("SAVEPOINT " <> savepoint <> ";", on: conn)
   case body() {
     Ok(val) -> {
-      let assert Ok(_) =
-        sqlight.exec("RELEASE " <> savepoint <> ";", on: conn)
+      let assert Ok(_) = sqlight.exec("RELEASE " <> savepoint <> ";", on: conn)
       Ok(val)
     }
     Error(err) -> {
       let assert Ok(_) =
         sqlight.exec("ROLLBACK TO " <> savepoint <> ";", on: conn)
-      let assert Ok(_) =
-        sqlight.exec("RELEASE " <> savepoint <> ";", on: conn)
+      let assert Ok(_) = sqlight.exec("RELEASE " <> savepoint <> ";", on: conn)
       Error(err)
     }
   }
@@ -113,9 +111,11 @@ fn log_query(sql: String, param_count: Int, elapsed_ms: Int) -> Nil {
 fn log_result(result: Result(List(a), sqlight.Error)) -> Nil {
   case result {
     Ok(rows) ->
-      logging.log(logging.Debug, "→ " <> int.to_string(list.length(rows)) <> " row(s)")
-    Error(err) ->
-      logging.log(logging.Warning, "→ DB ERROR: " <> err.message)
+      logging.log(
+        logging.Debug,
+        "→ " <> int.to_string(list.length(rows)) <> " row(s)",
+      )
+    Error(err) -> logging.log(logging.Warning, "→ DB ERROR: " <> err.message)
   }
 }
 

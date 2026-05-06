@@ -15,7 +15,7 @@ pub fn encode_flags(value: a) -> String {
 pub fn decode_flags(flags: String) -> Result(a, String) {
   use bits <- result.try(
     bit_array.base64_decode(flags)
-    |> result.map_error(fn(_) { "Failed to base64-decode flags" })
+    |> result.map_error(fn(_) { "Failed to base64-decode flags" }),
   )
   case wire.decode_safe(bits) {
     Ok(value) -> Ok(value)

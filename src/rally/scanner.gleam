@@ -3,11 +3,11 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/set
 import gleam/string
-import simplifile
 import rally/types.{
-  type ParamType, type ScannedRoute, type UrlSegment, DynamicSegment, IntParam,
-  ScannedRoute, StaticSegment, StringParam, type ScanConfig,
+  type ParamType, type ScanConfig, type ScannedRoute, type UrlSegment,
+  DynamicSegment, IntParam, ScannedRoute, StaticSegment, StringParam,
 }
+import simplifile
 
 /// Convert a snake_case name to PascalCase.
 pub fn to_pascal_case(name: String) -> String {
@@ -71,10 +71,7 @@ fn build_route(
 
 /// Internal accumulator for the scan.
 type ScanAcc {
-  ScanAcc(
-    routes: List(ScannedRoute),
-    layout_modules: List(String),
-  )
+  ScanAcc(routes: List(ScannedRoute), layout_modules: List(String))
 }
 
 /// Recursively scan a directory, accumulating routes and layout modules.
@@ -133,7 +130,12 @@ fn scan_dir(
           // layout.gleam files are not routes — they provide page chrome.
           case stem {
             "layout" ->
-              Ok(ScanAcc(..acc, layout_modules: [module_path, ..acc.layout_modules]))
+              Ok(
+                ScanAcc(..acc, layout_modules: [
+                  module_path,
+                  ..acc.layout_modules
+                ]),
+              )
             // index.gleam is the route for its parent directory.
             // Uses the parent's segments, not adding "index" as a segment.
             "index" -> {
@@ -151,7 +153,9 @@ fn scan_dir(
               Ok(ScanAcc(..acc, routes: [route, ..acc.routes]))
             }
             _ -> {
-              let route = case stem == "home_" && list.is_empty(prefix_segments) {
+              let route = case
+                stem == "home_" && list.is_empty(prefix_segments)
+              {
                 True ->
                   ScannedRoute(
                     segments: [],
@@ -161,7 +165,8 @@ fn scan_dir(
                     layout_module: None,
                   )
                 False -> {
-                  let segments = list.append(prefix_segments, [parse_segment(stem)])
+                  let segments =
+                    list.append(prefix_segments, [parse_segment(stem)])
                   build_route(segments, module_path)
                 }
               }
@@ -214,9 +219,7 @@ fn find_nearest_layout(
 
 /// Scan a root directory and return all routes found with layout assignments.
 pub fn scan(config: ScanConfig) -> Result(List(ScannedRoute), String) {
-  use acc <- result.try(scan_dir(
-    config.pages_root, [], [], ScanAcc([], []),
-  ))
+  use acc <- result.try(scan_dir(config.pages_root, [], [], ScanAcc([], [])))
   let layout_set = set.from_list(acc.layout_modules)
   let routes_with_layouts =
     list.map(acc.routes, fn(route) { resolve_layout(route, layout_set) })

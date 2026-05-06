@@ -211,6 +211,11 @@ fn send_page_init_raw(url: String, page: String, params: a) -> Nil
 @external(javascript, \"./rpc_ffi.mjs\", \"read_flags\")
 pub fn read_flags() -> String
 
+/// Read the server-provided ClientContext from SSR flags.
+/// Returns empty string if not present.
+@external(javascript, \"./rpc_ffi.mjs\", \"read_client_context\")
+pub fn read_client_context() -> String
+
 /// Type-level identity cast. The JS runtime representation is unchanged;
 /// this lets generated code bridge between Dynamic/generic and concrete types
 /// where the value is already the correct shape (decoded ETF, SSR flags).
@@ -276,13 +281,16 @@ fn app_gleam(
 
   let ctx_init = case has_client_context {
     True -> "  let flags = transport.read_flags()
-  let #(client_context, client_context_effects) = client_context.init()
+  let client_context = case codec.decode_flags(transport.read_client_context()) {
+    Ok(ctx) -> ctx
+    Error(_) -> client_context.init().0
+  }
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(model) -> #(hydrate_page(route, model), effect.none())
     Error(_) -> init_page(route, client_context)
   }
   #(Model(route:, page_model:, connection: Disconnected, client_context:),
-    effect.batch([init_transport(), " <> modem_init <> ", effect.map(client_context_effects, ClientContextUpdate), page_effects]))"
+    effect.batch([init_transport(), " <> modem_init <> ", page_effects]))"
     False -> "  let flags = transport.read_flags()
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(model) -> #(hydrate_page(route, model), effect.none())

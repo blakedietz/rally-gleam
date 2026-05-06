@@ -35,9 +35,7 @@ fn login(email: String, password: String) {
 }
 
 fn list_articles() {
-  case
-    rpc.call(base_url:, msg: ServerSwitchTab(tab_name: "global", tag: ""))
-  {
+  case rpc.call(base_url:, msg: ServerSwitchTab(tab_name: "global", tag: "")) {
     Ok(#(articles, total)) -> {
       io.println(int.to_string(total) <> " total articles\n")
       print_articles(articles)

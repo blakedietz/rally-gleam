@@ -1,6 +1,6 @@
+import gleam/option.{None}
 import gleam/string
 import rally/generator
-import gleam/option.{None}
 import rally/types.{
   type ScannedRoute, DynamicSegment, IntParam, ScannedRoute, StaticSegment,
   StringParam,
@@ -12,13 +12,15 @@ fn sample_routes() -> List(ScannedRoute) {
       segments: [],
       variant_name: "Home",
       params: [],
-      layout_module: None, module_path: "pages/home_",
+      layout_module: None,
+      module_path: "pages/home_",
     ),
     ScannedRoute(
       segments: [StaticSegment("settings"), StaticSegment("general")],
       variant_name: "SettingsGeneral",
       params: [],
-      layout_module: None, module_path: "pages/settings/general",
+      layout_module: None,
+      module_path: "pages/settings/general",
     ),
     ScannedRoute(
       segments: [
@@ -28,7 +30,8 @@ fn sample_routes() -> List(ScannedRoute) {
       ],
       variant_name: "RegistrationOrdersId",
       params: [#("id", IntParam)],
-      layout_module: None, module_path: "pages/registration/orders/id_",
+      layout_module: None,
+      module_path: "pages/registration/orders/id_",
     ),
     ScannedRoute(
       segments: [
@@ -38,7 +41,8 @@ fn sample_routes() -> List(ScannedRoute) {
       ],
       variant_name: "RegistrationCustomQuestionsKey",
       params: [#("key", StringParam)],
-      layout_module: None, module_path: "pages/registration/custom_questions/key_",
+      layout_module: None,
+      module_path: "pages/registration/custom_questions/key_",
     ),
   ]
 }
@@ -66,7 +70,8 @@ pub fn generate_multi_param_variant_test() {
       ],
       variant_name: "RegistrationOrdersIdPaymentsPaymentIdEdit",
       params: [#("id", IntParam), #("payment_id", IntParam)],
-      layout_module: None, module_path: "pages/registration/orders/id_/payments/payment_id_/edit",
+      layout_module: None,
+      module_path: "pages/registration/orders/id_/payments/payment_id_/edit",
     ),
   ]
   let output = generator.generate(routes)
@@ -81,8 +86,7 @@ pub fn generate_parse_route_test() {
   let output = generator.generate(sample_routes())
   let assert True = string.contains(output, "pub fn parse_route")
   let assert True = string.contains(output, "[] -> Home")
-  let assert True =
-    string.contains(output, "[\"settings\", \"general\"]")
+  let assert True = string.contains(output, "[\"settings\", \"general\"]")
   let assert True = string.contains(output, "_ -> NotFound(uri:)")
 }
 
@@ -93,13 +97,15 @@ pub fn generate_parse_route_ordering_test() {
       segments: [StaticSegment("orders"), StaticSegment("new")],
       variant_name: "OrdersNew",
       params: [],
-      layout_module: None, module_path: "pages/orders/new",
+      layout_module: None,
+      module_path: "pages/orders/new",
     ),
     ScannedRoute(
       segments: [StaticSegment("orders"), DynamicSegment("id", IntParam)],
       variant_name: "OrdersId",
       params: [#("id", IntParam)],
-      layout_module: None, module_path: "pages/orders/id_",
+      layout_module: None,
+      module_path: "pages/orders/id_",
     ),
   ]
   let output = generator.generate(routes)
@@ -141,8 +147,7 @@ pub fn generate_route_to_path_test() {
 pub fn generate_href_test() {
   let output = generator.generate(sample_routes())
   let assert True = string.contains(output, "pub fn href")
-  let assert True =
-    string.contains(output, "route_to_path(route: route)")
+  let assert True = string.contains(output, "route_to_path(route: route)")
 }
 
 // ---------------------------------------------------------------------------

@@ -1,9 +1,5 @@
 import client_context.{type ClientContext}
 import datetime
-import gleam/int
-import gleam/list
-import gleam/option.{type Option, None, Some}
-import gleam/string
 import generated/sql/articles_sql
 import generated/sql/auth_sql
 import generated/sql/comments_sql
@@ -11,12 +7,16 @@ import generated/sql/favorites_sql
 import generated/sql/follows_sql
 import generated/sql/tags_sql
 import generated/sql/users_sql
-import rally_runtime/effect as rally_effect
+import gleam/int
+import gleam/list
+import gleam/option.{type Option, None, Some}
+import gleam/string
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 import sqlight
 
@@ -99,7 +99,10 @@ pub type ServerModel {
 
 // --- Client ---
 
-pub fn init(_client_context: ClientContext, _slug: String) -> #(Model, Effect(Msg)) {
+pub fn init(
+  _client_context: ClientContext,
+  _slug: String,
+) -> #(Model, Effect(Msg)) {
   #(
     Model(
       article: None,
@@ -134,11 +137,14 @@ pub fn update(
       model,
       rally_effect.send_to_server(DeleteComment(id:)),
     )
-    ClickedDeleteArticle -> #(
-      model,
-      rally_effect.send_to_server(DeleteArticle),
-    )
-    GotServerMsg(ArticleData(article, comments, is_favorited, is_following, favorites_count)) -> #(
+    ClickedDeleteArticle -> #(model, rally_effect.send_to_server(DeleteArticle))
+    GotServerMsg(ArticleData(
+      article,
+      comments,
+      is_favorited,
+      is_following,
+      favorites_count,
+    )) -> #(
       Model(
         ..model,
         article: Some(article),
@@ -192,7 +198,12 @@ pub fn view(client_context: ClientContext, model: Model) -> Element(Msg) {
       ])
     Some(article) ->
       html.div([attr.class("article-page")], [
-        article_banner(article, model.is_favorited, model.is_following, model.favorites_count),
+        article_banner(
+          article,
+          model.is_favorited,
+          model.is_following,
+          model.favorites_count,
+        ),
         html.div([attr.class("container page")], [
           html.div([attr.class("row article-content")], [
             html.div([attr.class("col-md-12")], [
@@ -209,7 +220,12 @@ pub fn view(client_context: ClientContext, model: Model) -> Element(Msg) {
           ]),
           html.hr([]),
           html.div([attr.class("article-actions")], [
-            article_meta(article, model.is_favorited, model.is_following, model.favorites_count),
+            article_meta(
+              article,
+              model.is_favorited,
+              model.is_following,
+              model.favorites_count,
+            ),
           ]),
           comment_section(client_context, model),
         ]),
@@ -259,26 +275,31 @@ fn article_meta(
     ]),
     html.div([attr.class("info")], [
       html.a(
-        [attr.class("author"), attr.href("/profile/" <> article.author_username)],
+        [
+          attr.class("author"),
+          attr.href("/profile/" <> article.author_username),
+        ],
         [html.text(article.author_username)],
       ),
-      html.span([attr.class("date")], [html.text(int.to_string(article.created_at))]),
+      html.span([attr.class("date")], [
+        html.text(int.to_string(article.created_at)),
+      ]),
     ]),
     html.button(
-      [attr.class(follow_class), event.on_click(ClickedFollow(article.author_username))],
+      [
+        attr.class(follow_class),
+        event.on_click(ClickedFollow(article.author_username)),
+      ],
       [
         html.i([attr.class("ion-plus-round")], []),
         html.text(" " <> follow_text),
       ],
     ),
     html.text(" "),
-    html.button(
-      [attr.class(fav_class), event.on_click(ClickedFavorite)],
-      [
-        html.i([attr.class("ion-heart")], []),
-        html.text(" " <> fav_text),
-      ],
-    ),
+    html.button([attr.class(fav_class), event.on_click(ClickedFavorite)], [
+      html.i([attr.class("ion-heart")], []),
+      html.text(" " <> fav_text),
+    ]),
   ])
 }
 
@@ -287,13 +308,16 @@ fn comment_section(
   model: Model,
 ) -> Element(Msg) {
   html.div([attr.class("row")], [
-    html.div([attr.class("col-xs-12 col-md-8 offset-md-2")], list.flatten([
-      case client_context.current_user {
-        Some(_user) -> [comment_form(model.comment_body)]
-        None -> []
-      },
-      list.map(model.comments, comment_card),
-    ])),
+    html.div(
+      [attr.class("col-xs-12 col-md-8 offset-md-2")],
+      list.flatten([
+        case client_context.current_user {
+          Some(_user) -> [comment_form(model.comment_body)]
+          None -> []
+        },
+        list.map(model.comments, comment_card),
+      ]),
+    ),
   ])
 }
 
@@ -331,18 +355,29 @@ fn comment_card(comment: Comment) -> Element(Msg) {
     ]),
     html.div([attr.class("card-footer")], [
       html.a(
-        [attr.class("comment-author"), attr.href("/profile/" <> comment.username)],
+        [
+          attr.class("comment-author"),
+          attr.href("/profile/" <> comment.username),
+        ],
         [html.img([attr.class("comment-author-img"), attr.src(comment.image)])],
       ),
       html.text(" "),
       html.a(
-        [attr.class("comment-author"), attr.href("/profile/" <> comment.username)],
+        [
+          attr.class("comment-author"),
+          attr.href("/profile/" <> comment.username),
+        ],
         [html.text(comment.username)],
       ),
-      html.span([attr.class("date-posted")], [html.text(int.to_string(comment.created_at))]),
+      html.span([attr.class("date-posted")], [
+        html.text(int.to_string(comment.created_at)),
+      ]),
       html.span([attr.class("mod-options")], [
         html.i(
-          [attr.class("ion-trash-a"), event.on_click(ClickedDeleteComment(comment.id))],
+          [
+            attr.class("ion-trash-a"),
+            event.on_click(ClickedDeleteComment(comment.id)),
+          ],
           [],
         ),
       ]),
@@ -440,7 +475,8 @@ pub fn server_update(
                       user_id:,
                       article_id:,
                     )
-                  let new_count = get_favorites_count(server_context.db, article_id)
+                  let new_count =
+                    get_favorites_count(server_context.db, article_id)
                   #(
                     model,
                     effect.batch([
@@ -461,7 +497,8 @@ pub fn server_update(
                       user_id:,
                       article_id:,
                     )
-                  let new_count = get_favorites_count(server_context.db, article_id)
+                  let new_count =
+                    get_favorites_count(server_context.db, article_id)
                   #(
                     model,
                     effect.batch([
@@ -508,7 +545,9 @@ pub fn server_update(
                     )
                   #(
                     model,
-                    rally_effect.send_to_client(FollowUpdated(is_following: False)),
+                    rally_effect.send_to_client(FollowUpdated(
+                      is_following: False,
+                    )),
                   )
                 }
                 False -> {
@@ -520,7 +559,9 @@ pub fn server_update(
                     )
                   #(
                     model,
-                    rally_effect.send_to_client(FollowUpdated(is_following: True)),
+                    rally_effect.send_to_client(FollowUpdated(
+                      is_following: True,
+                    )),
                   )
                 }
               }
@@ -565,10 +606,7 @@ pub fn server_update(
                   {
                     Ok([row]) -> {
                       let assert Ok([user_row]) =
-                        users_sql.get_info(
-                          db: server_context.db,
-                          user_id:,
-                        )
+                        users_sql.get_info(db: server_context.db, user_id:)
                       let comment =
                         Comment(
                           id: row.id,
@@ -577,17 +615,24 @@ pub fn server_update(
                           username: user_row.username,
                           image: user_row.image,
                         )
-                      #(model, rally_effect.broadcast_to_page(CommentAdded(comment)))
+                      #(
+                        model,
+                        rally_effect.broadcast_to_page(CommentAdded(comment)),
+                      )
                     }
                     _ -> #(
                       model,
-                      rally_effect.send_to_client(ArticleError("Failed to post comment")),
+                      rally_effect.send_to_client(ArticleError(
+                        "Failed to post comment",
+                      )),
                     )
                   }
                 }
                 Error(_) -> #(
                   model,
-                  rally_effect.send_to_client(ArticleError("You must be logged in")),
+                  rally_effect.send_to_client(ArticleError(
+                    "You must be logged in",
+                  )),
                 )
               }
             }
@@ -606,8 +651,10 @@ pub fn server_update(
               author_id: user_id,
             )
           {
-            Ok([_]) ->
-              #(model, rally_effect.broadcast_to_page(CommentRemoved(id:)))
+            Ok([_]) -> #(
+              model,
+              rally_effect.broadcast_to_page(CommentRemoved(id:)),
+            )
             _ -> #(model, effect.none())
           }
         }
@@ -630,15 +677,17 @@ pub fn server_update(
               case user_id == author_id {
                 True -> {
                   let assert Ok(_) =
-                    articles_sql.delete(
-                      db: server_context.db,
-                      article_id:,
-                    )
-                  #(ServerModelEmpty, rally_effect.send_to_client(ArticleDeleted))
+                    articles_sql.delete(db: server_context.db, article_id:)
+                  #(
+                    ServerModelEmpty,
+                    rally_effect.send_to_client(ArticleDeleted),
+                  )
                 }
                 False -> #(
                   model,
-                  rally_effect.send_to_client(ArticleError("You can only delete your own articles")),
+                  rally_effect.send_to_client(ArticleError(
+                    "You can only delete your own articles",
+                  )),
                 )
               }
             }
@@ -689,8 +738,7 @@ fn get_favorite_info(
 }
 
 fn get_favorites_count(db: sqlight.Connection, article_id: Int) -> Int {
-  let assert Ok([row]) =
-    favorites_sql.count_for_article(db:, article_id:)
+  let assert Ok([row]) = favorites_sql.count_for_article(db:, article_id:)
   row.count
 }
 

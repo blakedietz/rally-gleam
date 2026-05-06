@@ -7,12 +7,12 @@ import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
-import rally_runtime/effect as rally_effect
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 import sqlight
 
@@ -76,20 +76,29 @@ pub fn update(
       let #(tab_name, tag) = tab_to_wire(tab)
       #(
         Model(..model, active_tab: tab, page: 1),
-        rally_effect.rpc(ServerSwitchTab(tab_name:, tag:), on_response: GotArticles),
+        rally_effect.rpc(
+          ServerSwitchTab(tab_name:, tag:),
+          on_response: GotArticles,
+        ),
       )
     }
     ClickedPage(page) -> {
       let #(tab_name, tag) = tab_to_wire(model.active_tab)
       #(
         Model(..model, page:),
-        rally_effect.rpc(ServerChangePage(page:, tab_name:, tag:), on_response: GotArticles),
+        rally_effect.rpc(
+          ServerChangePage(page:, tab_name:, tag:),
+          on_response: GotArticles,
+        ),
       )
     }
     ClickedTag(tag) -> {
       #(
         Model(..model, active_tab: TagFeed(tag:), page: 1),
-        rally_effect.rpc(ServerSwitchTab(tab_name: "tag", tag:), on_response: GotArticles),
+        rally_effect.rpc(
+          ServerSwitchTab(tab_name: "tag", tag:),
+          on_response: GotArticles,
+        ),
       )
     }
     GotArticles(Ok(#(articles, total))) -> #(
@@ -135,10 +144,7 @@ fn banner() -> Element(msg) {
   ])
 }
 
-fn feed_toggle(
-  client_context: ClientContext,
-  active_tab: Tab,
-) -> Element(Msg) {
+fn feed_toggle(client_context: ClientContext, active_tab: Tab) -> Element(Msg) {
   let your_feed_tab = case client_context.current_user {
     Some(_) -> [
       tab_link("Your Feed", YourFeed, active_tab == YourFeed),
@@ -170,7 +176,11 @@ fn tab_link(label: String, tab: Tab, is_active: Bool) -> Element(Msg) {
   }
   html.li([attr.class("nav-item")], [
     html.a(
-      [attr.class(active_class), attr.href("#"), event.on_click(ClickedTab(tab))],
+      [
+        attr.class(active_class),
+        attr.href("#"),
+        event.on_click(ClickedTab(tab)),
+      ],
       [html.text(label)],
     ),
   ])
@@ -190,18 +200,23 @@ fn article_preview(article: ArticlePreview) -> Element(Msg) {
           ],
           [html.text(article.author_username)],
         ),
-        html.span([attr.class("date")], [html.text(int.to_string(article.created_at))]),
+        html.span([attr.class("date")], [
+          html.text(int.to_string(article.created_at)),
+        ]),
       ]),
       html.button([attr.class("btn btn-outline-primary btn-sm pull-xs-right")], [
         html.i([attr.class("ion-heart")], []),
         html.text(" " <> int.to_string(article.favorites_count)),
       ]),
     ]),
-    html.a([attr.class("preview-link"), attr.href("/article/" <> article.slug)], [
-      html.h1([], [html.text(article.title)]),
-      html.p([], [html.text(article.description)]),
-      html.span([], [html.text("Read more...")]),
-    ]),
+    html.a(
+      [attr.class("preview-link"), attr.href("/article/" <> article.slug)],
+      [
+        html.h1([], [html.text(article.title)]),
+        html.p([], [html.text(article.description)]),
+        html.span([], [html.text("Read more...")]),
+      ],
+    ),
   ])
 }
 
@@ -260,11 +275,28 @@ fn pagination(current_page: Int, total: Int) -> Element(Msg) {
 pub fn load(server_context: ServerContext) -> Model {
   let assert Ok(rows) =
     articles_sql.list_global(db: server_context.db, limit: 10, offset: 0)
-  let articles = list.map(rows, fn(r) { to_preview(r.slug, r.title, r.description, r.created_at, r.username, r.image, r.fav_count) })
+  let articles =
+    list.map(rows, fn(r) {
+      to_preview(
+        r.slug,
+        r.title,
+        r.description,
+        r.created_at,
+        r.username,
+        r.image,
+        r.fav_count,
+      )
+    })
   let assert Ok(tag_rows) = tags_sql.list_popular(db: server_context.db)
   let tags = list.map(tag_rows, fn(r) { r.name })
   let assert Ok([count_row]) = articles_sql.count_global(db: server_context.db)
-  Model(articles:, tags:, active_tab: GlobalFeed, page: 1, total: count_row.count)
+  Model(
+    articles:,
+    tags:,
+    active_tab: GlobalFeed,
+    page: 1,
+    total: count_row.count,
+  )
 }
 
 // --- Server handlers ---
@@ -296,15 +328,22 @@ fn fetch_tab_articles(
       case get_user_id(db, session_id) {
         Ok(user_id) -> {
           let assert Ok(rows) =
-            articles_sql.list_feed(
-              db:,
-              user_id:,
-              limit: 10,
-              offset:,
-            )
-          let assert Ok([count_row]) =
-            articles_sql.count_feed(db:, user_id:)
-          #(list.map(rows, fn(r) { to_preview(r.slug, r.title, r.description, r.created_at, r.username, r.image, r.fav_count) }), count_row.count)
+            articles_sql.list_feed(db:, user_id:, limit: 10, offset:)
+          let assert Ok([count_row]) = articles_sql.count_feed(db:, user_id:)
+          #(
+            list.map(rows, fn(r) {
+              to_preview(
+                r.slug,
+                r.title,
+                r.description,
+                r.created_at,
+                r.username,
+                r.image,
+                r.fav_count,
+              )
+            }),
+            count_row.count,
+          )
         }
         Error(_) -> #([], 0)
       }
@@ -312,24 +351,44 @@ fn fetch_tab_articles(
     "tag" -> {
       let assert Ok(rows) =
         articles_sql.list_by_tag(db:, tag:, limit: 10, offset:)
-      let assert Ok([count_row]) =
-        articles_sql.count_by_tag(db:, tag:)
-      #(list.map(rows, fn(r) { to_preview(r.slug, r.title, r.description, r.created_at, r.username, r.image, r.fav_count) }), count_row.count)
+      let assert Ok([count_row]) = articles_sql.count_by_tag(db:, tag:)
+      #(
+        list.map(rows, fn(r) {
+          to_preview(
+            r.slug,
+            r.title,
+            r.description,
+            r.created_at,
+            r.username,
+            r.image,
+            r.fav_count,
+          )
+        }),
+        count_row.count,
+      )
     }
     _ -> {
-      let assert Ok(rows) =
-        articles_sql.list_global(db:, limit: 10, offset:)
-      let assert Ok([count_row]) =
-        articles_sql.count_global(db:)
-      #(list.map(rows, fn(r) { to_preview(r.slug, r.title, r.description, r.created_at, r.username, r.image, r.fav_count) }), count_row.count)
+      let assert Ok(rows) = articles_sql.list_global(db:, limit: 10, offset:)
+      let assert Ok([count_row]) = articles_sql.count_global(db:)
+      #(
+        list.map(rows, fn(r) {
+          to_preview(
+            r.slug,
+            r.title,
+            r.description,
+            r.created_at,
+            r.username,
+            r.image,
+            r.fav_count,
+          )
+        }),
+        count_row.count,
+      )
     }
   }
 }
 
-fn get_user_id(
-  db: sqlight.Connection,
-  session_id: String,
-) -> Result(Int, Nil) {
+fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
   let now = datetime.now_unix()
   case auth_sql.find_user_by_session(db:, session_id: Some(session_id), now:) {
     Ok([user]) -> {

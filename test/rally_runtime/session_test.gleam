@@ -24,9 +24,14 @@ pub fn extract_session_empty_test() {
   |> should.equal(Error(Nil))
 }
 
-pub fn set_cookie_header_test() {
-  session.set_cookie_header("abc123")
+pub fn set_cookie_header_secure_test() {
+  session.set_cookie_header(session_id: "abc123", secure: True)
   |> should.equal(
     "rally_session=abc123; Path=/; HttpOnly; SameSite=Lax; Secure",
   )
+}
+
+pub fn set_cookie_header_insecure_test() {
+  session.set_cookie_header(session_id: "abc123", secure: False)
+  |> should.equal("rally_session=abc123; Path=/; HttpOnly; SameSite=Lax")
 }

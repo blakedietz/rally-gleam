@@ -5,7 +5,8 @@ import rally/parser
 import rally/types.{type VariantInfo, VariantField, VariantInfo}
 
 pub fn parse_page_with_model_and_msg_test() {
-  let source = "
+  let source =
+    "
 pub type Model { Model(count: Int, name: String) }
 pub type Msg {
   Increment
@@ -20,10 +21,15 @@ pub fn view(model: Model) -> Element(Msg) { todo }
   list.map(contract.model_variants, fn(v: VariantInfo) { v.name })
   |> should.equal(["Model"])
 
-  let assert [VariantInfo(name: "Model", fields: [
-    VariantField(label: "count", type_: IntField),
-    VariantField(label: "name", type_: StringField),
-  ])] = contract.model_variants
+  let assert [
+    VariantInfo(
+      name: "Model",
+      fields: [
+        VariantField(label: "count", type_: IntField),
+        VariantField(label: "name", type_: StringField),
+      ],
+    ),
+  ] = contract.model_variants
 
   list.map(contract.msg_variants, fn(v: VariantInfo) { v.name })
   |> should.equal(["Increment", "SetName"])
@@ -33,7 +39,8 @@ pub fn view(model: Model) -> Element(Msg) { todo }
 }
 
 pub fn parse_page_with_load_test() {
-  let source = "
+  let source =
+    "
 pub type Model { Model }
 pub fn init(id: Int) -> #(Model, Effect(Msg)) { todo }
 pub fn load(id: Int, ctx: ServerContext) -> Result(Model, LoadError) { todo }
@@ -45,7 +52,8 @@ pub fn load(id: Int, ctx: ServerContext) -> Result(Model, LoadError) { todo }
 }
 
 pub fn parse_page_without_load_test() {
-  let source = "
+  let source =
+    "
 pub type Model { Model(count: Int) }
 pub type Msg { Noop }
 pub fn init() -> #(Model, Effect(Msg)) { #(Model(count: 0), effect.none()) }
@@ -59,7 +67,8 @@ pub fn update(model, msg) -> #(Model, Effect(Msg)) { #(model, effect.none()) }
 }
 
 pub fn parse_page_init_with_multiple_params_test() {
-  let source = "
+  let source =
+    "
 pub type Model { Model }
 pub fn init(id: Int, key: String) -> #(Model, Effect(Msg)) { todo }
 "
@@ -68,7 +77,8 @@ pub fn init(id: Int, key: String) -> #(Model, Effect(Msg)) { todo }
 }
 
 pub fn parse_page_with_nested_msg_types_test() {
-  let source = "
+  let source =
+    "
 pub type Model { Model }
 pub type Msg {
   GotItems(List(String))

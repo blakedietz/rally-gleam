@@ -4,9 +4,9 @@ import gleam/int
 import gleam/result
 import gleam/time/timestamp
 import global_value
+import logging
 import rally_runtime/jobs
 import rally_runtime/wire
-import logging
 import sqlight
 
 // synchronous=OFF is safe here: this is observability data, not app state.
@@ -134,7 +134,8 @@ fn nullable_int(val: Result(Int, Nil)) -> sqlight.Value {
 }
 
 fn unix_seconds() -> Int {
-  let #(seconds, _nanoseconds) = timestamp.to_unix_seconds_and_nanoseconds(timestamp.system_time())
+  let #(seconds, _nanoseconds) =
+    timestamp.to_unix_seconds_and_nanoseconds(timestamp.system_time())
   seconds
 }
 
@@ -143,7 +144,8 @@ fn unix_seconds() -> Int {
 pub fn start(path: String) -> Nil {
   case open(path) {
     Ok(conn) -> {
-      let _ = global_value.create_with_unique_name("rally_system_db", fn() { conn })
+      let _ =
+        global_value.create_with_unique_name("rally_system_db", fn() { conn })
       logging.log(logging.Info, "System DB opened: " <> path)
       let count = message_count(conn)
       logging.log(

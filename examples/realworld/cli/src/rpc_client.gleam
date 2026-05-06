@@ -5,10 +5,7 @@ pub type RpcError {
   ServerError(String)
 }
 
-pub fn call(
-  base_url base_url: String,
-  msg msg: a,
-) -> Result(b, RpcError) {
+pub fn call(base_url base_url: String, msg msg: a) -> Result(b, RpcError) {
   let body = wire.encode(#("rpc", 1, msg))
   case http_post(base_url <> "/rpc", body) {
     Ok(response_bytes) -> {

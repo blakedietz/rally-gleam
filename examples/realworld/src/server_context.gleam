@@ -1,8 +1,8 @@
+import client_context.{type ClientContext, ClientContext, User}
 import datetime
 import generated/sql/auth_sql
 import gleam/option.{Some}
 import sqlight
-import client_context.{type ClientContext, ClientContext, User}
 
 pub type ServerContext {
   ServerContext(db: sqlight.Connection)
@@ -19,7 +19,10 @@ pub fn from_session(
       now: datetime.now_unix(),
     )
   {
-    Ok([user]) -> ClientContext(current_user: Some(User(username: user.username, image: user.image)))
+    Ok([user]) ->
+      ClientContext(
+        current_user: Some(User(username: user.username, image: user.image)),
+      )
     _ -> client_context.init().0
   }
 }

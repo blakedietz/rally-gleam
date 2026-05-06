@@ -30,9 +30,7 @@ pub fn format_gleam(code: String) -> String {
 fn run_format(tmp: String, fallback: String) -> String {
   case find_executable("gleam") {
     None -> {
-      io.println_error(
-        "warning: gleam not found on PATH, skipping format",
-      )
+      io.println_error("warning: gleam not found on PATH, skipping format")
       fallback
     }
     Some(path) -> {
