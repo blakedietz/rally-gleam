@@ -51,6 +51,8 @@ pub fn shake(
       // Reconstruct source with only client-safe parts
       let client_imports = filter_imports(ast.imports, server_set, client_refs)
       let client_types = filter_types(ast.custom_types, server_set, client_refs)
+      let client_type_aliases =
+        filter_type_aliases(ast.type_aliases, server_set, client_refs)
       let client_constants =
         filter_constants(ast.constants, all_client_fn_names, ast)
       let client_functions =
@@ -61,13 +63,23 @@ pub fn shake(
         list.map(client_types, fn(ct) {
           extract_span_source(source, ct.definition.location)
         })
+      let type_alias_lines =
+        list.map(client_type_aliases, fn(ta) {
+          extract_span_source(source, ta.definition.location)
+        })
       let const_lines =
         list.map(client_constants, fn(c) {
           extract_span_source(source, c.definition.location)
         })
 
       string.join(
-        list.flatten([import_lines, type_lines, const_lines, client_functions]),
+        list.flatten([
+          import_lines,
+          type_lines,
+          type_alias_lines,
+          const_lines,
+          client_functions,
+        ]),
         "\n\n",
       )
       <> "\n"
@@ -331,7 +343,19 @@ fn collect_all_client_refs(
       })
     })
 
-  list.flatten([body_refs, sig_refs, type_refs]) |> set.from_list
+  let alias_refs =
+    list.flat_map(ast.type_aliases, fn(def) {
+      let name = def.definition.name
+      case
+        set.contains(server_symbols, name)
+        || { name != "Model" && name != "Msg" && !set.contains(client_fn_names, name) }
+      {
+        True -> []
+        False -> extract_type_refs(def.definition.aliased)
+      }
+    })
+
+  list.flatten([body_refs, sig_refs, type_refs, alias_refs]) |> set.from_list
 }
 
 fn extract_type_refs(t: glance.Type) -> List(String) {
@@ -532,6 +556,18 @@ fn filter_types(
   })
 }
 
+fn filter_type_aliases(
+  aliases: List(glance.Definition(glance.TypeAlias)),
+  server_symbols: Set(String),
+  client_refs: Set(String),
+) -> List(glance.Definition(glance.TypeAlias)) {
+  list.filter(aliases, fn(def) {
+    let name = def.definition.name
+    !set.contains(server_symbols, name)
+    && { set.contains(client_refs, name) || name == "Model" || name == "Msg" }
+  })
+}
+
 fn filter_constants(
   constants: List(glance.Definition(glance.Constant)),
   _client_fn_names: Set(String),
@@ -582,13 +618,11 @@ fn render_attr_expr(expr: glance.Expression) -> String {
 
 // -- Source extraction --
 
-fn extract_span_source(source: String, span: glance.Span) -> String {
-  string.slice(
-    from: source,
-    at_index: span.start,
-    length: span.end - span.start,
-  )
-}
+/// Glance reports byte offsets, but string.slice uses codepoint offsets.
+/// Multi-byte characters (e.g. ç in "Français") cause a mismatch.
+/// Convert to bytes, slice, then decode back to a string.
+@external(erlang, "rally_tree_shaker_ffi", "byte_slice")
+fn extract_span_source(source: String, span: glance.Span) -> String
 
 // -- Import rendering --
 

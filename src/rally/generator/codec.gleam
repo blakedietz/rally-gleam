@@ -8,6 +8,7 @@
 //// - rally_runtime/effect.gleam — client-side effect shim
 
 import glance
+import gleam/dict
 import gleam/int
 import gleam/list
 import gleam/option
@@ -228,7 +229,7 @@ fn to_pascal_case(name: String) -> String {
 // ---------- JS typed decoders (codec_ffi.mjs) ----------
 // Ported from libero's codegen_decoders.gleam
 
-fn emit_codec_ffi(discovered: List(DiscoveredType)) -> String {
+pub fn emit_codec_ffi(discovered: List(DiscoveredType)) -> String {
   let type_decoders =
     discovered
     |> list.map(emit_type_decoder)
@@ -303,38 +304,39 @@ fn emit_constructor_registrations(
   let variants =
     list.flat_map(discovered, fn(t) {
       list.map(t.variants, fn(v) {
-        #(t.module_path, v.variant_name, v.atom_name, list.length(v.fields))
+        let alias =
+          module_to_underscored(t.module_path) <> "_" <> v.variant_name
+        #(t.module_path, v.variant_name, v.atom_name, list.length(v.fields), alias)
       })
     })
   case variants {
     [] -> ""
     _ -> {
-      // Deduplicate module paths for imports
       let module_paths =
         list.map(variants, fn(v) { v.0 })
         |> list.unique()
       let imports =
         list.map(module_paths, fn(mod) {
-          let class_names =
+          let aliased =
             variants
             |> list.filter_map(fn(v) {
               case v.0 == mod {
-                True -> Ok(v.1)
+                True -> Ok(v.1 <> " as " <> v.4)
                 False -> Error(Nil)
               }
             })
             |> list.unique()
-          "import { " <> string.join(class_names, ", ")
+          "import { " <> string.join(aliased, ", ")
           <> " } from \"../" <> mod <> ".mjs\";"
         })
         |> string.join("\n")
       let calls =
         list.map(variants, fn(v) {
-          let #(_, class_name, atom_name, field_count) = v
+          let #(_, _, atom_name, field_count, alias) = v
           "  registerConstructor(\""
           <> atom_name
           <> "\", "
-          <> class_name
+          <> alias
           <> ", "
           <> int.to_string(field_count)
           <> ");"
@@ -498,6 +500,8 @@ fn emit_types_gleam(
   _contracts: List(#(ScannedRoute, PageContract)),
   endpoints: List(HandlerEndpoint),
 ) -> String {
+  let resolve_alias = build_type_alias_resolver(endpoints)
+
   let client_msg_type = case endpoints {
     [] -> ""
     _ -> {
@@ -509,7 +513,9 @@ fn emit_types_gleam(
             params -> {
               let fields =
                 list.map(params, fn(p) {
-                  p.0 <> ": " <> field_type.to_gleam_source(p.1)
+                  p.0
+                  <> ": "
+                  <> field_type.to_gleam_source_with_alias(p.1, resolve_alias)
                 })
               "  " <> variant_name <> "(" <> string.join(fields, ", ") <> ")"
             }
@@ -519,7 +525,7 @@ fn emit_types_gleam(
     }
   }
 
-  let type_imports =
+  let all_modules =
     endpoints
     |> list.flat_map(fn(e) {
       list.flat_map(e.params, fn(p) {
@@ -535,7 +541,16 @@ fn emit_types_gleam(
       }),
     )
     |> list.unique
-    |> list.map(fn(mod) { "import " <> mod })
+
+  let type_imports =
+    all_modules
+    |> list.map(fn(mod) {
+      let alias = resolve_alias(mod)
+      case alias == field_type.last_segment(mod) {
+        True -> "import " <> mod
+        False -> "import " <> mod <> " as " <> alias
+      }
+    })
     |> string.join("\n")
     |> fn(s) {
       case s {
@@ -549,6 +564,42 @@ fn emit_types_gleam(
 //// Mirrored page types for the client package.
 
 " <> type_imports <> client_msg_type <> "\n"
+}
+
+/// Build a resolver that uses the last segment when unique, or the full
+/// underscored path when two modules share the same last segment.
+fn build_type_alias_resolver(
+  endpoints: List(HandlerEndpoint),
+) -> fn(String) -> String {
+  let all_modules =
+    endpoints
+    |> list.flat_map(fn(e) {
+      let from_params =
+        list.flat_map(e.params, fn(p) { collect_user_type_modules(p.1) })
+      let from_return =
+        list.append(
+          collect_user_type_modules(e.return_ok),
+          collect_user_type_modules(e.return_err),
+        )
+      list.append(from_params, from_return)
+    })
+    |> list.unique()
+  let segment_counts =
+    list.fold(all_modules, dict.new(), fn(acc, mod) {
+      let seg = field_type.last_segment(mod)
+      let count = case dict.get(acc, seg) {
+        Ok(n) -> n + 1
+        Error(Nil) -> 1
+      }
+      dict.insert(acc, seg, count)
+    })
+  fn(module_path: String) -> String {
+    let seg = field_type.last_segment(module_path)
+    case dict.get(segment_counts, seg) {
+      Ok(n) if n > 1 -> string.replace(module_path, "/", "_")
+      _ -> seg
+    }
+  }
 }
 
 fn collect_user_type_modules(ft: FieldType) -> List(String) {
