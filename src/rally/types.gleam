@@ -27,6 +27,8 @@ pub type ScanConfig {
     output_route: String,
     output_dispatch: String,
     output_server_dispatch: String,
+    output_server_atoms: String,
+    atoms_module: String,
     output_ssr: String,
     output_ws: String,
     output_http: String,

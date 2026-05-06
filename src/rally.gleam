@@ -5,8 +5,8 @@ import gleam/list
 import gleam/option
 import gleam/result
 import gleam/string
-import tom
-import simplifile
+import libero
+import libero/scanner as libero_scanner
 import rally/format
 import rally/generator
 import rally/generator/client
@@ -18,8 +18,8 @@ import rally/parser
 import rally/scanner
 import rally/tree_shaker
 import rally/types.{type ScanConfig, ScanConfig}
-import libero
-import libero/scanner as libero_scanner
+import simplifile
+import tom
 
 pub fn main() {
   case run() {
@@ -37,11 +37,13 @@ fn halt(code: Int) -> Nil
 fn read_config() -> Result(ScanConfig, String) {
   use toml_str <- result.try(
     simplifile.read("gleam.toml")
-    |> result.map_error(fn(e) { "Cannot read gleam.toml: " <> string.inspect(e) })
+    |> result.map_error(fn(e) {
+      "Cannot read gleam.toml: " <> string.inspect(e)
+    }),
   )
   use toml_map <- result.try(
     tom.parse(toml_str)
-    |> result.map_error(fn(e) { "Invalid gleam.toml: " <> string.inspect(e) })
+    |> result.map_error(fn(e) { "Invalid gleam.toml: " <> string.inspect(e) }),
   )
 
   let rally_config =
@@ -60,6 +62,10 @@ fn read_config() -> Result(ScanConfig, String) {
   let output_server_dispatch =
     tom.get_string(rally_config, ["output_server_dispatch"])
     |> result.unwrap("src/generated/rpc_dispatch.gleam")
+  let output_server_atoms =
+    tom.get_string(rally_config, ["output_server_atoms"])
+    |> result.unwrap("src/generated@rpc_atoms.erl")
+  let atoms_module = "generated@rpc_atoms"
   let output_ssr =
     tom.get_string(rally_config, ["output_ssr"])
     |> result.unwrap("src/generated/ssr_handler.gleam")
@@ -94,6 +100,8 @@ fn read_config() -> Result(ScanConfig, String) {
     output_route:,
     output_dispatch:,
     output_server_dispatch:,
+    output_server_atoms:,
+    atoms_module:,
     output_ssr:,
     output_ws:,
     output_http:,
@@ -152,9 +160,7 @@ fn run() -> Result(String, String) {
           }
         }
         Error(_) -> {
-          io.println_error(
-            "warning: cannot read " <> file_path <> ", skipping",
-          )
+          io.println_error("warning: cannot read " <> file_path <> ", skipping")
           Error(Nil)
         }
       }
@@ -167,28 +173,46 @@ fn run() -> Result(String, String) {
   use _ <- result.try(write_file(config.output_dispatch, dispatch_source))
 
   // 4. Detect client_context.gleam and server_context.gleam
-  let client_context_path = dirname(config.pages_root) <> "/client_context.gleam"
-  let has_client_context = simplifile.is_file(client_context_path) |> result.unwrap(False)
-  let server_context_path = dirname(config.pages_root) <> "/server_context.gleam"
+  let client_context_path =
+    dirname(config.pages_root) <> "/client_context.gleam"
+  let has_client_context =
+    simplifile.is_file(client_context_path) |> result.unwrap(False)
+  let server_context_path =
+    dirname(config.pages_root) <> "/server_context.gleam"
   let has_from_session = case simplifile.read(server_context_path) {
     Ok(source) -> string.contains(source, "pub fn from_session")
     Error(_) -> False
   }
 
   // 5. Generate RPC dispatch via libero
-  let sd_source = libero.generate_dispatch(handler_endpoints)
+  let sd_source =
+    libero.generate_dispatch(
+      handler_endpoints,
+      option.Some(config.atoms_module),
+    )
   use _ <- result.try(write_file(config.output_server_dispatch, sd_source))
+
+  // 5b. Generate and write the atoms pre-registration file
+  let atoms_erl = libero.generate_atoms(handler_endpoints, config.atoms_module)
+  use _ <- result.try(write_file(config.output_server_atoms, atoms_erl))
 
   // 6. Generate SSR handler
   let shell_html = case simplifile.read(config.shell_file) {
     Ok(html) -> html
-    Error(_) -> "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
+    Error(_) ->
+      "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
   }
-  let ssr_source = ssr_handler.generate(contracts, has_client_context, has_from_session, shell_html)
+  let ssr_source =
+    ssr_handler.generate(
+      contracts,
+      has_client_context,
+      has_from_session,
+      shell_html,
+    )
   use _ <- result.try(write_file(config.output_ssr, ssr_source))
 
   // 6. Generate WebSocket handler
-  let ws_source = ws_handler.generate(contracts)
+  let ws_source = ws_handler.generate(contracts, config.atoms_module)
   use _ <- result.try(write_file(config.output_ws, ws_source))
 
   // 6b. Generate HTTP handler (for non-WebSocket RPC clients)
@@ -242,18 +266,39 @@ fn run() -> Result(String, String) {
 
   // 10. Generate codec files and per-page client modules
   let codec_files =
-    list.map(codec.generate(contracts, discovered, has_client_context, handler_endpoints, server_symbols), fn(f: codec.CodecFile) {
-      client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
-    })
+    list.map(
+      codec.generate(
+        contracts,
+        discovered,
+        has_client_context,
+        handler_endpoints,
+        server_symbols,
+      ),
+      fn(f: codec.CodecFile) {
+        client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
+      },
+    )
 
   // 11. Generate client package (includes rpc_ffi.mjs and decoders_prelude.mjs)
   let client_files =
-    client.generate_package(routes, contracts, config, rpc_ffi_content, decoders_prelude_content, has_client_context)
+    client.generate_package(
+      routes,
+      contracts,
+      config,
+      rpc_ffi_content,
+      decoders_prelude_content,
+      has_client_context,
+    )
   let client_context_files = case has_client_context {
     True -> {
       let assert Ok(cc_source) = simplifile.read(client_context_path)
       let shaken = tree_shaker.shake(cc_source, server_symbols:)
-      [client.GeneratedFile(config.client_root <> "/src/client_context.gleam", shaken)]
+      [
+        client.GeneratedFile(
+          config.client_root <> "/src/client_context.gleam",
+          shaken,
+        ),
+      ]
     }
     False -> []
   }
@@ -261,9 +306,16 @@ fn run() -> Result(String, String) {
   // Copy layout modules to client package (tree-shaken)
   let layout_files = copy_layout_modules(routes, config, server_symbols)
 
-  use _ <- result.try(write_generated_files(
-    list.flatten([codec_files, client_files, client_context_files, layout_files]),
-  ))
+  use _ <- result.try(
+    write_generated_files(
+      list.flatten([
+        codec_files,
+        client_files,
+        client_context_files,
+        layout_files,
+      ]),
+    ),
+  )
 
   Ok(int.to_string(list.length(routes)) <> " routes")
 }
@@ -327,10 +379,7 @@ fn copy_layout_modules(
   |> list.unique
   |> list.filter_map(fn(layout_module) {
     let file_path =
-      config.pages_root
-      <> "/"
-      <> last_module_segment(layout_module)
-      <> ".gleam"
+      config.pages_root <> "/" <> last_module_segment(layout_module) <> ".gleam"
     case simplifile.read(file_path) {
       Ok(source) -> {
         let shaken = tree_shaker.shake(source, server_symbols:)
@@ -354,4 +403,3 @@ fn collect_server_symbols(
     })
   ["ServerContext", ..handler_type_names]
 }
-
