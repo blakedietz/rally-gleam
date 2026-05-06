@@ -7,6 +7,7 @@ import gleam/result
 import gleam/string
 import libero
 import libero/scanner as libero_scanner
+import rally/dependency_resolver
 import rally/format
 import rally/generator
 import rally/generator/client
@@ -268,19 +269,18 @@ fn run() -> Result(String, String) {
   let server_symbols = collect_server_symbols(handler_endpoints)
 
   // 10. Generate codec files and per-page client modules
-  let codec_files =
-    list.map(
-      codec.generate(
-        contracts,
-        discovered,
-        has_client_context,
-        handler_endpoints,
-        server_symbols,
-      ),
-      fn(f: codec.CodecFile) {
-        client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
-      },
+  let raw_codec_files =
+    codec.generate(
+      contracts,
+      discovered,
+      has_client_context,
+      handler_endpoints,
+      server_symbols,
     )
+  let codec_files =
+    list.map(raw_codec_files, fn(f: codec.CodecFile) {
+      client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
+    })
 
   // 11. Generate client package (includes rpc_ffi.mjs and decoders_prelude.mjs)
   let client_files =
@@ -310,6 +310,46 @@ fn run() -> Result(String, String) {
   // Copy layout modules to client package (tree-shaken)
   let layout_files = copy_layout_modules(routes, config, server_symbols)
 
+  // 12. Resolve transitive local dependencies from client sources
+  let seed_sources =
+    list.flatten([
+      raw_codec_files
+        |> list.filter(fn(f: codec.CodecFile) {
+          string.ends_with(f.path, ".gleam")
+          && string.starts_with(f.path, "src/pages/")
+        })
+        |> list.map(fn(f: codec.CodecFile) {
+          let module_path =
+            f.path
+            |> string.drop_start(4)
+            |> string.drop_end(6)
+          #(module_path, f.content)
+        }),
+      layout_files
+        |> list.filter(fn(f: client.GeneratedFile) {
+          string.ends_with(f.path, ".gleam")
+        })
+        |> list.map(fn(f: client.GeneratedFile) {
+          let module_path =
+            f.path
+            |> string.replace(config.client_root <> "/src/", "")
+            |> string.drop_end(6)
+          #(module_path, f.content)
+        }),
+      client_context_files
+        |> list.map(fn(f: client.GeneratedFile) {
+          #("client_context", f.content)
+        }),
+    ])
+
+  use dependency_files <- result.try(
+    dependency_resolver.resolve(
+      seed_sources:,
+      src_root: dirname(config.pages_root),
+      client_root: config.client_root,
+    ),
+  )
+
   use _ <- result.try(
     write_generated_files(
       list.flatten([
@@ -317,6 +357,7 @@ fn run() -> Result(String, String) {
         client_files,
         client_context_files,
         layout_files,
+        dependency_files,
       ]),
     ),
   )
