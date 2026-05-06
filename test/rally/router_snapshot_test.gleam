@@ -1,4 +1,5 @@
 import birdie
+import gleam/dict
 import gleam/list
 import gleam/option.{None}
 import gleam/string
@@ -86,7 +87,8 @@ pub fn transport_gleam_snapshot_test() {
   let routes = basic_routes()
   let contracts = basic_contracts()
   let config = test_scan_config()
-  let files = client.generate_package(routes, contracts, config, "", "", False)
+  let files =
+    client.generate_package(routes, contracts, config, dict.new(), "", "", False)
   let transport =
     list.find(files, fn(f: client.GeneratedFile) {
       string.ends_with(f.path, "transport.gleam")
@@ -99,7 +101,8 @@ pub fn app_gleam_snapshot_test() {
   let routes = basic_routes()
   let contracts = basic_contracts()
   let config = test_scan_config()
-  let files = client.generate_package(routes, contracts, config, "", "", False)
+  let files =
+    client.generate_package(routes, contracts, config, dict.new(), "", "", False)
   let app =
     list.find(files, fn(f: client.GeneratedFile) {
       string.ends_with(f.path, "app.gleam")
@@ -144,5 +147,6 @@ fn test_scan_config() -> ScanConfig {
     client_root: "client",
     rally_package_path: "",
     shell_file: "",
+    server_deps: dict.new(),
   )
 }

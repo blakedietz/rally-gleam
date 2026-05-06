@@ -1,3 +1,4 @@
+import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
@@ -22,6 +23,7 @@ fn test_config(dir: String) -> ScanConfig {
     client_root: "",
     rally_package_path: "",
     shell_file: "",
+    server_deps: dict.new(),
   )
 }
 

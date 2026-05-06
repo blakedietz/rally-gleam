@@ -1,7 +1,9 @@
 import gleam/dict
 import gleam/list
 import gleam/option.{Some}
+import gleam/set
 import gleam/string
+import tom
 import rally/generator
 import rally/types.{type PageContract, type ScanConfig, type ScannedRoute}
 
@@ -13,12 +15,16 @@ pub fn generate_package(
   routes: List(ScannedRoute),
   contracts: List(#(ScannedRoute, PageContract)),
   config: ScanConfig,
+  server_deps: dict.Dict(String, tom.Toml),
   rpc_ffi_content: String,
   decoders_prelude_content: String,
   has_client_context: Bool,
 ) -> List(GeneratedFile) {
   [
-    GeneratedFile(config.client_root <> "/gleam.toml", client_gleam_toml()),
+    GeneratedFile(
+      config.client_root <> "/gleam.toml",
+      client_gleam_toml(server_deps),
+    ),
     GeneratedFile(
       config.client_root <> "/src/generated/rpc_ffi.mjs",
       rpc_ffi_content,
@@ -72,16 +78,47 @@ pub fn parse_route_from_url() -> Route {
   server_router <> "\n" <> client_fns
 }
 
-fn client_gleam_toml() -> String {
-  "name = \"client\"
-version = \"0.1.0\"
-target = \"javascript\"
+fn client_gleam_toml(server_deps: dict.Dict(String, tom.Toml)) -> String {
+  let header =
+    "name = \"client\"\nversion = \"0.1.0\"\ntarget = \"javascript\"\n\n[dependencies]\ngleam_stdlib = \">= 0.60.0 and < 2.0.0\"\nlustre = \">= 5.6.0 and < 7.0.0\"\nmodem = \">= 2.0.0 and < 3.0.0\"\n"
 
-[dependencies]
-gleam_stdlib = \">= 0.60.0 and < 2.0.0\"
-lustre = \">= 5.6.0 and < 7.0.0\"
-modem = \">= 2.0.0 and < 3.0.0\"
-"
+  let baseline = set.from_list(["gleam_stdlib", "lustre", "modem"])
+
+  let extra_deps =
+    server_deps
+    |> dict.to_list
+    |> list.filter(fn(pair) { !set.contains(baseline, pair.0) })
+    |> list.filter(fn(pair) { pair.0 != "rally" && pair.0 != "marmot" })
+    |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
+    |> list.map(fn(pair) { format_dep(pair.0, pair.1) })
+    |> string.join("")
+
+  header <> extra_deps
+}
+
+fn format_dep(name: String, value: tom.Toml) -> String {
+  case value {
+    tom.String(version) -> name <> " = \"" <> version <> "\"\n"
+    tom.InlineTable(table) | tom.Table(table) -> {
+      case dict.get(table, "path") {
+        Ok(tom.String(path)) ->
+          name <> " = { path = \"../" <> path <> "\" }\n"
+        _ -> {
+          let entries =
+            dict.to_list(table)
+            |> list.map(fn(pair) {
+              case pair.1 {
+                tom.String(s) -> pair.0 <> " = \"" <> s <> "\""
+                _ -> pair.0 <> " = \"???\""
+              }
+            })
+            |> string.join(", ")
+          name <> " = { " <> entries <> " }\n"
+        }
+      }
+    }
+    _ -> ""
+  }
 }
 
 fn error_mjs() -> String {

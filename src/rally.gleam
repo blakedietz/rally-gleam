@@ -78,16 +78,18 @@ fn read_config() -> Result(ScanConfig, String) {
   let client_root =
     tom.get_string(rally_config, ["client_root"])
     |> result.unwrap("client")
+  let server_deps =
+    tom.get_table(toml_map, ["dependencies"])
+    |> result.unwrap(dict.new())
+
   let rally_package_path = {
-    case tom.get_table(toml_map, ["dependencies"]) {
-      Ok(deps) ->
-        case tom.get_table(deps, ["rally"]) {
-          Ok(rally_dep) ->
-            tom.get_string(rally_dep, ["path"])
-            |> result.unwrap("..")
-          Error(_) -> ".."
+    case dict.get(server_deps, "rally") {
+      Ok(tom.InlineTable(rally_dep)) | Ok(tom.Table(rally_dep)) ->
+        case dict.get(rally_dep, "path") {
+          Ok(tom.String(path)) -> path
+          _ -> ".."
         }
-      Error(_) -> ".."
+      _ -> ".."
     }
   }
 
@@ -108,6 +110,7 @@ fn read_config() -> Result(ScanConfig, String) {
     client_root:,
     rally_package_path:,
     shell_file:,
+    server_deps:,
   ))
 }
 
@@ -285,6 +288,7 @@ fn run() -> Result(String, String) {
       routes,
       contracts,
       config,
+      config.server_deps,
       rpc_ffi_content,
       decoders_prelude_content,
       has_client_context,

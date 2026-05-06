@@ -1,5 +1,7 @@
+import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 import libero/field_type.{type FieldType}
+import tom
 
 pub type ParamType {
   IntParam
@@ -35,6 +37,7 @@ pub type ScanConfig {
     client_root: String,
     rally_package_path: String,
     shell_file: String,
+    server_deps: Dict(String, tom.Toml),
   )
 }
 
