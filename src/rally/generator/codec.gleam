@@ -7,12 +7,14 @@
 //// - Per-page client modules — tree-shaken page source
 //// - rally_runtime/effect.gleam — client-side effect shim
 
+import glance
 import gleam/int
 import gleam/list
+import gleam/option
 import gleam/string
 import libero/field_type.{type FieldType, UserType}
 import libero/scanner.{type HandlerEndpoint}
-import libero/walker.{type DiscoveredType, type DiscoveredVariant}
+import libero/walker.{type DiscoveredType, type DiscoveredVariant, DiscoveredType, DiscoveredVariant}
 import rally/tree_shaker
 import rally/types.{type PageContract, type ScannedRoute}
 
@@ -24,12 +26,17 @@ pub type CodecFile {
 pub fn generate(
   contracts: List(#(ScannedRoute, PageContract)),
   discovered: List(DiscoveredType),
-  _has_client_context: Bool,
+  client_context_source: option.Option(String),
   endpoints: List(HandlerEndpoint),
   server_symbols: List(String),
 ) -> List(CodecFile) {
+  let all_discovered = case client_context_source {
+    option.Some(source) ->
+      list.append(discovered, discover_client_context(source))
+    option.None -> discovered
+  }
   let codec_files = [
-    CodecFile("src/generated/codec_ffi.mjs", emit_codec_ffi(discovered)),
+    CodecFile("src/generated/codec_ffi.mjs", emit_codec_ffi(all_discovered)),
     CodecFile(
       "src/generated/types.gleam",
       emit_types_gleam(contracts, endpoints),
@@ -94,6 +101,31 @@ fn post_process_page(source: String, variant_name: String) -> String {
   source
   |> string.replace("rally_effect.send_to_server(", "send_to_server(")
   |> fn(s) { s <> wrapper }
+}
+
+fn discover_client_context(source: String) -> List(DiscoveredType) {
+  case glance.module(source) {
+    Error(_) -> []
+    Ok(ast) ->
+      ast.custom_types
+      |> list.map(fn(def) {
+        let ct = def.definition
+        DiscoveredType(
+          module_path: "client_context",
+          type_name: ct.name,
+          type_params: [],
+          variants: list.map(ct.variants, fn(v) {
+            DiscoveredVariant(
+              module_path: "client_context",
+              variant_name: v.name,
+              atom_name: walker.to_snake_case(v.name),
+              float_field_indices: [],
+              fields: list.map(v.fields, fn(_f) { field_type.StringField }),
+            )
+          }),
+        )
+      })
+  }
 }
 
 fn emit_rally_effect_shim() -> String {

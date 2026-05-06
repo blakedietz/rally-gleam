@@ -269,11 +269,19 @@ fn run() -> Result(String, String) {
   let server_symbols = collect_server_symbols(handler_endpoints)
 
   // 10. Generate codec files and per-page client modules
+  let client_context_source = case has_client_context {
+    True ->
+      case simplifile.read(client_context_path) {
+        Ok(source) -> option.Some(source)
+        Error(_) -> option.None
+      }
+    False -> option.None
+  }
   let raw_codec_files =
     codec.generate(
       contracts,
       discovered,
-      has_client_context,
+      client_context_source,
       handler_endpoints,
       server_symbols,
     )
