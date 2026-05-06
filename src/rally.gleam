@@ -305,11 +305,23 @@ fn run() -> Result(String, String) {
     True -> {
       let assert Ok(cc_source) = simplifile.read(client_context_path)
       let shaken = tree_shaker.shake(cc_source, server_symbols:)
+      let ffi_path =
+        dirname(config.pages_root) <> "/client_context_ffi.mjs"
+      let ffi_files = case simplifile.read(ffi_path) {
+        Ok(ffi_content) -> [
+          client.GeneratedFile(
+            config.client_root <> "/src/client_context_ffi.mjs",
+            ffi_content,
+          ),
+        ]
+        Error(_) -> []
+      }
       [
         client.GeneratedFile(
           config.client_root <> "/src/client_context.gleam",
           shaken,
         ),
+        ..ffi_files
       ]
     }
     False -> []
