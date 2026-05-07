@@ -1,10 +1,14 @@
 import gleam/dict
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
 import gleeunit/should
 import rally/generator
 import rally/generator/client
-import rally/types.{type ScanConfig, ScanConfig}
+import rally/generator/ssr_handler
+import rally/types.{
+  type ScanConfig, PageContract, ScanConfig, ScannedRoute, StaticSegment,
+}
 import simplifile
 import tom
 
@@ -109,6 +113,44 @@ pub fn client_package_does_not_copy_server_runtime_deps_test() {
 
   file.content
   |> string.contains("libero")
+  |> should.equal(False)
+}
+
+pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
+  let route =
+    ScannedRoute(
+      segments: [StaticSegment("home")],
+      variant_name: "Home",
+      params: [],
+      layout_module: Some("pages/layout"),
+      module_path: "pages/home_",
+    )
+  let contract =
+    PageContract(
+      model_variants: [],
+      msg_variants: [],
+      has_load: False,
+      has_init: True,
+      has_init_loaded: False,
+      has_model: True,
+      updates_client_context: False,
+      param_names: [],
+      source: "",
+      view_source: "",
+      init_source: "",
+      update_source: "",
+    )
+  let output =
+    ssr_handler.generate(
+      [#(route, contract)],
+      False,
+      False,
+      "server_context",
+      "<html><head></head><body><div id=\"app\"></div></body></html>",
+    )
+
+  output
+  |> string.contains("import pages/layout")
   |> should.equal(False)
 }
 

@@ -244,10 +244,10 @@ fn generate_layout_imports(
 ) -> String {
   page_contracts
   |> list.filter_map(fn(pair) {
-    let #(route, _) = pair
-    case route.layout_module {
-      Some(layout) -> Ok("import " <> layout)
-      None -> Error(Nil)
+    let #(route, contract) = pair
+    case contract.has_load && contract.has_model, route.layout_module {
+      True, Some(layout) -> Ok("import " <> layout)
+      _, _ -> Error(Nil)
     }
   })
   |> list.unique
