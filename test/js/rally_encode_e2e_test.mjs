@@ -15,13 +15,13 @@ execFileSync("gleam", ["run", "-m", "rally"], {
   stdio: "inherit",
 });
 execFileSync("gleam", ["build"], {
-  cwd: "examples/realworld/.generated_client",
+  cwd: "examples/realworld/.generated_client/public",
   stdio: "inherit",
 });
 
 const clientRoot = join(
   process.cwd(),
-  "examples/realworld/.generated_client/build/dev/javascript/client",
+  "examples/realworld/.generated_client/public/build/dev/javascript/client",
 );
 const rpc = await import(
   pathToFileURL(join(clientRoot, "generated/rpc_ffi.mjs")).href

@@ -4,18 +4,18 @@ import gleam/io
 import libero/error.{InternalError, MalformedRequest, UnknownFunction}
 import libero/trace
 import libero/wire
-import pages/editor as pages_editor_handler
-import pages/home_ as pages_home__handler
-import pages/login as pages_login_handler
-import pages/register as pages_register_handler
-import pages/settings as pages_settings_handler
+import public/pages/editor as public_pages_editor_handler
+import public/pages/home_ as public_pages_home__handler
+import public/pages/login as public_pages_login_handler
+import public/pages/register as public_pages_register_handler
+import public/pages/settings as public_pages_settings_handler
 import server_context.{type ServerContext}
 
 /// Pre-register all constructor atoms that may appear in client ETF
 /// payloads, so binary_to_term([safe]) can decode them. Called once
 /// on the first RPC call; subsequent calls are a no-op (persistent_term
 /// lookup).
-@external(erlang, "generated@rpc_atoms", "ensure")
+@external(erlang, "generated@public@rpc_atoms", "ensure")
 fn ensure_atoms() -> Nil
 
 pub type ClientMsg {
@@ -97,7 +97,7 @@ fn dispatch_known(msg, request_id, server_context) {
     ServerPublishArticle(title: _, description: _, body: _, tags: _) -> {
       case
         trace.try_call(fn() {
-          pages_editor_handler.server_publish_article(
+          public_pages_editor_handler.server_publish_article(
             msg: wire.coerce(typed_msg),
             server_context:,
           )
@@ -127,7 +127,7 @@ fn dispatch_known(msg, request_id, server_context) {
     ServerChangePage(page: _, tab_name: _, tag: _) -> {
       case
         trace.try_call(fn() {
-          pages_home__handler.server_change_page(
+          public_pages_home__handler.server_change_page(
             msg: wire.coerce(typed_msg),
             server_context:,
           )
@@ -157,7 +157,7 @@ fn dispatch_known(msg, request_id, server_context) {
     ServerSwitchTab(tab_name: _, tag: _) -> {
       case
         trace.try_call(fn() {
-          pages_home__handler.server_switch_tab(
+          public_pages_home__handler.server_switch_tab(
             msg: wire.coerce(typed_msg),
             server_context:,
           )
@@ -185,7 +185,7 @@ fn dispatch_known(msg, request_id, server_context) {
     ServerLogin(email: _, password: _) -> {
       case
         trace.try_call(fn() {
-          pages_login_handler.server_login(
+          public_pages_login_handler.server_login(
             msg: wire.coerce(typed_msg),
             server_context:,
           )
@@ -213,7 +213,7 @@ fn dispatch_known(msg, request_id, server_context) {
     ServerRegister(username: _, email: _, password: _) -> {
       case
         trace.try_call(fn() {
-          pages_register_handler.server_register(
+          public_pages_register_handler.server_register(
             msg: wire.coerce(typed_msg),
             server_context:,
           )
@@ -241,7 +241,7 @@ fn dispatch_known(msg, request_id, server_context) {
     ServerLogout -> {
       case
         trace.try_call(fn() {
-          pages_settings_handler.server_logout(
+          public_pages_settings_handler.server_logout(
             msg: wire.coerce(typed_msg),
             server_context:,
           )
@@ -269,7 +269,7 @@ fn dispatch_known(msg, request_id, server_context) {
     ServerUpdateSettings(image: _, username: _, bio: _, email: _, password: _) -> {
       case
         trace.try_call(fn() {
-          pages_settings_handler.server_update_settings(
+          public_pages_settings_handler.server_update_settings(
             msg: wire.coerce(typed_msg),
             server_context:,
           )

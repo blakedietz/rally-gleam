@@ -1,4 +1,4 @@
-import client_context.{type ClientContext}
+import public/client_context.{type ClientContext}
 import server_context.{type ServerContext}
 
 pub fn from_session(

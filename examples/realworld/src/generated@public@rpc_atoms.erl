@@ -11,7 +11,7 @@
 %% because the Erlang compiler optimizes away pure BIF calls whose
 %% results are discarded.
 
--module(generated@rpc_atoms).
+-module(generated@public@rpc_atoms).
 -export([ensure/0]).
 
 ensure() ->

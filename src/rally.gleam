@@ -35,7 +35,7 @@ pub fn main() {
 @external(erlang, "erlang", "halt")
 fn halt(code: Int) -> Nil
 
-fn read_config() -> Result(ScanConfig, String) {
+fn read_configs() -> Result(List(ScanConfig), String) {
   use toml_str <- result.try(
     simplifile.read("gleam.toml")
     |> result.map_error(fn(e) {
@@ -51,6 +51,82 @@ fn read_config() -> Result(ScanConfig, String) {
     tom.get_table(toml_map, ["tools", "rally"])
     |> result.unwrap(dict.new())
 
+  let server_deps =
+    tom.get_table(toml_map, ["dependencies"])
+    |> result.unwrap(dict.new())
+
+  let rally_package_path = {
+    case dict.get(server_deps, "rally") {
+      Ok(tom.InlineTable(rally_dep)) | Ok(tom.Table(rally_dep)) ->
+        case dict.get(rally_dep, "path") {
+          Ok(tom.String(path)) -> path
+          _ -> ".."
+        }
+      _ -> ".."
+    }
+  }
+
+  case tom.get_array(rally_config, ["clients"]) {
+    Ok(clients) -> {
+      use configs <- result.try(
+        list.try_map(clients, fn(client) {
+          case client {
+            tom.Table(client_config) | tom.InlineTable(client_config) ->
+              read_client_config(client_config, server_deps, rally_package_path)
+            _ -> Error("Each [[tools.rally.clients]] entry must be a table")
+          }
+        }),
+      )
+      case configs {
+        [] ->
+          Ok([read_legacy_config(rally_config, server_deps, rally_package_path)])
+        _ -> Ok(configs)
+      }
+    }
+    Error(_) ->
+      Ok([read_legacy_config(rally_config, server_deps, rally_package_path)])
+  }
+}
+
+fn read_client_config(
+  client_config: dict.Dict(String, tom.Toml),
+  server_deps: dict.Dict(String, tom.Toml),
+  rally_package_path: String,
+) -> Result(ScanConfig, String) {
+  use namespace <- result.try(
+    tom.get_string(client_config, ["namespace"])
+    |> result.map_error(fn(_) {
+      "Each [[tools.rally.clients]] entry needs namespace = \"...\""
+    }),
+  )
+  let route_root =
+    tom.get_string(client_config, ["route_root"])
+    |> result.unwrap("/" <> namespace)
+  Ok(ScanConfig(
+    pages_root: "src/" <> namespace <> "/pages",
+    output_route: "src/generated/" <> namespace <> "/router.gleam",
+    output_dispatch: "src/generated/" <> namespace <> "/page_dispatch.gleam",
+    output_server_dispatch: "src/generated/"
+      <> namespace
+      <> "/rpc_dispatch.gleam",
+    output_server_atoms: "src/generated@" <> namespace <> "@rpc_atoms.erl",
+    atoms_module: "generated@" <> namespace <> "@rpc_atoms",
+    output_ssr: "src/generated/" <> namespace <> "/ssr_handler.gleam",
+    output_ws: "src/generated/" <> namespace <> "/ws_handler.gleam",
+    output_http: "src/generated/" <> namespace <> "/http_handler.gleam",
+    client_root: ".generated_client/" <> namespace,
+    route_root:,
+    rally_package_path:,
+    shell_file: "src/" <> namespace <> "/shell.html",
+    server_deps:,
+  ))
+}
+
+fn read_legacy_config(
+  rally_config: dict.Dict(String, tom.Toml),
+  server_deps: dict.Dict(String, tom.Toml),
+  rally_package_path: String,
+) -> ScanConfig {
   let pages_root =
     tom.get_string(rally_config, ["pages_root"])
     |> result.unwrap("src/pages")
@@ -79,26 +155,15 @@ fn read_config() -> Result(ScanConfig, String) {
   let client_root =
     tom.get_string(rally_config, ["client_root"])
     |> result.unwrap(".generated_client")
-  let server_deps =
-    tom.get_table(toml_map, ["dependencies"])
-    |> result.unwrap(dict.new())
-
-  let rally_package_path = {
-    case dict.get(server_deps, "rally") {
-      Ok(tom.InlineTable(rally_dep)) | Ok(tom.Table(rally_dep)) ->
-        case dict.get(rally_dep, "path") {
-          Ok(tom.String(path)) -> path
-          _ -> ".."
-        }
-      _ -> ".."
-    }
-  }
+  let route_root =
+    tom.get_string(rally_config, ["route_root"])
+    |> result.unwrap("/")
 
   let shell_file =
     tom.get_string(rally_config, ["shell_file"])
     |> result.unwrap("src/shell.html")
 
-  Ok(ScanConfig(
+  ScanConfig(
     pages_root:,
     output_route:,
     output_dispatch:,
@@ -109,15 +174,20 @@ fn read_config() -> Result(ScanConfig, String) {
     output_ws:,
     output_http:,
     client_root:,
+    route_root:,
     rally_package_path:,
     shell_file:,
     server_deps:,
-  ))
+  )
 }
 
 fn run() -> Result(String, String) {
-  use config <- result.try(read_config())
+  use configs <- result.try(read_configs())
+  use Nil <- result.try(list.try_each(configs, generate_for_config))
+  Ok(int.to_string(list.length(configs)) <> " client(s)")
+}
 
+fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
   // 1. Scan pages directory
   use routes <- result.try(scanner.scan(config))
 
@@ -173,28 +243,38 @@ fn run() -> Result(String, String) {
   // 3. Detect client_context.gleam and server_context.gleam
   let client_context_path =
     dirname(config.pages_root) <> "/client_context.gleam"
+  let client_context_module = module_from_src_path(client_context_path)
   let has_client_context =
     simplifile.is_file(client_context_path) |> result.unwrap(False)
-  let server_context_path =
-    dirname(config.pages_root) <> "/server_context.gleam"
+  let server_context_path = "src/server_context.gleam"
   let client_context_server_path =
     dirname(config.pages_root) <> "/client_context_server.gleam"
+  let client_context_server_module =
+    module_from_src_path(client_context_server_path)
   let #(has_from_session, from_session_module) = case
     simplifile.read(client_context_server_path)
   {
     Ok(source) ->
       case string.contains(source, "pub fn from_session") {
-        True -> #(True, "client_context_server")
+        True -> #(True, client_context_server_module)
         False -> check_server_context_from_session(server_context_path)
       }
     _ -> check_server_context_from_session(server_context_path)
   }
+  let router_module = module_from_src_path(config.output_route)
+  let rpc_dispatch_module = module_from_src_path(config.output_server_dispatch)
 
   // 4. Generate route type + page dispatch
   let route_source = generator.generate(routes)
   use _ <- result.try(write_file(config.output_route, route_source))
   let dispatch_source =
-    generator.generate_dispatch(routes, contracts, has_client_context)
+    generator.generate_dispatch(
+      routes,
+      contracts,
+      has_client_context,
+      router_module,
+      client_context_module,
+    )
   use _ <- result.try(write_file(config.output_dispatch, dispatch_source))
 
   // 5. Generate RPC dispatch via libero
@@ -224,19 +304,22 @@ fn run() -> Result(String, String) {
       has_client_context,
       has_from_session,
       from_session_module,
+      router_module,
       shell_html,
     )
   use _ <- result.try(write_file(config.output_ssr, ssr_source))
 
   // 6. Generate WebSocket handler
-  let ws_source = ws_handler.generate(contracts, config.atoms_module)
+  let ws_source =
+    ws_handler.generate(contracts, config.atoms_module, rpc_dispatch_module)
   use _ <- result.try(write_file(config.output_ws, ws_source))
 
   // 6b. Generate HTTP handler (for non-WebSocket RPC clients)
   use _ <- result.try(case handler_endpoints {
     [] -> Ok(Nil)
     _ -> {
-      let http_source = http_handler.generate(handler_endpoints)
+      let http_source =
+        http_handler.generate(handler_endpoints, rpc_dispatch_module)
       write_file(config.output_http, http_source)
     }
   })
@@ -308,6 +391,7 @@ fn run() -> Result(String, String) {
       contracts,
       discovered,
       client_context_source,
+      client_context_module,
       handler_endpoints,
       server_symbols,
     )
@@ -326,6 +410,7 @@ fn run() -> Result(String, String) {
       rpc_ffi_content,
       decoders_prelude_content,
       client_context_contract,
+      client_context_module,
     )
   let client_context_files = case has_client_context {
     True -> {
@@ -335,7 +420,7 @@ fn run() -> Result(String, String) {
       let ffi_files = case simplifile.read(ffi_path) {
         Ok(ffi_content) -> [
           client.GeneratedFile(
-            config.client_root <> "/src/client_context_ffi.mjs",
+            config.client_root <> "/src/" <> client_context_module <> "_ffi.mjs",
             ffi_content,
           ),
         ]
@@ -343,7 +428,7 @@ fn run() -> Result(String, String) {
       }
       [
         client.GeneratedFile(
-          config.client_root <> "/src/client_context.gleam",
+          config.client_root <> "/src/" <> client_context_module <> ".gleam",
           shaken,
         ),
         ..ffi_files
@@ -361,7 +446,8 @@ fn run() -> Result(String, String) {
       raw_codec_files
         |> list.filter(fn(f: codec.CodecFile) {
           string.ends_with(f.path, ".gleam")
-          && string.starts_with(f.path, "src/pages/")
+          && string.starts_with(f.path, "src/")
+          && string.contains(f.path, "/pages/")
         })
         |> list.map(fn(f: codec.CodecFile) {
           let module_path =
@@ -383,13 +469,13 @@ fn run() -> Result(String, String) {
         }),
       client_context_files
         |> list.map(fn(f: client.GeneratedFile) {
-          #("client_context", f.content)
+          #(client_context_module, f.content)
         }),
     ])
 
   use dependency_files <- result.try(dependency_resolver.resolve(
     seed_sources:,
-    src_root: dirname(config.pages_root),
+    src_root: source_root_for_pages(config.pages_root),
     client_root: config.client_root,
   ))
 
@@ -424,7 +510,7 @@ fn run() -> Result(String, String) {
     Error(_) -> Nil
   }
 
-  Ok(int.to_string(list.length(routes)) <> " routes")
+  Ok(Nil)
 }
 
 fn reset_generated_client_src(client_root: String) -> Nil {
@@ -483,6 +569,46 @@ fn dirname(path: String) -> String {
   case string.split(path, "/") |> list.reverse {
     [_last, ..rest] -> string.join(list.reverse(rest), "/")
     [] -> "."
+  }
+}
+
+fn module_from_src_path(path: String) -> String {
+  path
+  |> string.drop_start(4)
+  |> string.drop_end(6)
+}
+
+fn source_root_for_pages(pages_root: String) -> String {
+  let parts = string.split(pages_root, "/")
+  case split_before_pages(parts, []) {
+    Ok(prefix_parts) ->
+      case take_through_src(prefix_parts, []) {
+        Ok(src_parts) -> string.join(src_parts, "/")
+        Error(_) -> dirname(pages_root)
+      }
+    Error(_) -> dirname(pages_root)
+  }
+}
+
+fn split_before_pages(
+  parts: List(String),
+  acc: List(String),
+) -> Result(List(String), Nil) {
+  case parts {
+    [] -> Error(Nil)
+    ["pages", ..] -> Ok(acc)
+    [part, ..rest] -> split_before_pages(rest, list.append(acc, [part]))
+  }
+}
+
+fn take_through_src(
+  parts: List(String),
+  acc: List(String),
+) -> Result(List(String), Nil) {
+  case parts {
+    [] -> Error(Nil)
+    ["src", ..] -> Ok(list.append(acc, ["src"]))
+    [part, ..rest] -> take_through_src(rest, list.append(acc, [part]))
   }
 }
 

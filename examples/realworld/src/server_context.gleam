@@ -1,7 +1,7 @@
-import client_context.{type ClientContext, ClientContext, User}
 import datetime
 import generated/sql/auth_sql
 import gleam/option.{Some}
+import public/client_context.{type ClientContext, ClientContext, User}
 import sqlight
 
 pub type ServerContext {

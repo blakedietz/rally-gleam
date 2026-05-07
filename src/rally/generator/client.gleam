@@ -36,6 +36,7 @@ pub fn generate_package(
       True -> Some(empty_client_context_contract())
       False -> None
     },
+    "client_context",
   )
 }
 
@@ -47,6 +48,7 @@ pub fn generate_package_with_client_context_contract(
   rpc_ffi_content: String,
   decoders_prelude_content: String,
   client_context_contract: Option(ClientContextContract),
+  client_context_module: String,
 ) -> List(GeneratedFile) {
   [
     GeneratedFile(
@@ -76,7 +78,12 @@ pub fn generate_package_with_client_context_contract(
     ),
     GeneratedFile(
       config.client_root <> "/src/generated/app.gleam",
-      app_gleam(routes, contracts, client_context_contract),
+      app_gleam(
+        routes,
+        contracts,
+        client_context_contract,
+        client_context_module,
+      ),
     ),
   ]
 }
@@ -88,6 +95,13 @@ fn empty_client_context_contract() -> ClientContextContract {
     has_init: True,
     has_update: True,
   )
+}
+
+fn import_as(module_path: String, alias: String) -> String {
+  case last_segment(module_path) == alias {
+    True -> "import " <> module_path
+    False -> "import " <> module_path <> " as " <> alias
+  }
 }
 
 fn client_router(routes: List(ScannedRoute)) -> String {
@@ -378,6 +392,7 @@ fn app_gleam(
   routes: List(ScannedRoute),
   contracts: List(#(ScannedRoute, PageContract)),
   client_context_contract: Option(ClientContextContract),
+  client_context_module: String,
 ) -> String {
   let has_client_context = option.is_some(client_context_contract)
   let sync_fields = client_context_sync_fields(client_context_contract)
@@ -414,7 +429,7 @@ fn app_gleam(
     })
 
   let ctx_import = case has_client_context {
-    True -> "\nimport client_context"
+    True -> "\n" <> import_as(client_context_module, "client_context")
     False -> ""
   }
 

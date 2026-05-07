@@ -12,10 +12,10 @@ RALLY_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "Creating new rally project: $PROJECT_NAME at $PROJECT_PATH"
 
-mkdir -p "$PROJECT_PATH/src/pages"
+mkdir -p "$PROJECT_PATH/src/public/pages"
 mkdir -p "$PROJECT_PATH/src/sql"
-mkdir -p "$PROJECT_PATH/src/generated"
-mkdir -p "$PROJECT_PATH/.generated_client/src/generated"
+mkdir -p "$PROJECT_PATH/src/generated/public"
+mkdir -p "$PROJECT_PATH/.generated_client/public/src/generated"
 mkdir -p "$PROJECT_PATH/bin"
 
 # .gitignore
@@ -63,15 +63,9 @@ stats = true
 warnings_as_errors = true
 exclude = ["src/generated/"]
 
-[tools.rally]
-pages_root = "src/pages"
-output_route = "src/generated/router.gleam"
-output_dispatch = "src/generated/page_dispatch.gleam"
-output_server_dispatch = "src/generated/rpc_dispatch.gleam"
-output_ssr = "src/generated/ssr_handler.gleam"
-output_ws = "src/generated/ws_handler.gleam"
-sql_dir = "src/sql"
-client_root = ".generated_client"
+[[tools.rally.clients]]
+namespace = "public"
+route_root = "/"
 
 [tools.marmot]
 database = "app.db"
@@ -84,7 +78,7 @@ sed -i.bak "s|PROJECT_NAME_PLACEHOLDER|$PROJECT_NAME|" "$PROJECT_PATH/gleam.toml
 rm -f "$PROJECT_PATH/gleam.toml.bak"
 
 # Sample home page
-cat > "$PROJECT_PATH/src/pages/home_.gleam" <<'GLEAM'
+cat > "$PROJECT_PATH/src/public/pages/home_.gleam" <<'GLEAM'
 // Scaffolded by rally: yours to customize.
 import gleam/string
 import lustre/element.{type Element}
@@ -151,7 +145,7 @@ pub fn server_decrement(
 GLEAM
 
 # Example layout (optional: delete or modify freely)
-cat > "$PROJECT_PATH/src/pages/layout.gleam" <<'GLEAM'
+cat > "$PROJECT_PATH/src/public/pages/layout.gleam" <<'GLEAM'
 // Scaffolded by rally: yours to customize.
 import lustre/element.{type Element}
 
@@ -178,6 +172,10 @@ import gleam/erlang/process
 import gleam/http.{Get, Post}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
+import generated/public/http_handler as http_handler
+import generated/public/router as router
+import generated/public/ssr_handler as ssr_handler
+import generated/public/ws_handler as ws_handler
 import rally_runtime/db
 import rally_runtime/env
 import rally_runtime/session
@@ -185,10 +183,6 @@ import rally_runtime/system
 import server_context.{ServerContext}
 import simplifile
 import sqlight
-import generated/router
-import generated/http_handler
-import generated/ssr_handler
-import generated/ws_handler
 
 pub fn main() {
   let db = start_db()
@@ -280,7 +274,7 @@ pub fn main() {
 }
 
 fn serve_client_js() -> Response(ResponseData) {
-  case simplifile.read(".generated_client/build/dev/javascript/client/generated/app.mjs") {
+  case simplifile.read(".generated_client/public/build/dev/javascript/client/generated/app.mjs") {
     Ok(js) ->
       response.new(200)
       |> response.set_header("content-type", "application/javascript")
@@ -298,7 +292,7 @@ fn start_db() -> sqlight.Connection {
 GLEAM
 
 # shell.html (HTML template for non-SSR routes and SPA fallback)
-cat > "$PROJECT_PATH/src/shell.html" <<'HTML'
+cat > "$PROJECT_PATH/src/public/shell.html" <<'HTML'
 <!-- Scaffolded by rally: yours to customize. -->
 <!DOCTYPE html>
 <html>
@@ -336,7 +330,7 @@ export APP_ENV="${APP_ENV:-dev}"
 echo "==> Running rally codegen..."
 gleam run -m rally
 echo "==> Building client..."
-cd .generated_client && gleam build --target javascript && cd ..
+cd .generated_client/public && gleam build --target javascript && cd ../..
 echo "==> Starting server..."
 gleam run -m app
 SCRIPT

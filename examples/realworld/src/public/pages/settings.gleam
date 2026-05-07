@@ -1,4 +1,3 @@
-import client_context.{type ClientContext, SignedIn, SignedOut, User}
 import datetime
 import generated/sql/auth_sql
 import gleam/list
@@ -10,6 +9,7 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import password
+import public/client_context.{type ClientContext, SignedIn, SignedOut, User}
 import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 

@@ -1,14 +1,14 @@
 import birdie
-import client_context.{type ClientContext, ClientContext, User}
 import gleam/option.{None, Some}
 import lustre/element
-import pages/article/slug_ as article_page
-import pages/editor
-import pages/home_
-import pages/login
-import pages/profile/username_ as profile_page
-import pages/register
-import pages/settings
+import public/client_context.{type ClientContext, ClientContext, User}
+import public/pages/article/slug_ as article_page
+import public/pages/editor
+import public/pages/home_
+import public/pages/login
+import public/pages/profile/username_ as profile_page
+import public/pages/register
+import public/pages/settings
 
 fn logged_out_ctx() -> ClientContext {
   ClientContext(current_user: None)

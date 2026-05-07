@@ -1,4 +1,3 @@
-import client_context.{type ClientContext, SignedIn, User}
 import datetime
 import generated/sql/auth_sql
 import gleam/list
@@ -10,27 +9,27 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import password
+import public/client_context.{type ClientContext, SignedIn, User}
 import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 
 pub type Model {
-  Model(username: String, email: String, password: String, errors: List(String))
+  Model(email: String, password: String, errors: List(String))
 }
 
 pub type Msg {
-  UpdatedUsername(String)
   UpdatedEmail(String)
   UpdatedPassword(String)
-  ClickedRegister
-  GotRegister(Result(#(String, String), List(String)))
+  ClickedLogin
+  GotLogin(Result(#(String, String), List(String)))
 }
 
-pub type ServerRegister {
-  ServerRegister(username: String, email: String, password: String)
+pub type ServerLogin {
+  ServerLogin(email: String, password: String)
 }
 
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
-  #(Model(username: "", email: "", password: "", errors: []), effect.none())
+  #(Model(email: "", password: "", errors: []), effect.none())
 }
 
 pub fn update(
@@ -39,28 +38,23 @@ pub fn update(
   msg: Msg,
 ) -> #(Model, Effect(Msg)) {
   case msg {
-    UpdatedUsername(val) -> #(Model(..model, username: val), effect.none())
     UpdatedEmail(val) -> #(Model(..model, email: val), effect.none())
     UpdatedPassword(val) -> #(Model(..model, password: val), effect.none())
-    ClickedRegister -> #(
+    ClickedLogin -> #(
       model,
       rally_effect.rpc(
-        ServerRegister(
-          username: model.username,
-          email: model.email,
-          password: model.password,
-        ),
-        on_response: GotRegister,
+        ServerLogin(email: model.email, password: model.password),
+        on_response: GotLogin,
       ),
     )
-    GotRegister(Ok(#(username, image))) -> #(
+    GotLogin(Ok(#(username, image))) -> #(
       model,
       effect.batch([
         rally_effect.send_to_client_context(SignedIn(User(username:, image:))),
         rally_effect.navigate("/"),
       ]),
     )
-    GotRegister(Error(errors)) -> #(Model(..model, errors:), effect.none())
+    GotLogin(Error(errors)) -> #(Model(..model, errors:), effect.none())
   }
 }
 
@@ -69,13 +63,14 @@ pub fn view(_client_context: ClientContext, model: Model) -> Element(Msg) {
     html.div([attr.class("container page")], [
       html.div([attr.class("row")], [
         html.div([attr.class("col-md-6 offset-md-3 col-xs-12")], [
-          html.h1([attr.class("text-xs-center")], [html.text("Sign up")]),
+          html.h1([attr.class("text-xs-center")], [html.text("Sign in")]),
           html.p([attr.class("text-xs-center")], [
-            html.a([attr.href("/login")], [html.text("Have an account?")]),
+            html.a([attr.href("/register")], [
+              html.text("Need an account?"),
+            ]),
           ]),
           error_list(model.errors),
           html.fieldset([], [
-            fieldset_input("text", "Your Name", model.username, UpdatedUsername),
             fieldset_input("text", "Email", model.email, UpdatedEmail),
             fieldset_input(
               "password",
@@ -87,9 +82,9 @@ pub fn view(_client_context: ClientContext, model: Model) -> Element(Msg) {
               [
                 attr.class("btn btn-lg btn-primary pull-xs-right"),
                 attr.type_("button"),
-                event.on_click(ClickedRegister),
+                event.on_click(ClickedLogin),
               ],
-              [html.text("Sign up")],
+              [html.text("Sign in")],
             ),
           ]),
         ]),
@@ -123,62 +118,49 @@ fn fieldset_input(
 
 // --- Server handler ---
 
-pub fn server_register(
-  msg msg: ServerRegister,
+pub fn server_login(
+  msg msg: ServerLogin,
   server_context server_context: ServerContext,
 ) -> Result(#(String, String), List(String)) {
-  let errors = validate_register(msg.username, msg.email, msg.password)
+  let errors = validate_login(msg.email, msg.password)
   case errors {
     [] -> {
-      let session_id = rally_effect.get_ws_session()
-      let now = datetime.now_unix()
-      let hash = password.hash(msg.password)
       case
-        auth_sql.register_user(
-          db: server_context.db,
-          username: msg.username,
-          email: msg.email,
-          password_hash: hash,
-          bio: "",
-          image: "",
-          created_at: now,
-          updated_at: now,
-        )
+        auth_sql.find_user_by_email(db: server_context.db, email: msg.email)
       {
         Ok([user]) -> {
-          let assert Ok(_) =
-            auth_sql.create_session(
-              db: server_context.db,
-              session_id: Some(session_id),
-              user_id: user.id,
-              created_at: now,
-              expires_at: now + datetime.session_ttl_seconds,
-            )
-          Ok(#(user.username, user.image))
+          case password.verify(msg.password, user.password_hash) {
+            True -> {
+              let session_id = rally_effect.get_ws_session()
+              let now = datetime.now_unix()
+              let assert Ok(_) =
+                auth_sql.create_session(
+                  db: server_context.db,
+                  session_id: Some(session_id),
+                  user_id: user.id,
+                  created_at: now,
+                  expires_at: now + datetime.session_ttl_seconds,
+                )
+              Ok(#(user.username, user.image))
+            }
+            False -> Error(["Invalid email or password"])
+          }
         }
-        _ -> Error(["Username or email already taken"])
+        _ -> Error(["Invalid email or password"])
       }
     }
     _ -> Error(errors)
   }
 }
 
-fn validate_register(
-  username: String,
-  email: String,
-  password_text: String,
-) -> List(String) {
+fn validate_login(email: String, password_text: String) -> List(String) {
   let errors = []
-  let errors = case string.is_empty(string.trim(username)) {
-    True -> ["Username can't be blank", ..errors]
-    False -> errors
-  }
   let errors = case string.is_empty(string.trim(email)) {
     True -> ["Email can't be blank", ..errors]
     False -> errors
   }
-  let errors = case string.length(password_text) < 8 {
-    True -> ["Password must be at least 8 characters", ..errors]
+  let errors = case string.is_empty(string.trim(password_text)) {
+    True -> ["Password can't be blank", ..errors]
     False -> errors
   }
   errors

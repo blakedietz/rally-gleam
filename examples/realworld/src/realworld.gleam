@@ -1,7 +1,7 @@
-import generated/http_handler
-import generated/router
-import generated/ssr_handler
-import generated/ws_handler
+import generated/public/http_handler
+import generated/public/router
+import generated/public/ssr_handler
+import generated/public/ws_handler
 import gleam/bytes_tree
 import gleam/erlang/process
 import gleam/http.{Get, Post}
@@ -20,7 +20,7 @@ import server_context.{ServerContext}
 import simplifile
 import sqlight
 
-const client_build_root = ".generated_client/build/dev/javascript"
+const client_build_root = ".generated_client/public/build/dev/javascript"
 
 pub fn main() {
   let db = start_db()

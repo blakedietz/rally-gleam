@@ -9,7 +9,7 @@ bin/dev
 # => http://localhost:8080
 ```
 
-This runs marmot codegen (SQL), Rally codegen (routes, handlers, client), builds the ignored JS client in `.generated_client`, and starts the server.
+This runs marmot codegen (SQL), Rally codegen (routes, handlers, client), builds the ignored JS client in `.generated_client/public`, and starts the server.
 
 ## What's here
 
@@ -58,6 +58,6 @@ The login flow is a good example of how the pieces connect: the client sends `Su
 
 ## What Rally provides vs. what's hand-written
 
-**Generated** (`src/generated/`, `.generated_client/src/generated/`): router, SSR handler, WebSocket handler, client app shell, transport layer, codec, type mirrors. The client package lives under ignored `.generated_client` so generated SPA code stays out of the repository.
+**Generated** (`src/generated/public/`, `.generated_client/public/src/generated/`): router, SSR handler, WebSocket handler, client app shell, transport layer, codec, type mirrors. The client package lives under ignored `.generated_client/public` so generated SPA code stays out of the repository.
 
-**Hand-written**: everything in `src/pages/`, `src/sql/`, `server_context.gleam`, `client_context.gleam`, `app.gleam`, and supporting modules like `password.gleam` and `datetime.gleam`.
+**Hand-written**: everything in `src/public/pages/`, `src/sql/`, `server_context.gleam`, `src/public/client_context.gleam`, `app.gleam`, and supporting modules like `password.gleam` and `datetime.gleam`.

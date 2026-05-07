@@ -1,4 +1,3 @@
-import client_context.{type ClientContext}
 import datetime
 import generated/sql/articles_sql
 import generated/sql/auth_sql
@@ -11,6 +10,7 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import public/client_context.{type ClientContext}
 import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 import slug
