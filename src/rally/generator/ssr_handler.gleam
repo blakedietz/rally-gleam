@@ -62,6 +62,7 @@ pub fn handle_request(
   route: router.Route,
   server_context: ServerContext,
   session_id: String,
+  hostname: String,
 ) -> response.Response(ResponseData) {"
     False ->
       "
@@ -73,8 +74,8 @@ pub fn handle_request(
   let ctx_script = case use_session {
     True ->
       "
-fn context_script(server_context: ServerContext, session_id: String) -> String {
-  let client_context = " <> from_session_module <> ".from_session(server_context, session_id)
+fn context_script(server_context: ServerContext, session_id: String, hostname: String) -> String {
+  let #(client_context, _) = " <> from_session_module <> ".from_session(server_context, session_id, hostname)
   let encoded = codec.encode_flags(client_context)
   \"<script>window.__RALLY_CLIENT_CONTEXT__='\" <> encoded <> \"'</script>\"
 }
@@ -83,7 +84,7 @@ fn context_script(server_context: ServerContext, session_id: String) -> String {
   }
 
   let shell_call = case use_session {
-    True -> "serve_html_shell(server_context, session_id)"
+    True -> "serve_html_shell(server_context, session_id, hostname)"
     False -> "serve_html_shell()"
   }
 
@@ -124,10 +125,10 @@ fn context_script(server_context: ServerContext, session_id: String) -> String {
   let shell_fn = case use_session {
     True ->
       "
-fn serve_html_shell(server_context: ServerContext, session_id: String) -> response.Response(ResponseData) {
+fn serve_html_shell(server_context: ServerContext, session_id: String, hostname: String) -> response.Response(ResponseData) {
   let html = \""
       <> escaped_shell
-      <> "\" <> context_script(server_context, session_id)
+      <> "\" <> context_script(server_context, session_id, hostname)
   response.new(200)
   |> response.set_header(\"content-type\", \"text/html\")
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
@@ -241,7 +242,7 @@ fn generate_load_arms(
         }
         let ctx_init = case use_session {
           True ->
-            "      let client_context = " <> from_session_module <> ".from_session(server_context, session_id)\n"
+            "      let #(client_context, server_context) = " <> from_session_module <> ".from_session(server_context, session_id, hostname)\n"
           False ->
             case has_client_context {
               True ->
@@ -279,7 +280,7 @@ fn generate_load_arms(
         }
         let ctx_script = case use_session {
           True ->
-            "      let ctx_tag = context_script(server_context, session_id)\n"
+            "      let ctx_tag = context_script(server_context, session_id, hostname)\n"
           False -> ""
         }
         let flags_target = case contract.has_init_loaded {

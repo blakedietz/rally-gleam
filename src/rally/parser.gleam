@@ -62,6 +62,8 @@ pub fn parse_page(
   let view_source = extract_function_source(source, functions_list, "view")
   let init_source = extract_function_source(source, functions_list, "init")
   let update_source = extract_function_source(source, functions_list, "update")
+  let updates_client_context =
+    string.contains(update_source, "ClientContextMsg")
 
   Ok(PageContract(
     model_variants:,
@@ -70,6 +72,7 @@ pub fn parse_page(
     has_init:,
     has_init_loaded:,
     has_model:,
+    updates_client_context:,
     param_names:,
     source:,
     view_source:,

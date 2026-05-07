@@ -1039,16 +1039,14 @@ function logRpc(direction, label, data, extra) {
   const arrow = direction;
   const style = colors[arrow] || "";
   const parts = [`%c${arrow} ${label}`, style];
+  console.groupCollapsed(...parts);
+  console.log(formatRaw(data));
   if (extra) {
-    console.groupCollapsed(...parts);
-    console.log(formatRaw(data));
     for (const [k, v] of Object.entries(extra)) {
       console.log(`${k}:`, v);
     }
-    console.groupEnd();
-  } else {
-    console.log(...parts, formatRaw(data));
   }
+  console.groupEnd();
 }
 
 if (typeof window !== "undefined") {

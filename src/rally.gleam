@@ -391,6 +391,23 @@ fn run() -> Result(String, String) {
     ),
   )
 
+  // Clean up empty generated modules
+  case simplifile.read(config.output_dispatch) {
+    Ok(content) ->
+      case
+        !string.contains(content, "pub fn")
+        && !string.contains(content, "pub type")
+        && !string.contains(content, "pub const")
+      {
+        True -> {
+          let _ = simplifile.delete(config.output_dispatch)
+          Nil
+        }
+        False -> Nil
+      }
+    Error(_) -> Nil
+  }
+
   Ok(int.to_string(list.length(routes)) <> " routes")
 }
 

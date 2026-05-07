@@ -119,25 +119,31 @@ fn check_erlang_external(
 ) -> Result(Nil, String) {
   case string.contains(content, "@external(erlang,") {
     False -> Ok(Nil)
-    True -> {
-      let line = find_line_number(content, "@external(erlang,")
-      let chain_str =
-        string.join(
-          list.map(list.append(chain, [module_path]), fn(c) { c <> ".gleam" }),
-          " -> ",
-        )
-      Error(
-        module_path
-        <> ".gleam (line "
-        <> int.to_string(line)
-        <> ") contains @external(erlang, ...) which can't compile for JavaScript.\n\n"
-        <> "  Import chain: "
-        <> chain_str
-        <> "\n\n"
-        <> "  Server-only code belongs in page modules as server_* functions (which rally\n"
-        <> "  strips from the client), or in separate modules that client code doesn't import.",
-      )
-    }
+    True ->
+      case string.contains(content, "@external(javascript,") {
+        True -> Ok(Nil)
+        False -> {
+          let line = find_line_number(content, "@external(erlang,")
+          let chain_str =
+            string.join(
+              list.map(list.append(chain, [module_path]), fn(c) {
+                c <> ".gleam"
+              }),
+              " -> ",
+            )
+          Error(
+            module_path
+            <> ".gleam (line "
+            <> int.to_string(line)
+            <> ") contains @external(erlang, ...) which can't compile for JavaScript.\n\n"
+            <> "  Import chain: "
+            <> chain_str
+            <> "\n\n"
+            <> "  Server-only code belongs in page modules as server_* functions (which rally\n"
+            <> "  strips from the client), or in separate modules that client code doesn't import.",
+          )
+        }
+      }
   }
 }
 

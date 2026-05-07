@@ -10,8 +10,8 @@ import mist.{type ResponseData}
 import generated/router
 import server_context.{type ServerContext}
 import rally_runtime/codec
+import gleam/string
 import lustre/element
-import rally_runtime/ssr
 import pages/about as pages_about
 import pages/home_ as pages_home_
 import pages/users/id_ as pages_users_id_
@@ -20,32 +20,39 @@ pub fn handle_request(
   route: router.Route,
   server_context: ServerContext,
   session_id: String,
+  hostname: String,
 ) -> response.Response(ResponseData) {
   case route {
     router.Home -> {
       let model = pages_home_.load(server_context)
-          let html = element.to_document_string(pages_home_.view(model))
+          let rendered = element.to_string(pages_home_.view(model))
       let flags = codec.encode_flags(model)
       let flags_tag = "<script>window.__RALLY_FLAGS__='" <> flags <> "'</script>"
-      let full_html = html <> flags_tag
+      let shell = shell_html()
+      let full_html = string.replace(shell, "<div id='app'></div>", "<div id='app'>" <> rendered <> "</div>")
+        <> flags_tag
       response.new(200)
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
     }
     router.About -> {
       let model = pages_about.load(server_context)
-          let html = element.to_document_string(pages_about.view(model))
+          let rendered = element.to_string(pages_about.view(model))
       let flags = codec.encode_flags(model)
       let flags_tag = "<script>window.__RALLY_FLAGS__='" <> flags <> "'</script>"
-      let full_html = html <> flags_tag
+      let shell = shell_html()
+      let full_html = string.replace(shell, "<div id='app'></div>", "<div id='app'>" <> rendered <> "</div>")
+        <> flags_tag
       response.new(200)
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
     }
     router.UsersId(id) -> {
       let model = pages_users_id_.load(id, server_context)
-          let html = element.to_document_string(pages_users_id_.view(model))
+          let rendered = element.to_string(pages_users_id_.view(model))
       let flags = codec.encode_flags(model)
       let flags_tag = "<script>window.__RALLY_FLAGS__='" <> flags <> "'</script>"
-      let full_html = html <> flags_tag
+      let shell = shell_html()
+      let full_html = string.replace(shell, "<div id='app'></div>", "<div id='app'>" <> rendered <> "</div>")
+        <> flags_tag
       response.new(200)
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
     }
@@ -60,5 +67,9 @@ fn serve_html_shell() -> response.Response(ResponseData) {
   response.new(200)
   |> response.set_header("content-type", "text/html")
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
+}
+
+fn shell_html() -> String {
+  "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><script>(function(){var c=document.cookie;if(c.includes('__rally_dark_mode=1')||(!c.includes('__rally_dark_mode=')&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})()</script></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
 }
 
