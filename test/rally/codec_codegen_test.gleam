@@ -60,12 +60,13 @@ pub fn generated_effect_lang_falls_back_to_browser_language_test() {
   let assert True = string.contains(file.content, "navigator.language")
 }
 
-pub fn generated_decode_flags_matches_runtime_empty_string_error_test() {
+pub fn generated_decode_flags_rejects_empty_flags_before_decoding_test() {
   let files = codec.generate([], [], option.None, [], [])
   let assert Ok(file) =
     list.find(files, fn(file) { file.path == "src/generated/codec.gleam" })
 
-  let assert False = string.contains(file.content, "\"No flags\"")
+  let assert True =
+    string.contains(file.content, "\"\" -> Error(\"No flags present\")")
   let assert True =
     string.contains(file.content, "Failed to base64-decode flags")
 }

@@ -817,9 +817,13 @@ import gleam/bit_array
 import generated/transport
 
 pub fn decode_flags(flags: String) -> Result(a, String) {
-  case bit_array.base64_decode(flags) {
-    Ok(bits) -> Ok(transport.decode(bits))
-    Error(_) -> Error(\"Failed to base64-decode flags\")
+  case flags {
+    \"\" -> Error(\"No flags present\")
+    _ ->
+      case bit_array.base64_decode(flags) {
+        Ok(bits) -> Ok(transport.decode(bits))
+        Error(_) -> Error(\"Failed to base64-decode flags\")
+      }
   }
 }
 "
