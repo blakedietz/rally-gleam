@@ -84,7 +84,9 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
   |> should.equal(True)
 
   script
-  |> string.contains("client/build/dev/javascript/client/generated/app.mjs")
+  |> string.contains(
+    ".generated_client/public/build/dev/javascript/client/generated/app.mjs",
+  )
   |> should.equal(True)
 
   script
@@ -100,11 +102,35 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
   |> should.equal(True)
 }
 
+pub fn scaffold_uses_namespaced_client_config_test() {
+  let assert Ok(script) = simplifile.read("bin/new")
+
+  script
+  |> string.contains("[[tools.rally.clients]]")
+  |> should.equal(True)
+
+  script
+  |> string.contains("namespace = \"public\"")
+  |> should.equal(True)
+
+  script
+  |> string.contains("route_root = \"/\"")
+  |> should.equal(True)
+
+  script
+  |> string.contains("src/public/pages")
+  |> should.equal(True)
+
+  script
+  |> string.contains(".generated_client/public")
+  |> should.equal(True)
+}
+
 pub fn scaffold_routes_http_rpc_test() {
   let assert Ok(script) = simplifile.read("bin/new")
 
   script
-  |> string.contains("import generated/http_handler")
+  |> string.contains("import generated/public/http_handler as http_handler")
   |> should.equal(True)
 
   script
@@ -122,10 +148,10 @@ pub fn scaffold_routes_http_rpc_test() {
 
 pub fn realworld_routes_http_rpc_test() {
   let assert Ok(source) =
-    simplifile.read("examples/realworld/src/curling.gleam")
+    simplifile.read("examples/realworld/src/realworld.gleam")
 
   source
-  |> string.contains("import generated/http_handler")
+  |> string.contains("import generated/public/http_handler")
   |> should.equal(True)
 
   source
@@ -142,7 +168,8 @@ pub fn realworld_routes_http_rpc_test() {
 }
 
 pub fn ws_handler_logs_decoded_rpc_value_test() {
-  let output = ws_handler.generate([], "generated@rpc_atoms")
+  let output =
+    ws_handler.generate([], "generated@rpc_atoms", "generated/rpc_dispatch")
 
   output
   |> string.contains(
@@ -180,7 +207,7 @@ pub fn client_package_keeps_absolute_dependency_paths_test() {
   let files =
     client.generate_package([], [], test_scan_config(), deps, "", "", False)
   let assert Ok(file) =
-    list.find(files, fn(file) { file.path == "client/gleam.toml" })
+    list.find(files, fn(file) { file.path == ".generated_client/gleam.toml" })
 
   file.content
   |> string.contains("shared_widgets = { path = \"/tmp/shared_widgets\" }")
@@ -200,7 +227,7 @@ pub fn client_package_does_not_copy_server_runtime_deps_test() {
   let files =
     client.generate_package([], [], test_scan_config(), deps, "", "", False)
   let assert Ok(file) =
-    list.find(files, fn(file) { file.path == "client/gleam.toml" })
+    list.find(files, fn(file) { file.path == ".generated_client/gleam.toml" })
 
   file.content
   |> string.contains("mist")
@@ -245,6 +272,7 @@ pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
       False,
       False,
       "server_context",
+      "generated/router",
       "<html><head></head><body><div id=\"app\"></div></body></html>",
     )
 
@@ -296,6 +324,7 @@ pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
       False,
       False,
       "server_context",
+      "generated/router",
       "<html><head></head><body><main></main></body></html>",
     )
 
@@ -335,6 +364,7 @@ pub fn ssr_app_marker_preserves_tag_order_test() {
       False,
       False,
       "server_context",
+      "generated/router",
       "<html><head></head><body><main class=\"root\" id = \"app\"></main></body></html>",
     )
 
@@ -358,7 +388,8 @@ fn test_scan_config() -> ScanConfig {
     output_ssr: "",
     output_ws: "",
     output_http: "",
-    client_root: "client",
+    client_root: ".generated_client",
+    route_root: "/",
     rally_package_path: "",
     shell_file: "",
     server_deps: dict.new(),

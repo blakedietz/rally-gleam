@@ -32,6 +32,7 @@ pub fn generate(
   contracts: List(#(ScannedRoute, PageContract)),
   discovered: List(DiscoveredType),
   client_context_source: option.Option(String),
+  client_context_module: String,
   endpoints: List(HandlerEndpoint),
   server_symbols: List(String),
 ) -> List(CodecFile) {
@@ -41,7 +42,7 @@ pub fn generate(
   let all_discovered = case client_context_source {
     option.Some(source) -> {
       let cc_types =
-        discover_client_context(source)
+        discover_client_context(source, client_context_module)
         |> list.filter(fn(t) { !set.contains(existing_type_names, t.type_name) })
       list.append(discovered, cc_types)
     }
@@ -174,7 +175,10 @@ fn drop_unused_effect_import(source: String, aliases: List(String)) -> String {
   }
 }
 
-fn discover_client_context(source: String) -> List(DiscoveredType) {
+fn discover_client_context(
+  source: String,
+  module_path: String,
+) -> List(DiscoveredType) {
   case glance.module(source) {
     Error(_) -> []
     Ok(ast) ->
@@ -182,12 +186,12 @@ fn discover_client_context(source: String) -> List(DiscoveredType) {
       |> list.map(fn(def) {
         let ct = def.definition
         DiscoveredType(
-          module_path: "client_context",
+          module_path: module_path,
           type_name: ct.name,
           type_params: [],
           variants: list.map(ct.variants, fn(v) {
             DiscoveredVariant(
-              module_path: "client_context",
+              module_path: module_path,
               variant_name: v.name,
               atom_name: walker.to_snake_case(v.name),
               float_field_indices: [],

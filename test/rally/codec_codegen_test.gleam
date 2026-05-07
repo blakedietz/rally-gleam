@@ -52,7 +52,7 @@ pub fn duplicate_constructor_names_get_aliased_imports_test() {
 }
 
 pub fn generated_effect_lang_falls_back_to_browser_language_test() {
-  let files = codec.generate([], [], option.None, [], [])
+  let files = codec.generate([], [], option.None, "client_context", [], [])
   let assert Ok(file) =
     list.find(files, fn(file) {
       file.path == "src/rally_runtime/rally_effect_ffi.mjs"
@@ -62,7 +62,7 @@ pub fn generated_effect_lang_falls_back_to_browser_language_test() {
 }
 
 pub fn generated_decode_flags_rejects_empty_flags_before_decoding_test() {
-  let files = codec.generate([], [], option.None, [], [])
+  let files = codec.generate([], [], option.None, "client_context", [], [])
   let assert Ok(file) =
     list.find(files, fn(file) { file.path == "src/generated/codec.gleam" })
 
@@ -89,7 +89,8 @@ pub fn codec_ffi_registers_nested_float_endpoint_field_types_test() {
       mutates_context: False,
       msg_type_name: option.None,
     )
-  let files = codec.generate([], [], option.None, [endpoint], [])
+  let files =
+    codec.generate([], [], option.None, "client_context", [endpoint], [])
   let assert Ok(file) =
     list.find(files, fn(file) { file.path == "src/generated/codec_ffi.mjs" })
 
@@ -176,13 +177,42 @@ pub fn update(model, msg) {
       layout_module: option.None,
       module_path: "pages/home_",
     )
-  let files = codec.generate([#(route, contract)], [], option.None, [], [])
+  let files =
+    codec.generate(
+      [#(route, contract)],
+      [],
+      option.None,
+      "client_context",
+      [],
+      [],
+    )
   let assert Ok(file) =
     list.find(files, fn(file) { file.path == "src/pages/home_.gleam" })
 
   let assert True = string.contains(file.content, "send_to_server (Send)")
   let assert False = string.contains(file.content, "fx.send_to_server")
   let assert True = string.contains(file.content, "import generated/transport")
+}
+
+pub fn namespaced_client_context_imports_from_namespaced_module_test() {
+  let source =
+    "
+pub type ClientContext {
+  ClientContext(current_path: String)
+}
+"
+  let files =
+    codec.generate([], [], option.Some(source), "public/client_context", [], [])
+  let assert Ok(file) =
+    list.find(files, fn(file) { file.path == "src/generated/codec_ffi.mjs" })
+
+  file.content
+  |> string.contains("from \"../public/client_context.mjs\";")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("from \"../client_context.mjs\";")
+  |> should.equal(False)
 }
 
 fn has_bare_import(output: String, bare: String) -> Bool {

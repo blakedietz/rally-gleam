@@ -6,11 +6,11 @@
 //   node test/js/rpc_callback_contract_test.mjs
 
 import { strict as assert } from "assert";
-import * as rpc from "../../examples/realworld/client/build/dev/javascript/client/generated/rpc_ffi.mjs";
+import * as rpc from "../../examples/realworld/.generated_client/public/build/dev/javascript/client/generated/rpc_ffi.mjs";
 import {
   Ok,
   Error as ResultError,
-} from "../../examples/realworld/client/build/dev/javascript/gleam_stdlib/gleam.mjs";
+} from "../../examples/realworld/.generated_client/public/build/dev/javascript/gleam_stdlib/gleam.mjs";
 
 class FakeWebSocket {
   static OPEN = 1;

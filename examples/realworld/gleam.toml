@@ -27,15 +27,9 @@ stats = true
 warnings_as_errors = true
 exclude = ["src/generated/"]
 
-[tools.rally]
-pages_root = "src/pages"
-output_route = "src/generated/router.gleam"
-output_dispatch = "src/generated/page_dispatch.gleam"
-output_server_dispatch = "src/generated/rpc_dispatch.gleam"
-output_ssr = "src/generated/ssr_handler.gleam"
-output_ws = "src/generated/ws_handler.gleam"
-sql_dir = "src/sql"
-client_root = "client"
+[[tools.rally.clients]]
+namespace = "public"
+route_root = "/"
 
 [tools.marmot]
 database = "app.db"

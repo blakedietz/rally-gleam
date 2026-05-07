@@ -35,6 +35,7 @@ pub type ScanConfig {
     output_ws: String,
     output_http: String,
     client_root: String,
+    route_root: String,
     rally_package_path: String,
     shell_file: String,
     server_deps: Dict(String, tom.Toml),

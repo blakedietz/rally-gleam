@@ -21,10 +21,15 @@ fn test_config(dir: String) -> ScanConfig {
     output_ws: "",
     output_http: "",
     client_root: "",
+    route_root: "/",
     rally_package_path: "",
     shell_file: "",
     server_deps: dict.new(),
   )
+}
+
+fn test_config_with_route_root(dir: String, route_root: String) -> ScanConfig {
+  ScanConfig(..test_config(dir), route_root:)
 }
 
 fn make_temp_dir(name: String) -> String {
@@ -61,6 +66,27 @@ pub fn scan_home_test() {
         params: [],
         layout_module: None,
         module_path: "pages/home_",
+      ),
+    )
+  cleanup(dir)
+}
+
+pub fn scan_namespaced_pages_root_test() {
+  let dir = make_temp_dir("namespaced")
+  let pages_root = dir <> "/src/admin/pages"
+  mkdir(pages_root)
+  touch(pages_root <> "/index.gleam")
+  let assert Ok(routes) =
+    scanner.scan(test_config_with_route_root(pages_root, "/admin"))
+  let assert True =
+    list.contains(
+      routes,
+      ScannedRoute(
+        segments: [StaticSegment("admin")],
+        variant_name: "Admin",
+        params: [],
+        layout_module: None,
+        module_path: "admin/pages/index",
       ),
     )
   cleanup(dir)

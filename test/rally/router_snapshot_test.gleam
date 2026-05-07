@@ -111,7 +111,14 @@ pub fn router_uses_qualified_percent_encode_without_value_import_test() {
 
 pub fn dispatch_output_snapshot_test() {
   let routes = basic_routes()
-  let output = generator.generate_dispatch(routes, basic_contracts(), False)
+  let output =
+    generator.generate_dispatch(
+      routes,
+      basic_contracts(),
+      False,
+      "generated/router",
+      "client_context",
+    )
   birdie.snap(output, "page_dispatch_gleam")
 }
 
@@ -120,7 +127,14 @@ pub fn ssr_handler_snapshot_test() {
   let shell =
     "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
   let output =
-    ssr_handler.generate(contracts, False, False, "server_context", shell)
+    ssr_handler.generate(
+      contracts,
+      False,
+      False,
+      "server_context",
+      "generated/router",
+      shell,
+    )
   birdie.snap(output, "ssr_handler_gleam")
 }
 
@@ -129,7 +143,14 @@ pub fn ssr_handler_sets_content_type_for_load_pages_test() {
   let shell =
     "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
   let output =
-    ssr_handler.generate(contracts, False, False, "server_context", shell)
+    ssr_handler.generate(
+      contracts,
+      False,
+      False,
+      "server_context",
+      "generated/router",
+      shell,
+    )
   let content_type_count =
     output
     |> string.split("|> response.set_header(\"content-type\", \"text/html\")")
@@ -144,7 +165,14 @@ pub fn ssr_handler_with_client_context_snapshot_test() {
   let shell =
     "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
   let output =
-    ssr_handler.generate(contracts, True, True, "server_context", shell)
+    ssr_handler.generate(
+      contracts,
+      True,
+      True,
+      "server_context",
+      "generated/router",
+      shell,
+    )
   birdie.snap(output, "ssr_handler_with_client_context_gleam")
 }
 
@@ -175,6 +203,7 @@ pub fn app_gleam_with_browser_client_context_snapshot_test() {
       "",
       "",
       Some(client_context_contract_with_browser_fields()),
+      "client_context",
     )
   let app =
     list.find(files, fn(f: client.GeneratedFile) {
@@ -194,6 +223,7 @@ pub fn client_app_syncs_browser_client_context_fields_test() {
       "",
       "",
       Some(client_context_contract_with_browser_fields()),
+      "client_context",
     )
   let assert Ok(file) =
     list.find(files, fn(f: client.GeneratedFile) {
@@ -470,6 +500,7 @@ pub fn ssr_layout_with_client_context_uses_v3_session_contract_test() {
       True,
       True,
       "server_context",
+      "generated/router",
       shell,
     )
 
@@ -700,7 +731,15 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       init_source: "",
       update_source: "",
     )
-  let files = codec.generate([#(route, contract)], [], option.None, [], [])
+  let files =
+    codec.generate(
+      [#(route, contract)],
+      [],
+      option.None,
+      "client_context",
+      [],
+      [],
+    )
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.contains(f.content, "send_to_server(Increment)")
@@ -717,7 +756,8 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
 pub fn types_gleam_snapshot_test() {
   let contracts = basic_contracts()
-  let files = codec.generate(contracts, [], option.None, [], [])
+  let files =
+    codec.generate(contracts, [], option.None, "client_context", [], [])
   let types =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "types.gleam")
@@ -737,7 +777,8 @@ pub fn types_gleam_does_not_import_modules_used_only_by_responses_test() {
       mutates_context: False,
       msg_type_name: None,
     )
-  let files = codec.generate([], [], option.None, [endpoint], [])
+  let files =
+    codec.generate([], [], option.None, "client_context", [endpoint], [])
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "types.gleam")
@@ -750,7 +791,8 @@ pub fn types_gleam_does_not_import_modules_used_only_by_responses_test() {
 
 pub fn codec_gleam_snapshot_test() {
   let contracts = basic_contracts()
-  let files = codec.generate(contracts, [], option.None, [], [])
+  let files =
+    codec.generate(contracts, [], option.None, "client_context", [], [])
   let codec_file =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "codec.gleam")
@@ -760,7 +802,7 @@ pub fn codec_gleam_snapshot_test() {
 }
 
 pub fn codec_gleam_omits_unused_dynamic_type_import_test() {
-  let files = codec.generate([], [], option.None, [], [])
+  let files = codec.generate([], [], option.None, "client_context", [], [])
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "codec.gleam")
@@ -783,6 +825,7 @@ fn test_scan_config() -> ScanConfig {
     output_ws: "",
     output_http: "",
     client_root: "client",
+    route_root: "/",
     rally_package_path: "",
     shell_file: "",
     server_deps: dict.new(),

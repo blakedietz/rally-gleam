@@ -79,6 +79,7 @@ fn scan_dir(
   path: String,
   prefix_segments: List(UrlSegment),
   path_parts: List(String),
+  module_prefix: String,
   acc: ScanAcc,
 ) -> Result(ScanAcc, String) {
   use entries <- result.try(
@@ -114,6 +115,7 @@ fn scan_dir(
             entry_path,
             list.append(prefix_segments, [seg]),
             list.append(path_parts, [entry]),
+            module_prefix,
             acc,
           )
         }
@@ -125,7 +127,7 @@ fn scan_dir(
         True -> {
           let stem = string.drop_end(entry, string.length(".gleam"))
           let relative_path = string.join(list.append(path_parts, [stem]), "/")
-          let module_path = derive_module_path(relative_path)
+          let module_path = derive_module_path(module_prefix, relative_path)
 
           // layout.gleam files are not routes — they provide page chrome.
           case stem {
@@ -219,7 +221,15 @@ fn find_nearest_layout(
 
 /// Scan a root directory and return all routes found with layout assignments.
 pub fn scan(config: ScanConfig) -> Result(List(ScannedRoute), String) {
-  use acc <- result.try(scan_dir(config.pages_root, [], [], ScanAcc([], [])))
+  let module_prefix = derive_module_prefix(config.pages_root)
+  let route_segments = route_root_segments(config.route_root)
+  use acc <- result.try(scan_dir(
+    config.pages_root,
+    route_segments,
+    [],
+    module_prefix,
+    ScanAcc([], []),
+  ))
   let layout_set = set.from_list(acc.layout_modules)
   let routes_with_layouts =
     list.map(acc.routes, fn(route) { resolve_layout(route, layout_set) })
@@ -227,6 +237,44 @@ pub fn scan(config: ScanConfig) -> Result(List(ScannedRoute), String) {
 }
 
 /// Derive a Gleam module path from a filesystem path under pages_root.
-fn derive_module_path(relative_path: String) -> String {
-  "pages/" <> relative_path
+fn derive_module_path(module_prefix: String, relative_path: String) -> String {
+  module_prefix <> "/" <> relative_path
+}
+
+fn route_root_segments(route_root: String) -> List(UrlSegment) {
+  route_root
+  |> string.split("/")
+  |> list.filter(fn(part) { part != "" })
+  |> list.map(StaticSegment)
+}
+
+fn derive_module_prefix(pages_root: String) -> String {
+  let parts = string.split(pages_root, "/")
+  case split_before_pages(parts, []) {
+    Ok(prefix_parts) ->
+      case drop_through_src(prefix_parts) {
+        [] -> "pages"
+        parts -> string.join(list.append(parts, ["pages"]), "/")
+      }
+    Error(_) -> "pages"
+  }
+}
+
+fn split_before_pages(
+  parts: List(String),
+  acc: List(String),
+) -> Result(List(String), Nil) {
+  case parts {
+    [] -> Error(Nil)
+    ["pages", ..] -> Ok(acc)
+    [part, ..rest] -> split_before_pages(rest, list.append(acc, [part]))
+  }
+}
+
+fn drop_through_src(parts: List(String)) -> List(String) {
+  case parts {
+    [] -> []
+    ["src", ..rest] -> rest
+    [_part, ..rest] -> drop_through_src(rest)
+  }
 }
