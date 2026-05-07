@@ -730,13 +730,9 @@ import gleam/dynamic.{type Dynamic}
 import generated/transport
 
 pub fn decode_flags(flags: String) -> Result(a, String) {
-  case flags {
-    \"\" -> Error(\"No flags\")
-    _ ->
-      case bit_array.base64_decode(flags) {
-        Ok(bits) -> Ok(transport.decode(bits))
-        Error(_) -> Error(\"Failed to decode flags\")
-      }
+  case bit_array.base64_decode(flags) {
+    Ok(bits) -> Ok(transport.decode(bits))
+    Error(_) -> Error(\"Failed to base64-decode flags\")
   }
 }
 "

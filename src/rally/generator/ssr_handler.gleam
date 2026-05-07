@@ -373,6 +373,7 @@ fn generate_load_arms(
           <> flags_line
           <> full_html_line
           <> "      response.new(200)\n"
+          <> "      |> response.set_header(\"content-type\", \"text/html\")\n"
           <> "      |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))\n"
           <> "    }",
         )

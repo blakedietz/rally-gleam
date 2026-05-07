@@ -144,6 +144,23 @@ pub fn generate_route_to_path_test() {
     string.contains(output, "NotFound(uri:) -> uri.to_string(uri)")
 }
 
+pub fn generate_route_to_path_for_leading_dynamic_segment_test() {
+  let routes = [
+    ScannedRoute(
+      segments: [DynamicSegment("slug", StringParam)],
+      variant_name: "Slug",
+      params: [#("slug", StringParam)],
+      layout_module: None,
+      module_path: "pages/slug_",
+    ),
+  ]
+  let output = generator.generate(routes)
+
+  let assert True =
+    string.contains(output, "Slug(slug:) -> \"/\" <> uri.percent_encode(slug)")
+  let assert False = string.contains(output, "\"/\" <> \"/\"")
+}
+
 pub fn generate_href_test() {
   let output = generator.generate(sample_routes())
   let assert True = string.contains(output, "pub fn href")

@@ -36,6 +36,7 @@ pub fn handle_request(
       let full_html = insert_rendered(shell, rendered)
         <> env.browser_env_script() <> flags_tag
       response.new(200)
+      |> response.set_header("content-type", "text/html")
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
     }
     router.About -> {
@@ -47,6 +48,7 @@ pub fn handle_request(
       let full_html = insert_rendered(shell, rendered)
         <> env.browser_env_script() <> flags_tag
       response.new(200)
+      |> response.set_header("content-type", "text/html")
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
     }
     router.UsersId(id) -> {
@@ -58,6 +60,7 @@ pub fn handle_request(
       let full_html = insert_rendered(shell, rendered)
         <> env.browser_env_script() <> flags_tag
       response.new(200)
+      |> response.set_header("content-type", "text/html")
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
     }
     router.NotFound(_) ->

@@ -114,7 +114,7 @@ Running `gleam run -m rally` produces:
 | `src/generated/router.gleam` | `Route` type, `parse_route`, `route_to_path`, `href` |
 | `src/generated/page_dispatch.gleam` | `PageModel`/`PageMsg` unions plus per-route `init_page`, `update_page`, and `view_page` dispatch |
 | `src/generated/rpc_dispatch.gleam` | libero-generated RPC handler dispatch (pattern matches wire calls to server_ functions) |
-| `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, inserts it at `<div id="app">`, embeds model as flags |
+| `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, inserts it at `<div id="app">`, embeds model as flags, returns HTML with `content-type: text/html` |
 | `src/generated/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery |
 | `src/generated/http_handler.gleam` | HTTP RPC handler: POST /rpc with ETF body, calls rpc_dispatch, returns ETF response |
 | `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing |
@@ -122,7 +122,7 @@ Running `gleam run -m rally` produces:
 | `client/src/pages/*.gleam` | Per-page client modules: tree-shaken page source with types, init/update/view, and private helpers |
 | `client/src/rally_runtime/effect.gleam` | Client-side effect shim: rpc, navigate, send_to_client_context backed by transport |
 | `client/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
-| `client/src/generated/codec.gleam` | decode_flags utility for SSR hydration |
+| `client/src/generated/codec.gleam` | decode_flags utility for SSR hydration, using the same base64 error wording as the runtime codec |
 | `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
 | `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime) |
 

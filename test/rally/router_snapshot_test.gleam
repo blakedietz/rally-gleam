@@ -3,6 +3,7 @@ import gleam/dict
 import gleam/list
 import gleam/option.{None}
 import gleam/string
+import gleeunit/should
 import libero/field_type.{IntField}
 import rally/generator
 import rally/generator/client
@@ -84,6 +85,21 @@ pub fn ssr_handler_snapshot_test() {
   let output =
     ssr_handler.generate(contracts, False, False, "server_context", shell)
   birdie.snap(output, "ssr_handler_gleam")
+}
+
+pub fn ssr_handler_sets_content_type_for_load_pages_test() {
+  let contracts = basic_contracts()
+  let shell =
+    "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
+  let output =
+    ssr_handler.generate(contracts, False, False, "server_context", shell)
+  let content_type_count =
+    output
+    |> string.split("|> response.set_header(\"content-type\", \"text/html\")")
+    |> list.length
+    |> fn(count) { count - 1 }
+
+  content_type_count |> should.equal(4)
 }
 
 pub fn ssr_handler_with_client_context_snapshot_test() {
