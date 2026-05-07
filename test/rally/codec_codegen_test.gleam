@@ -69,6 +69,10 @@ pub fn generated_decode_flags_rejects_empty_flags_before_decoding_test() {
     string.contains(file.content, "\"\" -> Error(\"No flags present\")")
   let assert True =
     string.contains(file.content, "Failed to base64-decode flags")
+  let assert True = string.contains(file.content, "transport.decode_safe(bits)")
+  let assert True =
+    string.contains(file.content, "Failed to ETF-decode flags: ")
+  let assert False = string.contains(file.content, "transport.decode(bits)")
 }
 
 pub fn codec_ffi_registers_nested_float_endpoint_field_types_test() {

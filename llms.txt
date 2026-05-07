@@ -121,11 +121,11 @@ Running `gleam run -m rally` produces:
 | `src/generated/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery, inbound message logging |
 | `src/generated/http_handler.gleam` | HTTP RPC handler: POST /rpc with ETF body, calls rpc_dispatch, returns ETF response |
 | `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing, page push handler registration |
-| `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, ETF codec |
+| `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, ETF encode/decode, and safe ETF decode for recoverable hydration failures |
 | `client/src/pages/*.gleam` | Per-page client modules: tree-shaken page source with types, init/update/view, and private helpers |
 | `client/src/rally_runtime/effect.gleam` | Client-side effect shim: rpc, navigate, send_to_client_context backed by transport |
 | `client/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
-| `client/src/generated/codec.gleam` | decode_flags utility for SSR hydration; absent flags return an Error before ETF decode so shell-only routes can fall back to client init |
+| `client/src/generated/codec.gleam` | decode_flags utility for SSR hydration; absent or malformed flags return an Error so shell-only routes and corrupt SSR payloads can fall back to client init |
 | `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
 | `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime) |
 

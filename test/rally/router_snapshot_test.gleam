@@ -415,6 +415,37 @@ pub fn transport_gleam_snapshot_test() {
   birdie.snap(file.content, "client_transport_gleam")
 }
 
+pub fn transport_gleam_exposes_safe_decode_test() {
+  let files =
+    client.generate_package(
+      basic_routes(),
+      basic_contracts(),
+      test_scan_config(),
+      dict.new(),
+      "",
+      "",
+      False,
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "transport.gleam")
+    })
+
+  file.content
+  |> string.contains("pub type DecodeError")
+  |> should.equal(True)
+  file.content
+  |> string.contains(
+    "@external(javascript, \"./rpc_ffi.mjs\", \"decode_safe\")",
+  )
+  |> should.equal(True)
+  file.content
+  |> string.contains(
+    "pub fn decode_safe(data: BitArray) -> Result(a, DecodeError)",
+  )
+  |> should.equal(True)
+}
+
 pub fn app_gleam_snapshot_test() {
   let routes = basic_routes()
   let contracts = basic_contracts()
