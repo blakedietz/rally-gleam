@@ -74,6 +74,7 @@ pub fn update(model, msg) {
 - `load` is SSR data loading, runs server-side before first render
 - `ServerContext` is defined in `server_context.gleam`, holds server dependencies. Server-side client context hydration lives in `client_context_server.gleam` when present, otherwise Rally falls back to `server_context.gleam`.
 - `ClientContext` is defined in `client_context.gleam`, holds cross-page client state. Client-safe (no server imports).
+- If `ClientContext` has convention fields named `current_path`, `dark_mode`, or `lang`, the generated client app syncs them from browser state at SPA boot. `current_path` is also refreshed on client-side navigation before page init runs.
 - `layout` wraps all pages if `src/pages/layout.gleam` exports `pub fn layout(client_context, on_context_msg, content)`
 - Each Rally codegen run resets `client_root/src` before writing the generated client package, so stale copied dependencies and old generated modules do not stay in the JS build.
 - Generated code is expected to compile quietly. Rally avoids predictable unused imports, unused RPC dispatch bindings, fieldless record update warnings, and dead `rally_runtime/effect` imports after client page rewriting.

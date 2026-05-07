@@ -294,6 +294,15 @@ fn run() -> Result(String, String) {
       }
     False -> option.None
   }
+  use client_context_contract <- result.try(case client_context_source {
+    option.Some(source) ->
+      parser.parse_client_context(source)
+      |> result.map(option.Some)
+      |> result.map_error(fn(error) {
+        "Cannot parse client_context.gleam: " <> error
+      })
+    option.None -> Ok(option.None)
+  })
   let raw_codec_files =
     codec.generate(
       contracts,
@@ -309,14 +318,14 @@ fn run() -> Result(String, String) {
 
   // 11. Generate client package (includes rpc_ffi.mjs and decoders_prelude.mjs)
   let client_files =
-    client.generate_package(
+    client.generate_package_with_client_context_contract(
       routes,
       contracts,
       config,
       config.server_deps,
       rpc_ffi_content,
       decoders_prelude_content,
-      has_client_context,
+      client_context_contract,
     )
   let client_context_files = case has_client_context {
     True -> {

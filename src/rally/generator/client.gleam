@@ -1,11 +1,15 @@
 import gleam/dict
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/set
 import gleam/string
 import libero/field_type.{UserType}
 import rally/generator
-import rally/types.{type PageContract, type ScanConfig, type ScannedRoute}
+import rally/types.{
+  type ClientContextContract, type PageContract, type ScanConfig,
+  type ScannedRoute, ClientContextContract,
+}
 import tom
 
 pub type GeneratedFile {
@@ -20,6 +24,29 @@ pub fn generate_package(
   rpc_ffi_content: String,
   decoders_prelude_content: String,
   has_client_context: Bool,
+) -> List(GeneratedFile) {
+  generate_package_with_client_context_contract(
+    routes,
+    contracts,
+    config,
+    server_deps,
+    rpc_ffi_content,
+    decoders_prelude_content,
+    case has_client_context {
+      True -> Some(empty_client_context_contract())
+      False -> None
+    },
+  )
+}
+
+pub fn generate_package_with_client_context_contract(
+  routes: List(ScannedRoute),
+  contracts: List(#(ScannedRoute, PageContract)),
+  config: ScanConfig,
+  server_deps: dict.Dict(String, tom.Toml),
+  rpc_ffi_content: String,
+  decoders_prelude_content: String,
+  client_context_contract: Option(ClientContextContract),
 ) -> List(GeneratedFile) {
   [
     GeneratedFile(
@@ -49,9 +76,18 @@ pub fn generate_package(
     ),
     GeneratedFile(
       config.client_root <> "/src/generated/app.gleam",
-      app_gleam(routes, contracts, has_client_context),
+      app_gleam(routes, contracts, client_context_contract),
     ),
   ]
+}
+
+fn empty_client_context_contract() -> ClientContextContract {
+  ClientContextContract(
+    context_variants: [],
+    msg_variants: [],
+    has_init: True,
+    has_update: True,
+  )
 }
 
 fn client_router(routes: List(ScannedRoute)) -> String {
@@ -275,11 +311,79 @@ pub fn coerce(value: a) -> b
 "
 }
 
+type ClientContextSyncFields {
+  ClientContextSyncFields(
+    has_current_path: Bool,
+    has_dark_mode: Bool,
+    has_lang: Bool,
+  )
+}
+
+fn client_context_sync_fields(
+  contract: Option(ClientContextContract),
+) -> ClientContextSyncFields {
+  let fields = case contract {
+    Some(contract) ->
+      contract.context_variants
+      |> list.find_map(fn(variant) {
+        case variant.name {
+          "ClientContext" -> Ok(variant.fields)
+          _ -> Error(Nil)
+        }
+      })
+      |> result.unwrap([])
+      |> list.map(fn(field) { field.label })
+      |> set.from_list
+    None -> set.new()
+  }
+
+  ClientContextSyncFields(
+    has_current_path: set.contains(fields, "current_path"),
+    has_dark_mode: set.contains(fields, "dark_mode"),
+    has_lang: set.contains(fields, "lang"),
+  )
+}
+
+fn client_context_init_overlay(fields: ClientContextSyncFields) -> String {
+  let assignments = []
+  let assignments = case fields.has_current_path {
+    True -> ["current_path: current_path", ..assignments]
+    False -> assignments
+  }
+  let assignments = case fields.has_dark_mode {
+    True -> ["dark_mode: rally_effect.read_dark_mode()", ..assignments]
+    False -> assignments
+  }
+  let assignments = case fields.has_lang {
+    True -> ["lang: rally_effect.read_lang()", ..assignments]
+    False -> assignments
+  }
+  let assignments = list.reverse(assignments)
+
+  case assignments {
+    [] -> ""
+    _ -> "  let client_context = client_context.ClientContext(
+    ..client_context,
+    " <> string.join(
+        assignments,
+        ",
+    ",
+      ) <> ",
+  )
+"
+  }
+}
+
 fn app_gleam(
   routes: List(ScannedRoute),
   contracts: List(#(ScannedRoute, PageContract)),
-  has_client_context: Bool,
+  client_context_contract: Option(ClientContextContract),
 ) -> String {
+  let has_client_context = option.is_some(client_context_contract)
+  let sync_fields = client_context_sync_fields(client_context_contract)
+  let init_context_overlay = client_context_init_overlay(sync_fields)
+  let needs_rally_effect = sync_fields.has_dark_mode || sync_fields.has_lang
+
   // Build a lookup from variant_name -> PageContract for quick access
   let contract_map =
     contracts
@@ -314,6 +418,11 @@ fn app_gleam(
     False -> ""
   }
 
+  let rally_effect_import = case needs_rally_effect {
+    True -> "import rally_runtime/effect as rally_effect\n\n"
+    False -> "\n"
+  }
+
   let layout_import = case layout_module {
     Ok(layout) -> "\nimport " <> layout
     Error(_) -> ""
@@ -340,7 +449,7 @@ fn app_gleam(
     Ok(ctx) -> ctx
     Error(_) -> ctx_model
   }
-  let #(page_model, page_effects) = case codec.decode_flags(flags) {
+" <> init_context_overlay <> "  let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(data) -> hydrate_page(route, data, client_context)
     Error(_) -> init_page(route, client_context)
   }
@@ -367,7 +476,20 @@ fn app_gleam(
 
   let url_changed_body = case has_client_context {
     True ->
-      "      case route == model.route {
+      case sync_fields.has_current_path {
+        True ->
+          "      case route == model.route {
+        True -> #(model, effect.none())
+        False -> {
+          let current_path = router.route_to_path(route)
+          let new_client_context =
+            client_context.ClientContext(..model.client_context, current_path:)
+          let #(page_model, page_effects) = init_page(route, new_client_context)
+          #(Model(..model, route:, page_model:, client_context: new_client_context, current_path:), page_effects)
+        }
+      }"
+        False ->
+          "      case route == model.route {
         True -> #(model, effect.none())
         False -> {
           let current_path = router.route_to_path(route)
@@ -375,6 +497,7 @@ fn app_gleam(
           #(Model(..model, route:, page_model:, current_path:), page_effects)
         }
       }"
+      }
     False ->
       "      case route == model.route {
         True -> #(model, effect.none())
@@ -454,8 +577,7 @@ import modem
 import generated/codec
 import generated/router
 import generated/transport
-
-@external(javascript, \"../generated/codec_ffi.mjs\", \"ensure_decoders\")
+" <> rally_effect_import <> "@external(javascript, \"../generated/codec_ffi.mjs\", \"ensure_decoders\")
 fn ensure_decoders() -> Nil
 " <> page_imports <> ctx_import <> layout_import <> "
 

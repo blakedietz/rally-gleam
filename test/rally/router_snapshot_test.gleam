@@ -4,15 +4,16 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
-import libero/field_type.{IntField, UserType}
+import libero/field_type.{BoolField, IntField, StringField, UserType}
 import libero/scanner
 import rally/generator
 import rally/generator/client
 import rally/generator/codec
 import rally/generator/ssr_handler
 import rally/types.{
-  type PageContract, type ScanConfig, type ScannedRoute, DynamicSegment,
-  IntParam, PageContract, ScanConfig, ScannedRoute, StaticSegment, StringParam,
+  type ClientContextContract, type PageContract, type ScanConfig,
+  type ScannedRoute, ClientContextContract, DynamicSegment, IntParam,
+  PageContract, ScanConfig, ScannedRoute, StaticSegment, StringParam,
   VariantField, VariantInfo,
 }
 
@@ -65,6 +66,21 @@ fn basic_contracts() -> List(#(ScannedRoute, PageContract)) {
       ),
     )
   })
+}
+
+fn client_context_contract_with_browser_fields() -> ClientContextContract {
+  ClientContextContract(
+    context_variants: [
+      VariantInfo("ClientContext", [
+        VariantField("current_path", StringField),
+        VariantField("dark_mode", BoolField),
+        VariantField("lang", StringField),
+      ]),
+    ],
+    msg_variants: [VariantInfo("NoOp", [])],
+    has_init: True,
+    has_update: True,
+  )
 }
 
 pub fn router_output_snapshot_test() {
@@ -144,6 +160,87 @@ pub fn app_gleam_with_client_context_snapshot_test() {
     })
   let assert Ok(file) = app
   birdie.snap(file.content, "client_app_with_client_context_gleam")
+}
+
+pub fn app_gleam_with_browser_client_context_snapshot_test() {
+  let routes = basic_routes()
+  let contracts = basic_contracts()
+  let config = test_scan_config()
+  let files =
+    client.generate_package_with_client_context_contract(
+      routes,
+      contracts,
+      config,
+      dict.new(),
+      "",
+      "",
+      Some(client_context_contract_with_browser_fields()),
+    )
+  let app =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+  let assert Ok(file) = app
+  birdie.snap(file.content, "client_app_with_browser_client_context_gleam")
+}
+
+pub fn client_app_syncs_browser_client_context_fields_test() {
+  let files =
+    client.generate_package_with_client_context_contract(
+      basic_routes(),
+      basic_contracts(),
+      test_scan_config(),
+      dict.new(),
+      "",
+      "",
+      Some(client_context_contract_with_browser_fields()),
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+
+  file.content
+  |> string.contains("import rally_runtime/effect as rally_effect")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("let client_context = client_context.ClientContext(")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("..client_context")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("current_path: current_path")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("dark_mode: rally_effect.read_dark_mode()")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("lang: rally_effect.read_lang()")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("let new_client_context =")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains(
+    "client_context.ClientContext(..model.client_context, current_path:)",
+  )
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("init_page(route, new_client_context)")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("client_context: new_client_context")
+  |> should.equal(True)
 }
 
 pub fn client_app_omits_unused_effect_import_and_record_updates_test() {
