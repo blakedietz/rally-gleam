@@ -73,7 +73,7 @@ pub fn router_output_snapshot_test() {
 
 pub fn dispatch_output_snapshot_test() {
   let routes = basic_routes()
-  let output = generator.generate_dispatch(routes)
+  let output = generator.generate_dispatch(routes, basic_contracts(), False)
   birdie.snap(output, "page_dispatch_gleam")
 }
 

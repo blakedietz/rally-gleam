@@ -112,7 +112,7 @@ Running `gleam run -m rally` produces:
 | File | Purpose |
 |---|---|
 | `src/generated/router.gleam` | `Route` type, `parse_route`, `route_to_path`, `href` |
-| `src/generated/page_dispatch.gleam` | `PageModel`/`PageMsg` unions, init/update/view dispatch |
+| `src/generated/page_dispatch.gleam` | `PageModel`/`PageMsg` unions plus per-route `init_page`, `update_page`, and `view_page` dispatch |
 | `src/generated/rpc_dispatch.gleam` | libero-generated RPC handler dispatch (pattern matches wire calls to server_ functions) |
 | `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, inserts it at `<div id="app">`, embeds model as flags |
 | `src/generated/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery |
@@ -151,9 +151,9 @@ Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generat
 | Module | Role |
 |---|---|
 | `effect.gleam` | `rpc`, `send_to_client`, `broadcast_to_page`/`broadcast_to_app`/`broadcast_to_session`, `send_to_client_context`, `navigate`, `get_ws_session` |
-| `db.gleam` | SQLite helpers: `open` (WAL/busy/FK), `query`, `one`, `transaction` |
+| `db.gleam` | SQLite helpers: `open` (WAL/busy/FK), `query`, `one`, nested SAVEPOINT `transaction` |
 | `system.gleam` | System DB: message logging, background job queue, global connection |
-| `jobs.gleam` | Durable background job runner with retry |
+| `jobs.gleam` | Durable background job runner with retry; `run_once` processes ready jobs deterministically |
 | `session.gleam` | Session cookie generation and extraction |
 | `env.gleam` | `APP_ENV` parsing, secure-cookie policy, browser env injection |
 | `topics.gleam` | Topic pub/sub using OTP `pg` process groups |
@@ -205,6 +205,14 @@ RPC responses show round-trip latency (e.g. `rpc #3 (12.4ms)`). Connection lifec
 - `window.__RALLY_DEBUG__ = true`: enable inspector outside dev
 
 **Server-side:** All messages are logged to `system.messages` SQLite table with session ID, page, direction, variant name, raw ETF payload, and elapsed time.
+
+## Runtime Data
+
+`rally_runtime/system.open` creates the observability schema: `messages` for message flow and `jobs` for durable background work. `system.log_to_client`, `system.log_to_server`, and `system.log_broadcast` insert rows into `messages`.
+
+`rally_runtime/jobs.run_once` claims ready pending jobs with `UPDATE ... RETURNING`, invokes the handler, marks successes completed, schedules failures with quadratic backoff, and dead-letters after the max attempt count.
+
+`rally_runtime/migrate.run` validates every `.sql` filename before deciding what is pending. Invalid filenames return `FilenameParseFailed`; failed SQL rolls back the current migration and leaves `schema_migrations.last_migration` at the last successful version.
 
 ## Dependencies
 

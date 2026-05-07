@@ -62,15 +62,21 @@ pub fn run(
     }),
   )
 
-  let pending =
+  use migrations <- result.try(
     files
     |> list.filter(fn(f) { string.ends_with(f, ".sql") })
     |> list.sort(string.compare)
+    |> list.try_map(fn(file) {
+      use number <- result.try(parse_number(file))
+      Ok(#(number, file))
+    }),
+  )
+
+  let pending =
+    migrations
     |> list.filter(fn(f) {
-      case parse_number(f) {
-        Ok(num) -> num > current
-        Error(_) -> False
-      }
+      let #(number, _) = f
+      number > current
     })
 
   case pending {
@@ -122,12 +128,11 @@ fn get_current_version(
 fn run_pending(
   conn: sqlight.Connection,
   dir: String,
-  files: List(String),
+  files: List(#(Int, String)),
 ) -> Result(Nil, MigrationError) {
   case files {
     [] -> Ok(Nil)
-    [file, ..rest] -> {
-      use num <- result.try(parse_number(file))
+    [#(num, file), ..rest] -> {
       let path = dir <> "/" <> file
 
       use sql <- result.try(

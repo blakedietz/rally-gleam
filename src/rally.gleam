@@ -170,13 +170,7 @@ fn run() -> Result(String, String) {
       }
     })
 
-  // 3. Generate route type + page dispatch (existing)
-  let route_source = generator.generate(routes)
-  use _ <- result.try(write_file(config.output_route, route_source))
-  let dispatch_source = generator.generate_dispatch(routes)
-  use _ <- result.try(write_file(config.output_dispatch, dispatch_source))
-
-  // 4. Detect client_context.gleam and server_context.gleam
+  // 3. Detect client_context.gleam and server_context.gleam
   let client_context_path =
     dirname(config.pages_root) <> "/client_context.gleam"
   let has_client_context =
@@ -195,6 +189,13 @@ fn run() -> Result(String, String) {
       }
     _ -> check_server_context_from_session(server_context_path)
   }
+
+  // 4. Generate route type + page dispatch
+  let route_source = generator.generate(routes)
+  use _ <- result.try(write_file(config.output_route, route_source))
+  let dispatch_source =
+    generator.generate_dispatch(routes, contracts, has_client_context)
+  use _ <- result.try(write_file(config.output_dispatch, dispatch_source))
 
   // 5. Generate RPC dispatch via libero
   let sd_source = case handler_endpoints {

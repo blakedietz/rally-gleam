@@ -77,6 +77,10 @@ pub fn start_runner(
   |> actor.start
 }
 
+pub fn run_once(db: sqlight.Connection, handler: JobHandler) -> Nil {
+  process_pending_jobs(db, handler)
+}
+
 fn process_pending_jobs(db: sqlight.Connection, handler: JobHandler) -> Nil {
   let now = unix_seconds()
   case fetch_ready_jobs(db, now) {
