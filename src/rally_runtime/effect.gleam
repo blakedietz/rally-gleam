@@ -69,7 +69,7 @@ pub fn send_to_client_context(msg: a) -> Effect(b) {
 /// On the server, this is a no-op.
 pub fn navigate(path: String) -> Effect(a) {
   effect.from(fn(_dispatch) {
-    do_navigate(path)
+    let _ = do_navigate(path)
     Nil
   })
 }
@@ -136,7 +136,7 @@ pub fn get_stored_server_context() -> a {
 }
 
 @external(erlang, "rally_runtime_ffi", "get_ws_page")
-fn get_ws_page() -> String {
+pub fn get_ws_page() -> String {
   panic as "get_ws_page: server-side only"
 }
 

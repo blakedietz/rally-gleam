@@ -204,10 +204,6 @@ fn run() -> Result(String, String) {
     )
   use _ <- result.try(write_file(config.output_server_dispatch, sd_source))
 
-  // 5b. Generate and write the atoms pre-registration file
-  let atoms_erl = libero.generate_atoms(handler_endpoints, config.atoms_module)
-  use _ <- result.try(write_file(config.output_server_atoms, atoms_erl))
-
   // 6. Generate SSR handler
   let shell_html = case simplifile.read(config.shell_file) {
     Ok(html) -> html
@@ -274,6 +270,11 @@ fn run() -> Result(String, String) {
       []
     }
   }
+
+  // 8b. Generate and write the atoms pre-registration file
+  let atoms_erl =
+    libero.generate_atoms(handler_endpoints, discovered, config.atoms_module)
+  use _ <- result.try(write_file(config.output_server_atoms, atoms_erl))
 
   let server_symbols = collect_server_symbols(handler_endpoints)
 

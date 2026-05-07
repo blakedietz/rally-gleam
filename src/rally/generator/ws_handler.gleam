@@ -49,7 +49,12 @@ fn generate_frame_handler() -> String {
       case wire.decode_call(data) {
         Ok(#(page, request_id, _value)) if request_id == 0 -> {
           io.println_error(\"[rally:ws] page_init: \" <> page)
+          let old_page = effect.get_ws_page()
           let _ = effect.put_ws_state(conn, effect.get_stored_server_context(), page)
+          case old_page {
+            \"\" -> Nil
+            _ -> topics.leave(\"page:\" <> old_page)
+          }
           topics.join(\"page:\" <> page)
           let response_frame = wire.tag_response(request_id:, data: wire.encode(Nil))
           let _ = mist.send_binary_frame(conn, response_frame)
@@ -59,6 +64,7 @@ fn generate_frame_handler() -> String {
         Ok(#(_page, request_id, _raw)) -> {
           io.println_error(\"[rally:ws] RPC: request_id=\" <> int.to_string(request_id))
           let server_context = effect.get_stored_server_context()
+          let current_page = effect.get_ws_page()
           let start = timestamp.system_time()
           let #(response_data, new_ctx) = rpc_dispatch.handle(server_context:, data:)
           let elapsed_ms =
@@ -66,9 +72,9 @@ fn generate_frame_handler() -> String {
             |> duration.to_milliseconds()
 
           let session_id = effect.get_ws_session()
-          system.log_to_server(system.get_conn(), session_id, Error(Nil), \"\", dynamic.nil(), data, elapsed_ms)
+          system.log_to_server(system.get_conn(), session_id, Error(Nil), current_page, dynamic.nil(), data, elapsed_ms)
 
-          let _ = effect.put_ws_state(conn, new_ctx, \"\")
+          let _ = effect.put_ws_state(conn, new_ctx, current_page)
           let _ = mist.send_binary_frame(conn, response_data)
           send_pending_frames(conn)
           mist.continue(state)

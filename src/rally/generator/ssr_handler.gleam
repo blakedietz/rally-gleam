@@ -293,11 +293,19 @@ fn generate_load_arms(
         let full_html_line = case use_session {
           True ->
             "      let shell = shell_html()\n"
-            <> "      let full_html = string.replace(shell, \"<div id='app'></div>\", \"<div id='app'>\" <> rendered <> \"</div>\")\n"
+            <> "      let marker = case string.contains(shell, \"<div id=\\\"app\\\">\") {\n"
+            <> "        True -> \"<div id=\\\"app\\\">\"\n"
+            <> "        False -> \"<div id='app'>\"\n"
+            <> "      }\n"
+            <> "      let full_html = string.replace(shell, marker, marker <> rendered)\n"
             <> "        <> ctx_tag <> flags_tag\n"
           False ->
             "      let shell = shell_html()\n"
-            <> "      let full_html = string.replace(shell, \"<div id='app'></div>\", \"<div id='app'>\" <> rendered <> \"</div>\")\n"
+            <> "      let marker = case string.contains(shell, \"<div id=\\\"app\\\">\") {\n"
+            <> "        True -> \"<div id=\\\"app\\\">\"\n"
+            <> "        False -> \"<div id='app'>\"\n"
+            <> "      }\n"
+            <> "      let full_html = string.replace(shell, marker, marker <> rendered)\n"
             <> "        <> flags_tag\n"
         }
         let load_line = case contract.has_init_loaded, has_client_context {

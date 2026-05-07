@@ -289,15 +289,9 @@ fn app_gleam(
     True -> "  let flags = transport.read_flags()
   let #(ctx_model, ctx_effects) = client_context.init()
   let current_path = router.route_to_path(route)
-  let dark_mode = rally_effect.read_dark_mode()
-  let cookie_lang = rally_effect.read_lang()
   let client_context = case codec.decode_flags(transport.read_client_context()) {
-    Ok(ctx) -> client_context.ClientContext(..ctx, current_path:, dark_mode:, lang: ctx.lang)
-    Error(_) -> client_context.ClientContext(..ctx_model, current_path:, dark_mode:, lang: ctx_model.lang)
-  }
-  let client_context = case cookie_lang {
-    \"\" -> client_context
-    lang -> client_context.ClientContext(..client_context, lang:)
+    Ok(ctx) -> client_context.ClientContext(..ctx, current_path:)
+    Error(_) -> client_context.ClientContext(..ctx_model, current_path:)
   }
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(data) -> hydrate_page(route, data, client_context)

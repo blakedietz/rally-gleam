@@ -31,11 +31,11 @@ Client-server messages are serialized as ETF (Erlang External Term Format), not 
 
 ### File-based routing with codegen
 
-Routes are the filesystem. `src/pages/home_.gleam` is `/`, `src/pages/products/id_.gleam` is `/products/:id`. The codegen reads page modules via Glance (Gleam's AST parser) and produces router, dispatch, SSR handler, WebSocket handler, and the full client package. No runtime reflection, no macro system, no build plugins.
+Routes are the filesystem. `src/pages/home_.gleam` is `/`, `src/pages/products/id_.gleam` is `/products/:id`. The codegen scans page modules, discovers `server_*` handlers via libero, and produces router, RPC dispatch, SSR handler, WebSocket handler, HTTP handler, and the full client package with typed RPC stubs. No runtime reflection, no macro system, no build plugins.
 
 ### Lamdera-inspired, not Lamdera-bound
 
-Lamdera's architecture is the starting point: explicit `ToServer`/`ToClient` message types as the client-server contract, server-side state per connection, TEA on both sides. But Gleam on the BEAM gives us OTP processes, pg groups, and native concurrency that Elm can't access. Where the BEAM offers a better primitive, we take it (four-level broadcast via pg, process dictionary for handler state, native ETF codec).
+Lamdera's architecture is the starting point: explicit server handler types as the client-server contract, server-side state per connection, TEA on both sides. But Gleam on the BEAM gives us OTP processes, pg groups, and native concurrency that Elm can't access. Where the BEAM offers a better primitive, we take it (four-level broadcast via pg, process dictionary for handler state, native ETF codec, libero for RPC dispatch).
 
 ### Four-level broadcast
 
@@ -59,24 +59,35 @@ First request renders full HTML server-side with the model embedded as flags. Th
 A page module exports a fixed set of types and functions. The codegen enforces the shape:
 
 ```gleam
-// Types
-pub type Model { ... }
-pub type Msg { ...; GotServerMsg(ToClient) }
-pub type ToServer { ... }
-pub type ToClient { ... }
-pub type ServerModel { ... }
-
 // Client (TEA)
-pub fn init(client_context, ...) -> #(Model, Effect(Msg))
-pub fn update(client_context, model, msg) -> #(Model, Effect(Msg))
-pub fn view(client_context, model) -> Element(Msg)
+pub type Model { ... }
+pub type Msg { ... }
+pub fn init() -> #(Model, Effect(Msg))
+pub fn update(_cc, model, msg) -> #(Model, Effect(Msg))
+pub fn view(_cc, model) -> Element(Msg)
 
-// Server
-pub fn server_init(server_context) -> #(ServerModel, Effect(ToClient))
-pub fn server_update(model, msg, server_context) -> #(ServerModel, Effect(ToClient))
+// Server handlers (one per RPC call)
+pub type ServerDoSomething { ServerDoSomething(field: String) }
+pub fn server_do_something(
+  msg msg: ServerDoSomething,
+  server_context server_context: ServerContext,
+) -> Result(ReturnType, ErrorType)
 ```
 
-Both sides are TEA. The messaging contract is the type system: if `ToServer` has a variant, the server handles it. If `ToClient` has a variant, the client handles it via `GotServerMsg`.
+Server handlers are discovered by libero: any `pub fn server_*` that takes a single-variant message type and `ServerContext` becomes an RPC endpoint. The message type doubles as the client's constructor:
+
+```gleam
+rally_effect.rpc(ServerDoSomething(field: "value"), on_response: GotResult)
+```
+
+The return type of the handler determines the response type for the `on_response` callback.
+
+For SSR, a page can optionally export:
+
+```gleam
+pub fn load(server_context: ServerContext) -> Model
+pub fn init_loaded(data, ...) -> #(Model, Effect(Msg))
+```
 
 ## Rally vs Lustre server components
 
@@ -84,14 +95,14 @@ These are two different architectures for building full-stack Lustre apps. Neith
 
 **Lustre server components** run the TEA loop on the server: model, update, and view all execute server-side. On first connect, the server sends the full VDOM. On each subsequent update, it diffs the old and new VDOM and sends only the patch. The client is a thin JS shell (~10KB) that applies DOM patches and forwards events back to the server.
 
-**Rally** runs TEA on both sides. The client handles UI state locally (model, update, view run in the browser). The server has its own model and update function, and only gets involved when the client explicitly sends a domain message (`ToServer`). The server responds with domain messages (`ToClient`), not VDOM patches.
+**Rally** runs TEA on both sides. The client handles UI state locally (model, update, view run in the browser). The server has handler functions, and only gets involved when the client explicitly calls an RPC. The server responds with domain data, not VDOM patches.
 
 | | Lustre server components | Rally |
 |---|---|---|
 | **Where UI runs** | Server (model + update + view) | Client (model + update + view) |
 | **What goes over the wire** | VDOM patches down, DOM events up | Domain messages in both directions |
 | **Interaction latency** | Every event round-trips to server | Local state changes are instant |
-| **Server memory** | Model + VDOM + event handler cache (shared across subscribers of same component) | ServerModel per connection |
+| **Server memory** | Model + VDOM + event handler cache (shared across subscribers of same component) | ServerContext per connection (stateless handlers) |
 | **Client JS bundle** | Minimal (DOM patcher, ~10KB) | Full app logic (Lustre + page modules) |
 | **Client/server decision** | None: everything is server-side | You decide per interaction |
 | **Real-time multi-user** | Built in (all subscribers see same state) | Requires explicit broadcast |
@@ -105,7 +116,7 @@ Server components can also embed client-side Lustre components as web components
 
 ### When rally makes more sense
 
-**Multiple client surfaces.** The explicit `ToServer`/`ToClient` message layer is a typed API contract. A web client sends messages over WebSocket. A CLI sends the same messages over HTTP. An AI agent uses the CLI. A JS SDK calls the same endpoints from a static site. One set of `server_update` functions serves all of them.
+**Multiple client surfaces.** The explicit server handler layer is a typed API contract. A web client calls handlers over WebSocket. A CLI calls the same handlers over HTTP. An AI agent uses the CLI. A JS SDK calls the same endpoints from a static site. One set of `server_*` functions serves all of them.
 
 With server components, the wire protocol is VDOM patches: only a browser can consume them. If you later need a CLI or SDK, you build a separate API layer, maintain two ways to invoke the same business logic, two auth paths, two testing surfaces.
 
@@ -119,7 +130,7 @@ The cost is real: you write two update functions per page, you decide what belon
 
 ## Prior art
 
-- [Lamdera](https://lamdera.com): explicit ToServer/ToClient message types as client-server contract
+- [Lamdera](https://lamdera.com): explicit server handler types as client-server contract, TEA on both sides
 - [elm-land](https://elm.land): file-based routing conventions
 - [Marmot](https://github.com/daverapin/marmot): SQL-first codegen with live SQLite introspection
 

@@ -57,7 +57,7 @@ exclude = ["src/generated/"]
 pages_root = "src/pages"
 output_route = "src/generated/router.gleam"
 output_dispatch = "src/generated/page_dispatch.gleam"
-output_server_dispatch = "src/generated/server_dispatch.gleam"
+output_server_dispatch = "src/generated/rpc_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
 output_ws = "src/generated/ws_handler.gleam"
 sql_dir = "src/sql"
@@ -76,43 +76,46 @@ rm -f "$PROJECT_PATH/gleam.toml.bak"
 # Sample home page
 cat > "$PROJECT_PATH/src/pages/home_.gleam" <<'GLEAM'
 // Scaffolded by rally — yours to customize.
-import app_config.{type Context}
 import gleam/string
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/effect.{type Effect}
 import rally_runtime/effect as rally_effect
+import server_context.{type ServerContext}
 
-pub type Model { Model(count: Int) }
+pub type Model {
+  Model(count: Int)
+}
 
 pub type Msg {
   UserClickedIncrement
   UserClickedDecrement
-  GotServerMsg(ToClient)
+  GotIncrement(Int)
 }
 
-pub type ToServer {
-  Increment
-  Decrement
+pub type ServerIncrement {
+  ServerIncrement
 }
 
-pub type ToClient { CounterNewValue(value: Int) }
-
-pub type ServerModel { ServerModel(count: Int) }
+pub type ServerDecrement {
+  ServerDecrement
+}
 
 pub fn init() -> #(Model, Effect(Msg)) {
   #(Model(count: 0), effect.none())
 }
 
-pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+pub fn update(_cc, model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
-    UserClickedIncrement -> #(model, rally_effect.send_to_server(Increment))
-    UserClickedDecrement -> #(model, rally_effect.send_to_server(Decrement))
-    GotServerMsg(CounterNewValue(n)) -> #(Model(count: n), effect.none())
+    UserClickedIncrement ->
+      #(model, rally_effect.rpc(ServerIncrement, on_response: GotIncrement))
+    UserClickedDecrement ->
+      #(model, rally_effect.rpc(ServerDecrement, on_response: GotIncrement))
+    GotIncrement(n) -> #(Model(count: n), effect.none())
   }
 }
 
-pub fn view(model: Model) -> Element(Msg) {
+pub fn view(_cc, model: Model) -> Element(Msg) {
   html.div([], [
     html.button([], [html.text("+")]),
     html.text(string.inspect(model.count)),
@@ -120,19 +123,18 @@ pub fn view(model: Model) -> Element(Msg) {
   ])
 }
 
-pub fn server_update(
-  model: ServerModel,
-  msg: ToServer,
-  _server_context: Context,
-) -> #(ServerModel, Effect(ToClient)) {
-  case msg {
-    Increment -> #(ServerModel(count: model.count + 1), rally_effect.send_to_client(CounterNewValue(model.count + 1)))
-    Decrement -> #(ServerModel(count: model.count - 1), rally_effect.send_to_client(CounterNewValue(model.count - 1)))
-  }
+pub fn server_increment(
+  _msg msg: ServerIncrement,
+  server_context server_context: ServerContext,
+) -> Int {
+  1
 }
 
-pub fn server_init(_server_context: Context) -> ServerModel {
-  ServerModel(count: 0)
+pub fn server_decrement(
+  _msg msg: ServerDecrement,
+  server_context server_context: ServerContext,
+) -> Int {
+  -1
 }
 GLEAM
 
@@ -158,7 +160,6 @@ GLEAM
 # app.gleam (server entry point)
 cat > "$PROJECT_PATH/src/app.gleam" <<'GLEAM'
 // Scaffolded by rally — yours to customize.
-import app_config.{Context}
 import mist.{type Connection, type ResponseData}
 import gleam/bytes_tree
 import gleam/erlang/process
@@ -166,7 +167,9 @@ import gleam/http.{Get}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
 import rally_runtime/db
+import rally_runtime/session
 import rally_runtime/system
+import server_context.{type ServerContext}
 import simplifile
 import sqlight
 import generated/router
@@ -176,23 +179,60 @@ import generated/ws_handler
 pub fn main() {
   let db = start_db()
   system.start("system.db")
-  let server_context = Context(db:)
+  let server_context = ServerContext(db:)
 
   let handler = fn(req: Request(Connection)) -> Response(ResponseData) {
     let Request(path: path, method: method, ..) = req
     case path {
-      "/ws" -> mist.websocket(
-        req,
-        ws_handler.handler,
-        fn(conn) { ws_handler.on_init(conn, server_context) },
-        ws_handler.on_close,
-      )
+      "/ws" -> {
+        let session_id = case request.get_header(req, "cookie") {
+          Ok(cookie) ->
+            case session.extract_session_id(cookie) {
+              Ok(id) -> id
+              Error(_) -> session.generate_id()
+            }
+          Error(_) -> session.generate_id()
+        }
+        mist.websocket(
+          req,
+          ws_handler.handler,
+          fn(conn) { ws_handler.on_init(conn, server_context, session_id) },
+          ws_handler.on_close,
+        )
+      }
       "/client.js" -> serve_client_js()
       _ -> {
         case method {
           Get -> {
+            let session_id = case request.get_header(req, "cookie") {
+              Ok(cookie) ->
+                case session.extract_session_id(cookie) {
+                  Ok(id) -> id
+                  Error(_) -> session.generate_id()
+                }
+              Error(_) -> session.generate_id()
+            }
             let route = router.parse_route(request.to_uri(req))
-            ssr_handler.handle_request(route, server_context)
+            let resp =
+              ssr_handler.handle_request(route, server_context, session_id)
+            case request.get_header(req, "cookie") {
+              Ok(cookie) ->
+                case session.extract_session_id(cookie) {
+                  Ok(_) -> resp
+                  Error(_) ->
+                    response.set_header(
+                      resp,
+                      "set-cookie",
+                      session.set_cookie_header(session_id),
+                    )
+                }
+              Error(_) ->
+                response.set_header(
+                  resp,
+                  "set-cookie",
+                  session.set_cookie_header(session_id),
+                )
+            }
           }
           _ -> response.new(405)
             |> response.set_body(mist.Bytes(bytes_tree.from_string("Not found")))
@@ -243,13 +283,13 @@ cat > "$PROJECT_PATH/src/shell.html" <<'HTML'
 </html>
 HTML
 
-# app_config.gleam
-cat > "$PROJECT_PATH/src/app_config.gleam" <<'GLEAM'
+# server_context.gleam
+cat > "$PROJECT_PATH/src/server_context.gleam" <<'GLEAM'
 // Scaffolded by rally — yours to customize.
 import sqlight
 
-pub type Context {
-  Context(db: sqlight.Connection)
+pub type ServerContext {
+  ServerContext(db: sqlight.Connection)
 }
 GLEAM
 
