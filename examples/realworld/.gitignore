@@ -1,4 +1,4 @@
 build/
 manifest.toml
-client/manifest.toml
+.generated_client/
 app.db

@@ -84,7 +84,9 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
   |> should.equal(True)
 
   script
-  |> string.contains("client/build/dev/javascript/client/generated/app.mjs")
+  |> string.contains(
+    ".generated_client/build/dev/javascript/client/generated/app.mjs",
+  )
   |> should.equal(True)
 
   script
@@ -122,7 +124,7 @@ pub fn scaffold_routes_http_rpc_test() {
 
 pub fn realworld_routes_http_rpc_test() {
   let assert Ok(source) =
-    simplifile.read("examples/realworld/src/curling.gleam")
+    simplifile.read("examples/realworld/src/realworld.gleam")
 
   source
   |> string.contains("import generated/http_handler")
@@ -180,7 +182,7 @@ pub fn client_package_keeps_absolute_dependency_paths_test() {
   let files =
     client.generate_package([], [], test_scan_config(), deps, "", "", False)
   let assert Ok(file) =
-    list.find(files, fn(file) { file.path == "client/gleam.toml" })
+    list.find(files, fn(file) { file.path == ".generated_client/gleam.toml" })
 
   file.content
   |> string.contains("shared_widgets = { path = \"/tmp/shared_widgets\" }")
@@ -200,7 +202,7 @@ pub fn client_package_does_not_copy_server_runtime_deps_test() {
   let files =
     client.generate_package([], [], test_scan_config(), deps, "", "", False)
   let assert Ok(file) =
-    list.find(files, fn(file) { file.path == "client/gleam.toml" })
+    list.find(files, fn(file) { file.path == ".generated_client/gleam.toml" })
 
   file.content
   |> string.contains("mist")
@@ -358,7 +360,7 @@ fn test_scan_config() -> ScanConfig {
     output_ssr: "",
     output_ws: "",
     output_http: "",
-    client_root: "client",
+    client_root: ".generated_client",
     rally_package_path: "",
     shell_file: "",
     server_deps: dict.new(),

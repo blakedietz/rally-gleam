@@ -35,7 +35,7 @@ output_server_dispatch = "src/generated/rpc_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
 output_ws = "src/generated/ws_handler.gleam"
 sql_dir = "src/sql"
-client_root = "client"
+client_root = ".generated_client"
 
 [tools.marmot]
 database = "app.db"

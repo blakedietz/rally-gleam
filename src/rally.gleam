@@ -78,7 +78,7 @@ fn read_config() -> Result(ScanConfig, String) {
     |> result.unwrap("src/generated/http_handler.gleam")
   let client_root =
     tom.get_string(rally_config, ["client_root"])
-    |> result.unwrap("client")
+    |> result.unwrap(".generated_client")
   let server_deps =
     tom.get_table(toml_map, ["dependencies"])
     |> result.unwrap(dict.new())

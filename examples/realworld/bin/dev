@@ -6,6 +6,6 @@ gleam run -m marmot
 echo "==> Running rally codegen..."
 gleam run -m rally
 echo "==> Building client..."
-cd client && gleam build --target javascript && cd ..
+cd .generated_client && gleam build --target javascript && cd ..
 echo "==> Starting server on http://localhost:8080"
 gleam run

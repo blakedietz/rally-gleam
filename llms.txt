@@ -77,6 +77,7 @@ pub fn update(model, msg) {
 - If `ClientContext` has convention fields named `current_path`, `dark_mode`, or `lang`, the generated client app syncs them from browser state at SPA boot. `current_path` is also refreshed on client-side navigation before page init runs.
 - `layout` wraps all pages if `src/pages/layout.gleam` exports `pub fn layout(client_context, on_context_msg, content)`
 - Each Rally codegen run resets `client_root/src` before writing the generated client package, so stale copied dependencies and old generated modules do not stay in the JS build.
+- The default `client_root` is `.generated_client`, an ignored standalone Gleam package for generated SPA code. Projects may still set `client_root` when they want a different location.
 - Generated code is expected to compile quietly. Rally avoids predictable unused imports, unused RPC dispatch bindings, fieldless record update warnings, and dead `rally_runtime/effect` imports after client page rewriting.
 - Rally owns client `ClientMsg` generation for RPC calls. The generated codec registers constructor field type hints so whole-number floats nested in lists, dicts, options, results, and tuples encode as ETF floats when the Gleam type says `Float`.
 
@@ -121,14 +122,14 @@ Running `gleam run -m rally` produces:
 | `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, inserts it at `<div id="app">`, embeds model as flags, returns HTML with `content-type: text/html` |
 | `src/generated/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery, inbound message logging |
 | `src/generated/http_handler.gleam` | HTTP RPC handler: POST /rpc with ETF body, calls rpc_dispatch, returns ETF response |
-| `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing, page push handler registration |
-| `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, RPC framework-error handler registration, ETF encode/decode, and safe ETF decode |
+| `.generated_client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing, page push handler registration |
+| `.generated_client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, RPC framework-error handler registration, ETF encode/decode, and safe ETF decode |
 | `client/src/pages/*.gleam` | Per-page client modules: tree-shaken page source with types, init/update/view, and private helpers |
 | `client/src/rally_runtime/effect.gleam` | Client-side effect shim: rpc, navigate, send_to_client_context backed by transport |
-| `client/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
-| `client/src/generated/codec.gleam` | decode_flags utility for SSR hydration; absent or malformed flags return an Error so shell-only routes and corrupt SSR payloads can fall back to client init |
-| `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
-| `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime); unwraps wire Ok before per-call RPC callbacks and routes framework errors through the registered RPC error handler |
+| `.generated_client/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
+| `.generated_client/src/generated/codec.gleam` | decode_flags utility for SSR hydration; absent or malformed flags return an Error so shell-only routes and corrupt SSR payloads can fall back to client init |
+| `.generated_client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
+| `.generated_client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime); unwraps wire Ok before per-call RPC callbacks and routes framework errors through the registered RPC error handler |
 
 ## Architecture
 
@@ -256,13 +257,13 @@ output_server_dispatch = "src/generated/rpc_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
 output_ws = "src/generated/ws_handler.gleam"
 output_http = "src/generated/http_handler.gleam"
-client_root = "client"
+client_root = ".generated_client"
 shell_file = "src/shell.html"
 ```
 
 ## Examples
 
-- `examples/realworld/`: RealWorld (Conduit) clone: full CRUD with auth, articles, tags. Uses handler-as-contract pattern for all server interactions.
+- `examples/realworld/`: RealWorld (Conduit) clone: full CRUD with auth, articles, tags. Uses handler-as-contract pattern for all server interactions and writes its generated client package to ignored `.generated_client`.
 
 ## Prior art
 

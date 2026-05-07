@@ -20,7 +20,7 @@ import server_context.{ServerContext}
 import simplifile
 import sqlight
 
-const client_build_root = "client/build/dev/javascript"
+const client_build_root = ".generated_client/build/dev/javascript"
 
 pub fn main() {
   let db = start_db()

@@ -15,7 +15,7 @@ echo "Creating new rally project: $PROJECT_NAME at $PROJECT_PATH"
 mkdir -p "$PROJECT_PATH/src/pages"
 mkdir -p "$PROJECT_PATH/src/sql"
 mkdir -p "$PROJECT_PATH/src/generated"
-mkdir -p "$PROJECT_PATH/client/src/generated"
+mkdir -p "$PROJECT_PATH/.generated_client/src/generated"
 mkdir -p "$PROJECT_PATH/bin"
 
 # .gitignore
@@ -25,6 +25,7 @@ app.db
 erl_crash.dump
 *.bak
 .DS_Store
+.generated_client/
 GITIGNORE
 
 # .env.example
@@ -70,7 +71,7 @@ output_server_dispatch = "src/generated/rpc_dispatch.gleam"
 output_ssr = "src/generated/ssr_handler.gleam"
 output_ws = "src/generated/ws_handler.gleam"
 sql_dir = "src/sql"
-client_root = "client"
+client_root = ".generated_client"
 
 [tools.marmot]
 database = "app.db"
@@ -279,7 +280,7 @@ pub fn main() {
 }
 
 fn serve_client_js() -> Response(ResponseData) {
-  case simplifile.read("client/build/dev/javascript/client/generated/app.mjs") {
+  case simplifile.read(".generated_client/build/dev/javascript/client/generated/app.mjs") {
     Ok(js) ->
       response.new(200)
       |> response.set_header("content-type", "application/javascript")
@@ -335,7 +336,7 @@ export APP_ENV="${APP_ENV:-dev}"
 echo "==> Running rally codegen..."
 gleam run -m rally
 echo "==> Building client..."
-cd client && gleam build --target javascript && cd ..
+cd .generated_client && gleam build --target javascript && cd ..
 echo "==> Starting server..."
 gleam run -m app
 SCRIPT
