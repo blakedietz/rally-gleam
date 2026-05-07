@@ -33,10 +33,7 @@ pub fn handle_request(
       let flags = codec.encode_flags(model)
       let flags_tag = "<script>window.__RALLY_FLAGS__='" <> flags <> "'</script>"
       let shell = shell_html()
-      let marker = case string.contains(shell, "<div id=\"app\">") {
-        True -> "<div id=\"app\">"
-        False -> "<div id='app'>"
-      }
+      let marker = find_app_marker(shell)
       let full_html = string.replace(shell, marker, marker <> rendered)
         <> ctx_tag <> flags_tag
       response.new(200)
@@ -50,10 +47,7 @@ pub fn handle_request(
       let flags = codec.encode_flags(model)
       let flags_tag = "<script>window.__RALLY_FLAGS__='" <> flags <> "'</script>"
       let shell = shell_html()
-      let marker = case string.contains(shell, "<div id=\"app\">") {
-        True -> "<div id=\"app\">"
-        False -> "<div id='app'>"
-      }
+      let marker = find_app_marker(shell)
       let full_html = string.replace(shell, marker, marker <> rendered)
         <> ctx_tag <> flags_tag
       response.new(200)
@@ -67,10 +61,7 @@ pub fn handle_request(
       let flags = codec.encode_flags(model)
       let flags_tag = "<script>window.__RALLY_FLAGS__='" <> flags <> "'</script>"
       let shell = shell_html()
-      let marker = case string.contains(shell, "<div id=\"app\">") {
-        True -> "<div id=\"app\">"
-        False -> "<div id='app'>"
-      }
+      let marker = find_app_marker(shell)
       let full_html = string.replace(shell, marker, marker <> rendered)
         <> ctx_tag <> flags_tag
       response.new(200)
@@ -97,5 +88,31 @@ fn serve_html_shell(server_context: ServerContext, session_id: String, hostname:
 
 fn shell_html() -> String {
   "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><script>(function(){var c=document.cookie;if(c.includes('__rally_dark_mode=1')||(!c.includes('__rally_dark_mode=')&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})()</script></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
+}
+
+fn find_app_marker(shell: String) -> String {
+  // Find the element with id=app (any tag, any attributes, any quoting).
+  let dq = "\""
+  let id_dq = "id=" <> dq <> "app" <> dq
+  let id_sq = "id='app'"
+  let id_attr = case string.contains(shell, id_dq) {
+    True -> id_dq
+    False -> id_sq
+  }
+  let #(before_id, after_id) = case string.split_once(shell, id_attr) {
+    Ok(pair) -> pair
+    Error(_) -> #(shell, "")
+  }
+  let reversed_before = string.reverse(before_id)
+  let #(after_lt_rev, _) = case string.split_once(reversed_before, "<") {
+    Ok(pair) -> pair
+    Error(_) -> #(reversed_before, "")
+  }
+  let tag_start = string.reverse(after_lt_rev) <> "<"
+  let #(tag_end, _) = case string.split_once(after_id, ">") {
+    Ok(pair) -> pair
+    Error(_) -> #(after_id, "")
+  }
+  tag_start <> id_attr <> tag_end <> ">"
 }
 

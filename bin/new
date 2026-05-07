@@ -12,6 +12,12 @@ RALLY_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "Creating new rally project: $PROJECT_NAME at $PROJECT_PATH"
 
+mkdir -p "$PROJECT_PATH/src/pages"
+mkdir -p "$PROJECT_PATH/src/sql"
+mkdir -p "$PROJECT_PATH/src/generated"
+mkdir -p "$PROJECT_PATH/client/src/generated"
+mkdir -p "$PROJECT_PATH/bin"
+
 # .gitignore
 cat > "$PROJECT_PATH/.gitignore" <<'GITIGNORE'
 build/
@@ -20,12 +26,6 @@ erl_crash.dump
 *.bak
 .DS_Store
 GITIGNORE
-
-mkdir -p "$PROJECT_PATH/src/pages"
-mkdir -p "$PROJECT_PATH/src/sql"
-mkdir -p "$PROJECT_PATH/src/generated"
-mkdir -p "$PROJECT_PATH/client/src/generated"
-mkdir -p "$PROJECT_PATH/bin"
 
 # gleam.toml
 cat > "$PROJECT_PATH/gleam.toml" <<TOML
@@ -124,14 +124,14 @@ pub fn view(_cc, model: Model) -> Element(Msg) {
 }
 
 pub fn server_increment(
-  _msg msg: ServerIncrement,
+  msg _msg: ServerIncrement,
   server_context server_context: ServerContext,
 ) -> Int {
   1
 }
 
 pub fn server_decrement(
-  _msg msg: ServerDecrement,
+  msg _msg: ServerDecrement,
   server_context server_context: ServerContext,
 ) -> Int {
   -1
@@ -223,14 +223,14 @@ pub fn main() {
                     response.set_header(
                       resp,
                       "set-cookie",
-                      session.set_cookie_header(session_id),
+                      session.set_cookie_header(session_id:, secure: False),
                     )
                 }
               Error(_) ->
                 response.set_header(
                   resp,
                   "set-cookie",
-                  session.set_cookie_header(session_id),
+                  session.set_cookie_header(session_id:, secure: False),
                 )
             }
           }

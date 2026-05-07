@@ -139,7 +139,45 @@ fn shell_html() -> String {
     False -> ""
   }
 
-  header <> fn_body <> ctx_script <> shell_fn <> shell_html_fn
+  header <> fn_body <> ctx_script <> shell_fn <> shell_html_fn <> marker_helper(has_load_pages)
+}
+
+fn marker_helper(has_load_pages: Bool) -> String {
+  case has_load_pages {
+    True -> {
+      let dq = "\""
+      let bs = "\\"
+      let body = [
+        "fn find_app_marker(shell: String) -> String {",
+        "  // Find the element with id=app (any tag, any attributes, any quoting).",
+        "  let dq = " <> dq <> bs <> dq <> dq,
+        "  let id_dq = " <> dq <> "id=" <> dq <> " <> " <> "dq" <> " <> " <> dq <> "app" <> dq <> " <> " <> "dq",
+        "  let id_sq = " <> dq <> "id='app'" <> dq,
+        "  let id_attr = case string.contains(shell, id_dq) {",
+        "    True -> id_dq",
+        "    False -> id_sq",
+        "  }",
+        "  let #(before_id, after_id) = case string.split_once(shell, id_attr) {",
+        "    Ok(pair) -> pair",
+        "    Error(_) -> #(shell, " <> dq <> dq <> ")",
+        "  }",
+        "  let reversed_before = string.reverse(before_id)",
+        "  let #(after_lt_rev, _) = case string.split_once(reversed_before, " <> dq <> "<" <> dq <> ") {",
+        "    Ok(pair) -> pair",
+        "    Error(_) -> #(reversed_before, " <> dq <> dq <> ")",
+        "  }",
+        "  let tag_start = string.reverse(after_lt_rev) <> " <> dq <> "<" <> dq,
+        "  let #(tag_end, _) = case string.split_once(after_id, " <> dq <> ">" <> dq <> ") {",
+        "    Ok(pair) -> pair",
+        "    Error(_) -> #(after_id, " <> dq <> dq <> ")",
+        "  }",
+        "  tag_start <> id_attr <> tag_end <> " <> dq <> ">" <> dq,
+        "}",
+      ]
+      "\n" <> string.join(body, "\n") <> "\n"
+    }
+    False -> ""
+  }
 }
 
 fn generate_page_imports(
@@ -274,18 +312,12 @@ fn generate_load_arms(
         let full_html_line = case use_session {
           True ->
             "      let shell = shell_html()\n"
-            <> "      let marker = case string.contains(shell, \"<div id=\\\"app\\\">\") {\n"
-            <> "        True -> \"<div id=\\\"app\\\">\"\n"
-            <> "        False -> \"<div id='app'>\"\n"
-            <> "      }\n"
+            <> "      let marker = find_app_marker(shell)\n"
             <> "      let full_html = string.replace(shell, marker, marker <> rendered)\n"
             <> "        <> ctx_tag <> flags_tag\n"
           False ->
             "      let shell = shell_html()\n"
-            <> "      let marker = case string.contains(shell, \"<div id=\\\"app\\\">\") {\n"
-            <> "        True -> \"<div id=\\\"app\\\">\"\n"
-            <> "        False -> \"<div id='app'>\"\n"
-            <> "      }\n"
+            <> "      let marker = find_app_marker(shell)\n"
             <> "      let full_html = string.replace(shell, marker, marker <> rendered)\n"
             <> "        <> flags_tag\n"
         }

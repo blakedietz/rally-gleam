@@ -43,6 +43,7 @@ pub type Model {
     page_model: PageModel,
     connection: Connection,
     client_context: client_context.ClientContext,
+    current_path: String,
   )
 }
 
@@ -72,14 +73,14 @@ fn init(_flags: Nil) -> #(Model, Effect(Msg)) {
   let #(ctx_model, ctx_effects) = client_context.init()
   let current_path = router.route_to_path(route)
   let client_context = case codec.decode_flags(transport.read_client_context()) {
-    Ok(ctx) -> client_context.ClientContext(..ctx, current_path:)
-    Error(_) -> client_context.ClientContext(..ctx_model, current_path:)
+    Ok(ctx) -> client_context.ClientContext(..ctx)
+    Error(_) -> client_context.ClientContext(..ctx_model)
   }
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(data) -> hydrate_page(route, data, client_context)
     Error(_) -> init_page(route, client_context)
   }
-  #(Model(route:, page_model:, connection: Disconnected, client_context:),
+  #(Model(route:, page_model:, connection: Disconnected, client_context:, current_path:),
     effect.batch([init_transport(), modem.init(fn(uri) { UrlChanged(router.parse_route(uri)) }), effect.map(ctx_effects, ClientContextUpdate), page_effects]))
 }
 
@@ -178,9 +179,9 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       case route == model.route {
         True -> #(model, effect.none())
         False -> {
-          let new_client_context = client_context.ClientContext(..model.client_context, current_path: router.route_to_path(route))
-          let #(page_model, page_effects) = init_page(route, new_client_context)
-          #(Model(..model, route:, page_model:, client_context: new_client_context), page_effects)
+          let current_path = router.route_to_path(route)
+          let #(page_model, page_effects) = init_page(route, model.client_context)
+          #(Model(..model, route:, page_model:, current_path:), page_effects)
         }
       }
     }
