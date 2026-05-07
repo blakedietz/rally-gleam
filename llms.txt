@@ -121,13 +121,13 @@ Running `gleam run -m rally` produces:
 | `src/generated/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery, inbound message logging |
 | `src/generated/http_handler.gleam` | HTTP RPC handler: POST /rpc with ETF body, calls rpc_dispatch, returns ETF response |
 | `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing, page push handler registration |
-| `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, ETF encode/decode, and safe ETF decode for recoverable hydration failures |
+| `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, RPC framework-error handler registration, ETF encode/decode, and safe ETF decode |
 | `client/src/pages/*.gleam` | Per-page client modules: tree-shaken page source with types, init/update/view, and private helpers |
 | `client/src/rally_runtime/effect.gleam` | Client-side effect shim: rpc, navigate, send_to_client_context backed by transport |
 | `client/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
 | `client/src/generated/codec.gleam` | decode_flags utility for SSR hydration; absent or malformed flags return an Error so shell-only routes and corrupt SSR payloads can fall back to client init |
 | `client/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
-| `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime) |
+| `client/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime); unwraps wire Ok before per-call RPC callbacks and routes framework errors through the registered RPC error handler |
 
 ## Architecture
 
@@ -163,7 +163,7 @@ Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generat
 | `wire.gleam` | Thin wrapper over libero/wire (ETF encode/decode, frame tagging) + tuple_element |
 | `codec.gleam` | Base64 ETF serialization for SSR flags |
 | `ssr.gleam` | HTML rendering via lustre element |
-| `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect + dev-mode message inspector |
+| `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect, RPC framework-error routing, and dev-mode message inspector |
 | `rally_runtime_ffi.erl` | Erlang FFI: WS process state management, push frame accumulator |
 
 ### Broadcast and Topics

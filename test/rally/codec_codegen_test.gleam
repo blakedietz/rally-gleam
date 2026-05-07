@@ -1,6 +1,7 @@
 import gleam/list
 import gleam/option
 import gleam/string
+import gleeunit/should
 import libero/field_type
 import libero/scanner
 import libero/walker.{DiscoveredType, DiscoveredVariant}
@@ -112,6 +113,34 @@ pub fn copied_rpc_runtime_exposes_only_field_type_float_api_test() {
     string.contains(source, "export function registerFieldTypes")
   let assert False = string.contains(source, "registerFloatFields")
   let assert False = string.contains(source, "floatFieldRegistry")
+}
+
+pub fn rpc_runtime_routes_framework_errors_outside_user_callbacks_test() {
+  let assert Ok(source) = simplifile.read("src/rally_runtime/rpc_ffi.mjs")
+
+  source
+  |> string.contains("export function registerRpcErrorHandler(handler)")
+  |> should.equal(True)
+  source
+  |> string.contains("entry.callback(decoded[0])")
+  |> should.equal(True)
+  source
+  |> string.contains("invokeRpcErrorHandler(frameworkError")
+  |> should.equal(True)
+  source
+  |> string.contains("invokeRpcErrorHandler(error, \"RPC request failed\")")
+  |> should.equal(True)
+  source
+  |> string.contains(
+    "invokeRpcErrorHandler(makeConnectionError(\"Request timed out\")",
+  )
+  |> should.equal(True)
+  source
+  |> string.contains("entry.callback(error)")
+  |> should.equal(False)
+  source
+  |> string.contains("callback(makeConnectionError")
+  |> should.equal(False)
 }
 
 pub fn page_post_process_handles_effect_alias_for_send_to_server_test() {

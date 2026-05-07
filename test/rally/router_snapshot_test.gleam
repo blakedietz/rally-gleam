@@ -446,6 +446,39 @@ pub fn transport_gleam_exposes_safe_decode_test() {
   |> should.equal(True)
 }
 
+pub fn transport_gleam_exposes_rpc_error_handler_test() {
+  let files =
+    client.generate_package(
+      basic_routes(),
+      basic_contracts(),
+      test_scan_config(),
+      dict.new(),
+      "",
+      "",
+      False,
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "transport.gleam")
+    })
+
+  file.content
+  |> string.contains(
+    "@external(javascript, \"./rpc_ffi.mjs\", \"registerRpcErrorHandler\")",
+  )
+  |> should.equal(True)
+  file.content
+  |> string.contains(
+    "pub fn register_rpc_error_handler(callback: fn(String) -> Nil) -> Nil",
+  )
+  |> should.equal(True)
+  file.content
+  |> string.contains(
+    "Framework-level errors do not invoke this callback; they flow through",
+  )
+  |> should.equal(True)
+}
+
 pub fn app_gleam_snapshot_test() {
   let routes = basic_routes()
   let contracts = basic_contracts()

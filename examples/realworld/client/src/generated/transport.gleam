@@ -29,6 +29,13 @@ pub fn register_on_connect(callback: fn() -> Nil) -> Nil
 @external(javascript, "./rpc_ffi.mjs", "registerOnDisconnect")
 pub fn register_on_disconnect(callback: fn(String) -> Nil) -> Nil
 
+/// Register a handler that fires when an RPC fails at the framework
+/// layer (dispatch errors, malformed requests, decode failures, or
+/// connection loss while a call is in flight). Domain-level errors
+/// returned by handlers flow through the per-call callback as usual.
+@external(javascript, "./rpc_ffi.mjs", "registerRpcErrorHandler")
+pub fn register_rpc_error_handler(callback: fn(String) -> Nil) -> Nil
+
 /// Encode a value to ETF binary.
 @external(javascript, "./rpc_ffi.mjs", "encode_value")
 pub fn encode(value: a) -> BitArray
@@ -47,7 +54,10 @@ pub fn send_to_server(page: String, msg: a) -> Nil {
   send_raw("/ws", page, msg, fn(_) { Nil })
 }
 
-/// Send an RPC call and invoke callback with the decoded response.
+/// Send an RPC call and invoke callback with the handler's return value.
+/// Framework-level errors do not invoke this callback; they flow through
+/// register_rpc_error_handler. User Msg types only need to handle whatever
+/// shape the handler returns.
 pub fn send_rpc(msg: a, callback: fn(b) -> Nil) -> Nil {
   send_raw("/ws", "rpc", msg, callback)
 }

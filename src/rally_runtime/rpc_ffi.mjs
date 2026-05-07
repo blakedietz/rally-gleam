@@ -1104,7 +1104,7 @@ if (typeof window !== "undefined") {
 // Reconnection is automatic. On unexpected close (network blip, server
 // restart, page resume from sleep), the socket reconnects with
 // exponential backoff (500ms → 30s, full jitter). Pending requests
-// reject with a connection-lost error rather than wait; application
+// report a connection-lost framework error rather than wait; application
 // code retries idempotently or surfaces the error. Push handlers
 // remain registered across reconnects, so push frames resume once the
 // socket is back. Apps that need to refetch state on reconnect should
@@ -1136,42 +1136,47 @@ let reconnectAttempts = 0;
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 30_000;
 
-// Build a connection-error value as a proper Gleam Result(_, RpcError)
-// so the per-endpoint response decoders can extract the InternalError
-// and read its .message field.
+// Build a framework-level connection error for the global RPC error
+// handler. Per-call callbacks only receive handler return values.
 function makeConnectionError(message) {
-  return new ResultError(new InternalError("", message));
+  return new InternalError("", message);
 }
 
-// Detect libero dispatch-layer errors in decoded RPC responses.
-// These are Result.Error variants wrapping MalformedRequest, UnknownFunction, or InternalError.
-function isDispatchError(decoded) {
-  if (decoded && decoded.constructor && decoded.constructor.name === "Error") {
-    const inner = decoded[0];
-    return inner instanceof MalformedRequest
-      || inner instanceof UnknownFunction
-      || inner instanceof InternalError;
+function formatFrameworkError(error) {
+  if (error instanceof UnknownFunction) return "UnknownFunction(\"" + error.name + "\")";
+  if (error instanceof InternalError) return "InternalError(trace: " + error.trace_id + ", message: \"" + error.message + "\")";
+  if (error instanceof MalformedRequest) return "MalformedRequest";
+  return String(error);
+}
+
+let rpcErrorHandler = null;
+
+export function registerRpcErrorHandler(handler) {
+  rpcErrorHandler = handler;
+}
+
+function invokeRpcErrorHandler(error, context = "RPC framework error") {
+  const message = formatFrameworkError(error);
+  if (rpcErrorHandler) {
+    try {
+      rpcErrorHandler(message);
+    } catch (e) {
+      if (debugEnabled()) console.error("[rally] rpc error handler threw:", e);
+    }
+    return;
   }
-  return false;
-}
-
-function formatDispatchError(decoded) {
-  const inner = decoded[0];
-  if (inner instanceof UnknownFunction) return "UnknownFunction(\"" + inner.name + "\")";
-  if (inner instanceof InternalError) return "InternalError(trace: " + inner.trace_id + ", message: \"" + inner.message + "\")";
-  if (inner instanceof MalformedRequest) return "MalformedRequest";
-  return String(inner);
+  if (debugEnabled()) console.error("[rally] " + context + ":", message);
 }
 
 function clearAllPending(reason) {
   const error = makeConnectionError(reason);
   for (const entry of pendingSends) {
     if (entry.timer) clearTimeout(entry.timer);
-    entry.callback(error);
+    if (entry.callback) invokeRpcErrorHandler(error, "RPC request failed");
   }
   for (const [, entry] of responseCallbacks) {
     if (entry.timer) clearTimeout(entry.timer);
-    entry.callback(error);
+    invokeRpcErrorHandler(error, "RPC request failed");
   }
   pendingSends = [];
   responseCallbacks = new Map();
@@ -1306,7 +1311,7 @@ export function ensureSocket(url) {
         responseCallbacks.delete(requestId);
         if (entry.timer) clearTimeout(entry.timer);
         requestTimestamps.delete(requestId);
-        entry.callback(makeConnectionError("Failed to decode response"));
+        invokeRpcErrorHandler(makeConnectionError("Failed to decode response"), `RPC #${requestId} decode failed`);
       }
       return;
     }
@@ -1323,11 +1328,20 @@ export function ensureSocket(url) {
       } else {
         logRpc("<-", `rpc #${requestId}`, decoded);
       }
-      // Warn on framework-level errors so they're visible in dev
-      if (debugEnabled() && isDispatchError(decoded)) {
-        console.error("[rally] RPC #" + requestId + " failed:", formatDispatchError(decoded));
+      if (decoded instanceof Ok) {
+        // Wire-level success: the payload is the handler's return value.
+        // This value may itself be a domain Result, and user callbacks
+        // receive it unchanged.
+        entry.callback(decoded[0]);
+      } else if (decoded instanceof ResultError) {
+        // Wire-level failure: dispatch errors, malformed requests, and
+        // internal framework failures are routed outside the per-call
+        // callback so user Msg types only model handler return values.
+        const frameworkError = decoded[0];
+        invokeRpcErrorHandler(frameworkError, `RPC #${requestId} failed`);
+      } else {
+        if (debugEnabled()) console.warn("rally: unexpected response shape #" + requestId, decoded);
       }
-      entry.callback(decoded);
     }
   });
 
@@ -1386,12 +1400,12 @@ export function registerOnDisconnect(callback) {
 /**
  * Send a message and queue a callback for the server's response.
  * Responses are matched by request ID. Each request has a 30-second
- * timeout; if no response arrives, the callback receives an
- * InternalError so the UI doesn't hang indefinitely.
+ * timeout; if no response arrives, the registered RPC error handler
+ * receives an InternalError so the UI doesn't hang indefinitely.
  * @param {string} url WebSocket URL (typically from rpc_config)
  * @param {string} module wire envelope string (codegen emits "rpc")
  * @param {any} msg the typed ClientMsg value to encode and send
- * @param {(result: any) => void} callback invoked with the decoded Result
+ * @param {(result: any) => void} callback invoked with the handler return value
  */
 export function send(url, module, msg, callback) {
   ensureSocket(url);
@@ -1408,7 +1422,7 @@ export function send(url, module, msg, callback) {
     }
     responseCallbacks.delete(requestId);
     requestTimestamps.delete(requestId);
-    callback(makeConnectionError("Request timed out"));
+    invokeRpcErrorHandler(makeConnectionError("Request timed out"), `RPC #${requestId} timed out`);
     // No need to close the WebSocket; request IDs prevent FIFO desync.
   }, REQUEST_TIMEOUT_MS);
 
