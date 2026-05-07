@@ -227,6 +227,64 @@ pub fn client_app_underscores_unused_hydrate_context_test() {
   |> should.equal(True)
 }
 
+pub fn client_app_uses_hydrate_context_when_init_loaded_needs_it_test() {
+  let route =
+    ScannedRoute(
+      segments: [],
+      variant_name: "Home",
+      params: [],
+      layout_module: None,
+      module_path: "pages/home_",
+    )
+  let contract =
+    PageContract(
+      model_variants: [
+        VariantInfo("Model", [VariantField("count", IntField)]),
+      ],
+      msg_variants: [],
+      has_load: True,
+      has_init: True,
+      has_init_loaded: True,
+      has_model: True,
+      updates_client_context: False,
+      param_names: [],
+      source: "",
+      view_source: "",
+      init_source: "",
+      update_source: "",
+    )
+  let files =
+    client.generate_package(
+      [route],
+      [#(route, contract)],
+      test_scan_config(),
+      dict.new(),
+      "",
+      "",
+      True,
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+
+  file.content
+  |> string.contains(
+    "fn hydrate_page(route: router.Route, data: a, client_context: client_context.ClientContext)",
+  )
+  |> should.equal(True)
+
+  file.content
+  |> string.contains(
+    "pages_home_.init_loaded(client_context, transport.coerce(data))",
+  )
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("init_loaded(_client_context")
+  |> should.equal(False)
+}
+
 pub fn app_gleam_layout_with_client_context_uses_context_msg_mapper_test() {
   let routes = [
     ScannedRoute(

@@ -47,254 +47,17 @@ pub fn handle(
   case wire.decode_call(data) {
     Ok(#("rpc", request_id, msg)) -> {
       case wire.variant_tag(msg) {
-        Ok("server_publish_article")
-        | Ok("server_change_page")
-        | Ok("server_switch_tab")
-        | Ok("server_login")
-        | Ok("server_register")
-        | Ok("server_logout")
-        | Ok("server_update_settings") -> {
-          let typed_msg: ClientMsg = wire.coerce(msg)
-          case typed_msg {
-            ServerPublishArticle(title: _, description: _, body: _, tags: _) -> {
-              case
-                trace.try_call(fn() {
-                  pages_editor_handler.server_publish_article(
-                    msg: wire.coerce(typed_msg),
-                    server_context:,
-                  )
-                })
-              {
-                Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
-                  server_context,
-                )
-                Error(reason) -> {
-                  let trace_id = trace.new_trace_id()
-                  io.println_error(
-                    "[libero] " <> trace_id <> " publish_article: " <> reason,
-                  )
-                  #(
-                    wire.tag_response(
-                      request_id:,
-                      data: wire.encode(
-                        Error(InternalError(
-                          trace_id:,
-                          message: "Something went wrong",
-                        )),
-                      ),
-                    ),
-                    server_context,
-                  )
-                }
-              }
-            }
-            ServerChangePage(page: _, tab_name: _, tag: _) -> {
-              case
-                trace.try_call(fn() {
-                  pages_home__handler.server_change_page(
-                    msg: wire.coerce(typed_msg),
-                    server_context:,
-                  )
-                })
-              {
-                Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
-                  server_context,
-                )
-                Error(reason) -> {
-                  let trace_id = trace.new_trace_id()
-                  io.println_error(
-                    "[libero] " <> trace_id <> " change_page: " <> reason,
-                  )
-                  #(
-                    wire.tag_response(
-                      request_id:,
-                      data: wire.encode(
-                        Error(InternalError(
-                          trace_id:,
-                          message: "Something went wrong",
-                        )),
-                      ),
-                    ),
-                    server_context,
-                  )
-                }
-              }
-            }
-            ServerSwitchTab(tab_name: _, tag: _) -> {
-              case
-                trace.try_call(fn() {
-                  pages_home__handler.server_switch_tab(
-                    msg: wire.coerce(typed_msg),
-                    server_context:,
-                  )
-                })
-              {
-                Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
-                  server_context,
-                )
-                Error(reason) -> {
-                  let trace_id = trace.new_trace_id()
-                  io.println_error(
-                    "[libero] " <> trace_id <> " switch_tab: " <> reason,
-                  )
-                  #(
-                    wire.tag_response(
-                      request_id:,
-                      data: wire.encode(
-                        Error(InternalError(
-                          trace_id:,
-                          message: "Something went wrong",
-                        )),
-                      ),
-                    ),
-                    server_context,
-                  )
-                }
-              }
-            }
-            ServerLogin(email: _, password: _) -> {
-              case
-                trace.try_call(fn() {
-                  pages_login_handler.server_login(
-                    msg: wire.coerce(typed_msg),
-                    server_context:,
-                  )
-                })
-              {
-                Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
-                  server_context,
-                )
-                Error(reason) -> {
-                  let trace_id = trace.new_trace_id()
-                  io.println_error(
-                    "[libero] " <> trace_id <> " login: " <> reason,
-                  )
-                  #(
-                    wire.tag_response(
-                      request_id:,
-                      data: wire.encode(
-                        Error(InternalError(
-                          trace_id:,
-                          message: "Something went wrong",
-                        )),
-                      ),
-                    ),
-                    server_context,
-                  )
-                }
-              }
-            }
-            ServerRegister(username: _, email: _, password: _) -> {
-              case
-                trace.try_call(fn() {
-                  pages_register_handler.server_register(
-                    msg: wire.coerce(typed_msg),
-                    server_context:,
-                  )
-                })
-              {
-                Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
-                  server_context,
-                )
-                Error(reason) -> {
-                  let trace_id = trace.new_trace_id()
-                  io.println_error(
-                    "[libero] " <> trace_id <> " register: " <> reason,
-                  )
-                  #(
-                    wire.tag_response(
-                      request_id:,
-                      data: wire.encode(
-                        Error(InternalError(
-                          trace_id:,
-                          message: "Something went wrong",
-                        )),
-                      ),
-                    ),
-                    server_context,
-                  )
-                }
-              }
-            }
-            ServerLogout -> {
-              case
-                trace.try_call(fn() {
-                  pages_settings_handler.server_logout(
-                    msg: wire.coerce(typed_msg),
-                    server_context:,
-                  )
-                })
-              {
-                Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
-                  server_context,
-                )
-                Error(reason) -> {
-                  let trace_id = trace.new_trace_id()
-                  io.println_error(
-                    "[libero] " <> trace_id <> " logout: " <> reason,
-                  )
-                  #(
-                    wire.tag_response(
-                      request_id:,
-                      data: wire.encode(
-                        Error(InternalError(
-                          trace_id:,
-                          message: "Something went wrong",
-                        )),
-                      ),
-                    ),
-                    server_context,
-                  )
-                }
-              }
-            }
-            ServerUpdateSettings(
-              image: _,
-              username: _,
-              bio: _,
-              email: _,
-              password: _,
-            ) -> {
-              case
-                trace.try_call(fn() {
-                  pages_settings_handler.server_update_settings(
-                    msg: wire.coerce(typed_msg),
-                    server_context:,
-                  )
-                })
-              {
-                Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
-                  server_context,
-                )
-                Error(reason) -> {
-                  let trace_id = trace.new_trace_id()
-                  io.println_error(
-                    "[libero] " <> trace_id <> " update_settings: " <> reason,
-                  )
-                  #(
-                    wire.tag_response(
-                      request_id:,
-                      data: wire.encode(
-                        Error(InternalError(
-                          trace_id:,
-                          message: "Something went wrong",
-                        )),
-                      ),
-                    ),
-                    server_context,
-                  )
-                }
-              }
-            }
-          }
-        }
+        Ok("server_publish_article") ->
+          dispatch_known(msg, request_id, server_context)
+        Ok("server_change_page") ->
+          dispatch_known(msg, request_id, server_context)
+        Ok("server_switch_tab") ->
+          dispatch_known(msg, request_id, server_context)
+        Ok("server_login") -> dispatch_known(msg, request_id, server_context)
+        Ok("server_register") -> dispatch_known(msg, request_id, server_context)
+        Ok("server_logout") -> dispatch_known(msg, request_id, server_context)
+        Ok("server_update_settings") ->
+          dispatch_known(msg, request_id, server_context)
         Ok(tag) -> #(
           wire.tag_response(
             request_id:,
@@ -325,5 +88,213 @@ pub fn handle(
       ),
       server_context,
     )
+  }
+}
+
+fn dispatch_known(msg, request_id, server_context) {
+  let typed_msg: ClientMsg = wire.coerce(msg)
+  case typed_msg {
+    ServerPublishArticle(title: _, description: _, body: _, tags: _) -> {
+      case
+        trace.try_call(fn() {
+          pages_editor_handler.server_publish_article(
+            msg: wire.coerce(typed_msg),
+            server_context:,
+          )
+        })
+      {
+        Ok(result) -> #(
+          wire.tag_response(request_id:, data: wire.encode(Ok(result))),
+          server_context,
+        )
+        Error(reason) -> {
+          let trace_id = trace.new_trace_id()
+          io.println_error(
+            "[libero] " <> trace_id <> " publish_article: " <> reason,
+          )
+          #(
+            wire.tag_response(
+              request_id:,
+              data: wire.encode(
+                Error(InternalError(trace_id:, message: "Something went wrong")),
+              ),
+            ),
+            server_context,
+          )
+        }
+      }
+    }
+    ServerChangePage(page: _, tab_name: _, tag: _) -> {
+      case
+        trace.try_call(fn() {
+          pages_home__handler.server_change_page(
+            msg: wire.coerce(typed_msg),
+            server_context:,
+          )
+        })
+      {
+        Ok(result) -> #(
+          wire.tag_response(request_id:, data: wire.encode(Ok(result))),
+          server_context,
+        )
+        Error(reason) -> {
+          let trace_id = trace.new_trace_id()
+          io.println_error(
+            "[libero] " <> trace_id <> " change_page: " <> reason,
+          )
+          #(
+            wire.tag_response(
+              request_id:,
+              data: wire.encode(
+                Error(InternalError(trace_id:, message: "Something went wrong")),
+              ),
+            ),
+            server_context,
+          )
+        }
+      }
+    }
+    ServerSwitchTab(tab_name: _, tag: _) -> {
+      case
+        trace.try_call(fn() {
+          pages_home__handler.server_switch_tab(
+            msg: wire.coerce(typed_msg),
+            server_context:,
+          )
+        })
+      {
+        Ok(result) -> #(
+          wire.tag_response(request_id:, data: wire.encode(Ok(result))),
+          server_context,
+        )
+        Error(reason) -> {
+          let trace_id = trace.new_trace_id()
+          io.println_error("[libero] " <> trace_id <> " switch_tab: " <> reason)
+          #(
+            wire.tag_response(
+              request_id:,
+              data: wire.encode(
+                Error(InternalError(trace_id:, message: "Something went wrong")),
+              ),
+            ),
+            server_context,
+          )
+        }
+      }
+    }
+    ServerLogin(email: _, password: _) -> {
+      case
+        trace.try_call(fn() {
+          pages_login_handler.server_login(
+            msg: wire.coerce(typed_msg),
+            server_context:,
+          )
+        })
+      {
+        Ok(result) -> #(
+          wire.tag_response(request_id:, data: wire.encode(Ok(result))),
+          server_context,
+        )
+        Error(reason) -> {
+          let trace_id = trace.new_trace_id()
+          io.println_error("[libero] " <> trace_id <> " login: " <> reason)
+          #(
+            wire.tag_response(
+              request_id:,
+              data: wire.encode(
+                Error(InternalError(trace_id:, message: "Something went wrong")),
+              ),
+            ),
+            server_context,
+          )
+        }
+      }
+    }
+    ServerRegister(username: _, email: _, password: _) -> {
+      case
+        trace.try_call(fn() {
+          pages_register_handler.server_register(
+            msg: wire.coerce(typed_msg),
+            server_context:,
+          )
+        })
+      {
+        Ok(result) -> #(
+          wire.tag_response(request_id:, data: wire.encode(Ok(result))),
+          server_context,
+        )
+        Error(reason) -> {
+          let trace_id = trace.new_trace_id()
+          io.println_error("[libero] " <> trace_id <> " register: " <> reason)
+          #(
+            wire.tag_response(
+              request_id:,
+              data: wire.encode(
+                Error(InternalError(trace_id:, message: "Something went wrong")),
+              ),
+            ),
+            server_context,
+          )
+        }
+      }
+    }
+    ServerLogout -> {
+      case
+        trace.try_call(fn() {
+          pages_settings_handler.server_logout(
+            msg: wire.coerce(typed_msg),
+            server_context:,
+          )
+        })
+      {
+        Ok(result) -> #(
+          wire.tag_response(request_id:, data: wire.encode(Ok(result))),
+          server_context,
+        )
+        Error(reason) -> {
+          let trace_id = trace.new_trace_id()
+          io.println_error("[libero] " <> trace_id <> " logout: " <> reason)
+          #(
+            wire.tag_response(
+              request_id:,
+              data: wire.encode(
+                Error(InternalError(trace_id:, message: "Something went wrong")),
+              ),
+            ),
+            server_context,
+          )
+        }
+      }
+    }
+    ServerUpdateSettings(image: _, username: _, bio: _, email: _, password: _) -> {
+      case
+        trace.try_call(fn() {
+          pages_settings_handler.server_update_settings(
+            msg: wire.coerce(typed_msg),
+            server_context:,
+          )
+        })
+      {
+        Ok(result) -> #(
+          wire.tag_response(request_id:, data: wire.encode(Ok(result))),
+          server_context,
+        )
+        Error(reason) -> {
+          let trace_id = trace.new_trace_id()
+          io.println_error(
+            "[libero] " <> trace_id <> " update_settings: " <> reason,
+          )
+          #(
+            wire.tag_response(
+              request_id:,
+              data: wire.encode(
+                Error(InternalError(trace_id:, message: "Something went wrong")),
+              ),
+            ),
+            server_context,
+          )
+        }
+      }
+    }
   }
 }

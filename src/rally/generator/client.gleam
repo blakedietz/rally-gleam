@@ -730,6 +730,18 @@ fn generate_hydrate_page(
   contract_map: dict.Dict(String, PageContract),
   has_client_context: Bool,
 ) -> String {
+  let hydrate_uses_client_context =
+    has_client_context
+    && list.any(routes, fn(route) {
+      case dict.get(contract_map, route.variant_name) {
+        Ok(contract) -> contract.has_model && contract.has_init_loaded
+        Error(_) -> False
+      }
+    })
+  let hydrate_client_context_name = case hydrate_uses_client_context {
+    True -> "client_context"
+    False -> "_client_context"
+  }
   let arms =
     routes
     |> list.filter_map(fn(route) {
@@ -738,7 +750,8 @@ fn generate_hydrate_page(
           let alias = page_module_alias(route)
           let pattern = route_pattern_ignored(route)
           let call_args = case has_client_context {
-            True -> "(_client_context, transport.coerce(data))"
+            True ->
+              "(" <> hydrate_client_context_name <> ", transport.coerce(data))"
             False -> "(transport.coerce(data))"
           }
           Ok(
@@ -775,7 +788,9 @@ fn generate_hydrate_page(
 
   let sig = case has_client_context {
     True ->
-      "fn hydrate_page(route: router.Route, data: a, _client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {"
+      "fn hydrate_page(route: router.Route, data: a, "
+      <> hydrate_client_context_name
+      <> ": client_context.ClientContext) -> #(PageModel, Effect(Msg)) {"
     False ->
       "fn hydrate_page(route: router.Route, data: a) -> #(PageModel, Effect(Msg)) {"
   }
