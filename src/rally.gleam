@@ -197,11 +197,15 @@ fn run() -> Result(String, String) {
   }
 
   // 5. Generate RPC dispatch via libero
-  let sd_source =
-    libero.generate_dispatch(
-      handler_endpoints,
-      option.Some(config.atoms_module),
-    )
+  let sd_source = case handler_endpoints {
+    [] -> generator.generate_empty_rpc_dispatch(config.atoms_module)
+    _ ->
+      libero.generate_dispatch(
+        handler_endpoints,
+        option.Some(config.atoms_module),
+      )
+  }
+  let sd_source = generator.normalize_rpc_dispatch_context_import(sd_source)
   use _ <- result.try(write_file(config.output_server_dispatch, sd_source))
 
   // 6. Generate SSR handler

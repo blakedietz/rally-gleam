@@ -965,8 +965,8 @@ export function decode_safe(buffer) {
 function debugEnabled() {
   if (typeof window === "undefined") return false;
   if (window.__RALLY_DEBUG__ !== undefined) return window.__RALLY_DEBUG__;
-  // Auto-enable on any non-HTTPS origin (dev servers use HTTP)
-  return location.protocol === "http:";
+  const appEnv = window.__APP_ENV__;
+  return appEnv === "dev" || appEnv === "development";
 }
 
 function formatRaw(value, depth = 0) {
@@ -1221,7 +1221,7 @@ export function ensureSocket(url) {
   ws.addEventListener("message", (event) => {
     const bytes = new Uint8Array(event.data);
     if (bytes.byteLength < 1) {
-      console.warn("libero: dropped empty WebSocket frame");
+      if (debugEnabled()) console.warn("libero: dropped empty WebSocket frame");
       return;
     }
     const tag = bytes[0];
@@ -1236,7 +1236,7 @@ export function ensureSocket(url) {
       try {
         decoded = decode_value(payload);
       } catch (e) {
-        console.warn("rally: failed to decode push frame", e);
+        if (debugEnabled()) console.warn("rally: failed to decode push frame", e);
         return;
       }
       if (Array.isArray(decoded) && typeof decoded[0] === "string"
@@ -1251,7 +1251,9 @@ export function ensureSocket(url) {
     // Response frame (tag 0x00): extract request ID and match by ID.
     // Frame format: <<0x00, request_id:32-big, etf_bytes>>
     if (bytes.byteLength < 5) {
-      console.warn(`libero: dropped malformed response frame (${bytes.byteLength} bytes, need >= 5)`);
+      if (debugEnabled()) {
+        console.warn(`libero: dropped malformed response frame (${bytes.byteLength} bytes, need >= 5)`);
+      }
       return;
     }
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -1266,7 +1268,7 @@ export function ensureSocket(url) {
     try {
       decoded = decode_value(responsePayload);
     } catch (e) {
-      console.warn(`rally: failed to decode response #${requestId}`, e);
+      if (debugEnabled()) console.warn(`rally: failed to decode response #${requestId}`, e);
       const entry = responseCallbacks.get(requestId);
       if (entry) {
         responseCallbacks.delete(requestId);
@@ -1290,7 +1292,7 @@ export function ensureSocket(url) {
         logRpc("<-", `rpc #${requestId}`, decoded);
       }
       // Warn on framework-level errors so they're visible in dev
-      if (isDispatchError(decoded)) {
+      if (debugEnabled() && isDispatchError(decoded)) {
         console.error("[rally] RPC #" + requestId + " failed:", formatDispatchError(decoded));
       }
       entry.callback(decoded);
@@ -1454,4 +1456,3 @@ export function read_client_context() {
   delete window.__RALLY_CLIENT_CONTEXT__;
   return ctx;
 }
-

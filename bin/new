@@ -27,6 +27,12 @@ erl_crash.dump
 .DS_Store
 GITIGNORE
 
+# .env.example
+cat > "$PROJECT_PATH/.env.example" <<'ENV'
+APP_ENV=dev
+LOG_LEVEL=debug
+ENV
+
 # gleam.toml
 cat > "$PROJECT_PATH/gleam.toml" <<TOML
 name = "PROJECT_NAME_PLACEHOLDER"
@@ -38,10 +44,13 @@ gleam_erlang = ">= 1.0.0 and < 2.0.0"
 gleam_http = ">= 4.0.0 and < 5.0.0"
 gleam_stdlib = ">= 0.60.0 and < 2.0.0"
 rally = { path = "$RALLY_ROOT" }
+libero = { path = "$RALLY_ROOT/../libero" }
 lustre = ">= 5.6.0 and < 7.0.0"
 marmot = ">= 1.3.0 and < 2.0.0"
 mist = ">= 6.0.0 and < 7.0.0"
 sqlight = ">= 1.0.0 and < 2.0.0"
+simplifile = ">= 2.0.0 and < 3.0.0"
+gleam_time = ">= 1.7.0 and < 2.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
@@ -80,6 +89,7 @@ import gleam/string
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/effect.{type Effect}
+import lustre/event
 import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 
@@ -90,7 +100,7 @@ pub type Model {
 pub type Msg {
   UserClickedIncrement
   UserClickedDecrement
-  GotIncrement(Int)
+  GotIncrement(Result(Int, Nil))
 }
 
 pub type ServerIncrement {
@@ -105,36 +115,37 @@ pub fn init() -> #(Model, Effect(Msg)) {
   #(Model(count: 0), effect.none())
 }
 
-pub fn update(_cc, model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     UserClickedIncrement ->
       #(model, rally_effect.rpc(ServerIncrement, on_response: GotIncrement))
     UserClickedDecrement ->
       #(model, rally_effect.rpc(ServerDecrement, on_response: GotIncrement))
-    GotIncrement(n) -> #(Model(count: n), effect.none())
+    GotIncrement(Ok(n)) -> #(Model(count: model.count + n), effect.none())
+    GotIncrement(Error(_)) -> #(model, effect.none())
   }
 }
 
-pub fn view(_cc, model: Model) -> Element(Msg) {
+pub fn view(model: Model) -> Element(Msg) {
   html.div([], [
-    html.button([], [html.text("+")]),
+    html.button([event.on_click(UserClickedIncrement)], [html.text("+")]),
     html.text(string.inspect(model.count)),
-    html.button([], [html.text("-")]),
+    html.button([event.on_click(UserClickedDecrement)], [html.text("-")]),
   ])
 }
 
 pub fn server_increment(
   msg _msg: ServerIncrement,
-  server_context server_context: ServerContext,
-) -> Int {
-  1
+  server_context _server_context: ServerContext,
+) -> Result(Int, Nil) {
+  Ok(1)
 }
 
 pub fn server_decrement(
   msg _msg: ServerDecrement,
-  server_context server_context: ServerContext,
-) -> Int {
-  -1
+  server_context _server_context: ServerContext,
+) -> Result(Int, Nil) {
+  Ok(-1)
 }
 GLEAM
 
@@ -167,9 +178,10 @@ import gleam/http.{Get}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
 import rally_runtime/db
+import rally_runtime/env
 import rally_runtime/session
 import rally_runtime/system
-import server_context.{type ServerContext}
+import server_context.{ServerContext}
 import simplifile
 import sqlight
 import generated/router
@@ -214,7 +226,7 @@ pub fn main() {
             }
             let route = router.parse_route(request.to_uri(req))
             let resp =
-              ssr_handler.handle_request(route, server_context, session_id)
+              ssr_handler.handle_request(route)
             case request.get_header(req, "cookie") {
               Ok(cookie) ->
                 case session.extract_session_id(cookie) {
@@ -223,14 +235,14 @@ pub fn main() {
                     response.set_header(
                       resp,
                       "set-cookie",
-                      session.set_cookie_header(session_id:, secure: False),
+                      session.set_cookie_header(session_id:, secure: env.secure_cookies()),
                     )
                 }
               Error(_) ->
                 response.set_header(
                   resp,
                   "set-cookie",
-                  session.set_cookie_header(session_id:, secure: False),
+                  session.set_cookie_header(session_id:, secure: env.secure_cookies()),
                 )
             }
           }
@@ -298,6 +310,10 @@ cat > "$PROJECT_PATH/bin/dev" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if [ -f ".env" ]; then
+  set -a; . .env; set +a
+fi
+export APP_ENV="${APP_ENV:-dev}"
 echo "==> Running rally codegen..."
 gleam run -m rally
 echo "==> Building client..."

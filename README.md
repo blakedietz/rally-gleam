@@ -11,6 +11,8 @@ cd my_app && bin/dev
 
 `bin/dev` runs codegen, builds the JS client, and starts the server on port 8080.
 
+Fresh apps use `APP_ENV=dev` by default. Set `APP_ENV=prod` in production so session cookies include `Secure` and Rally's browser console logging stays off.
+
 ## Design decisions
 
 ### Single source, generated client
@@ -63,8 +65,13 @@ A page module exports a fixed set of types and functions. The codegen enforces t
 pub type Model { ... }
 pub type Msg { ... }
 pub fn init() -> #(Model, Effect(Msg))
-pub fn update(_cc, model, msg) -> #(Model, Effect(Msg))
-pub fn view(_cc, model) -> Element(Msg)
+pub fn update(model, msg) -> #(Model, Effect(Msg))
+pub fn view(model) -> Element(Msg)
+
+// If src/client_context.gleam exists, client functions receive it:
+pub fn init(client_context) -> #(Model, Effect(Msg))
+pub fn update(client_context, model, msg) -> #(Model, Effect(Msg))
+pub fn view(client_context, model) -> Element(Msg)
 
 // Server handlers (one per RPC call)
 pub type ServerDoSomething { ServerDoSomething(field: String) }
@@ -126,7 +133,7 @@ The cost is real: you write two update functions per page, you decide what belon
 
 ## Examples
 
-- `examples/realworld/` — [RealWorld](https://github.com/gothinkster/realworld) (Conduit) clone with auth, articles, comments, tags, favorites, follows
+- `examples/realworld/`: [RealWorld](https://github.com/gothinkster/realworld) (Conduit) clone with auth, articles, comments, tags, favorites, follows
 
 ## Prior art
 

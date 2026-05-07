@@ -95,11 +95,30 @@ fn client_gleam_toml(
     |> dict.to_list
     |> list.filter(fn(pair) { !set.contains(baseline, pair.0) })
     |> list.filter(fn(pair) { pair.0 != "rally" && pair.0 != "marmot" })
+    |> list.filter(fn(pair) { !is_server_runtime_dep(pair.0) })
     |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
     |> list.map(fn(pair) { format_dep(pair.0, pair.1, prefix) })
     |> string.join("")
 
   header <> extra_deps
+}
+
+fn is_server_runtime_dep(name: String) -> Bool {
+  list.contains(
+    [
+      "envoy",
+      "gleam_erlang",
+      "gleam_http",
+      "gleam_time",
+      "global_value",
+      "libero",
+      "logging",
+      "mist",
+      "simplifile",
+      "sqlight",
+    ],
+    name,
+  )
 }
 
 fn format_dep(name: String, value: tom.Toml, prefix: String) -> String {
@@ -108,7 +127,7 @@ fn format_dep(name: String, value: tom.Toml, prefix: String) -> String {
     tom.InlineTable(table) | tom.Table(table) -> {
       case dict.get(table, "path") {
         Ok(tom.String(path)) ->
-          name <> " = { path = \"" <> prefix <> path <> "\" }\n"
+          name <> " = { path = \"" <> client_path(path, prefix) <> "\" }\n"
         _ -> {
           let entries =
             dict.to_list(table)
@@ -124,6 +143,13 @@ fn format_dep(name: String, value: tom.Toml, prefix: String) -> String {
       }
     }
     _ -> ""
+  }
+}
+
+fn client_path(path: String, prefix: String) -> String {
+  case string.starts_with(path, "/") {
+    True -> path
+    False -> prefix <> path
   }
 }
 
@@ -275,7 +301,8 @@ fn app_gleam(
   }
 
   let ctx_field = case has_client_context {
-    True -> "\n    client_context: client_context.ClientContext,\n    current_path: String,"
+    True ->
+      "\n    client_context: client_context.ClientContext,\n    current_path: String,"
     False -> ""
   }
 

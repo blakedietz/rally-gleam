@@ -10,6 +10,7 @@ import gleam/list
 import gleam/string
 import mist.{type Connection, type ResponseData}
 import rally_runtime/db
+import rally_runtime/env
 import rally_runtime/migrate
 import rally_runtime/session
 import rally_runtime/system
@@ -68,14 +69,20 @@ pub fn main() {
                         response.set_header(
                           resp,
                           "set-cookie",
-                          session.set_cookie_header(session_id),
+                          session.set_cookie_header(
+                            session_id:,
+                            secure: env.secure_cookies(),
+                          ),
                         )
                     }
                   Error(_) ->
                     response.set_header(
                       resp,
                       "set-cookie",
-                      session.set_cookie_header(session_id),
+                      session.set_cookie_header(
+                        session_id:,
+                        secure: env.secure_cookies(),
+                      ),
                     )
                 }
               }

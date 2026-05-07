@@ -9,7 +9,7 @@ bin/new my_app
 cd my_app && bin/dev
 ```
 
-`bin/dev` runs the Rally codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), optionally runs Marmot for SQL codegen, builds the JS client, and starts the Mist server on port 8080.
+`bin/dev` runs the Rally codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), optionally runs Marmot for SQL codegen, builds the JS client, and starts the Mist server on port 8080. Fresh apps default to `APP_ENV=dev`; set `APP_ENV=prod` in production so session cookies are secure and Rally console logging is off.
 
 ## Page module contract
 
@@ -32,6 +32,11 @@ Trailing underscore marks a dynamic segment. Names ending in `_id` become `Int` 
 pub type Model { Model(email: String, password: String, errors: List(String)) }
 pub type Msg { UpdatedEmail(String); ClickedLogin; GotLogin(Result(#(String, String), List(String))) }
 
+pub fn init() -> #(Model, Effect(Msg))
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg))
+pub fn view(model: Model) -> Element(Msg)
+
+// If src/client_context.gleam exists:
 pub fn init(client_context: ClientContext) -> #(Model, Effect(Msg))
 pub fn update(client_context: ClientContext, model: Model, msg: Msg) -> #(Model, Effect(Msg))
 pub fn view(client_context: ClientContext, model: Model) -> Element(Msg)
@@ -55,7 +60,7 @@ The handler-as-contract pattern: define a single-variant type for the message, a
 The message type defined alongside the handler is used directly in the client's update:
 
 ```gleam
-pub fn update(_cc, model, msg) {
+pub fn update(model, msg) {
   case msg {
     ClickedLogin -> #(model, rally_effect.rpc(ServerLogin(email: model.email, password: model.password), on_response: GotLogin))
     GotLogin(Ok(#(username, image))) -> // handle success
@@ -75,13 +80,13 @@ pub fn update(_cc, model, msg) {
 
 Page modules import from `rally_runtime/effect`:
 
-- `rpc(msg, on_response: callback)` — calls a server handler via WebSocket RPC. On the server this is a no-op (update never runs server-side). On the client, the generated code encodes the msg and sends it over the transport.
-- `send_to_client(variant)` — server push: encodes as ETF push frame, queues for WS handler
-- `broadcast_to_page(variant)` / `broadcast_to_app(variant)` / `broadcast_to_session(variant)` — multi-cast push via pg topics
-- `send_to_client_context(variant)` — page-to-context messaging for cross-page state
-- `navigate(path)` — client-side URL push via modem
-- `get_ws_session()` — returns session ID for current connection (server-side only)
-- `effect.none()` / `effect.from(fn)` — standard lustre effects
+- `rpc(msg, on_response: callback)`: calls a server handler via WebSocket RPC. On the server this is a no-op (update never runs server-side). On the client, the generated code encodes the msg and sends it over the transport.
+- `send_to_client(variant)`: server push: encodes as ETF push frame, queues for WS handler
+- `broadcast_to_page(variant)` / `broadcast_to_app(variant)` / `broadcast_to_session(variant)`: multi-cast push via pg topics
+- `send_to_client_context(variant)`: page-to-context messaging for cross-page state
+- `navigate(path)`: client-side URL push via modem
+- `get_ws_session()`: returns session ID for current connection (server-side only)
+- `effect.none()` / `effect.from(fn)`: standard lustre effects
 
 ## Project structure
 
@@ -149,6 +154,7 @@ Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generat
 | `system.gleam` | System DB: message logging, background job queue, global connection |
 | `jobs.gleam` | Durable background job runner with retry |
 | `session.gleam` | Session cookie generation and extraction |
+| `env.gleam` | `APP_ENV` parsing, secure-cookie policy, browser env injection |
 | `topics.gleam` | Topic pub/sub using OTP `pg` process groups |
 | `wire.gleam` | Thin wrapper over libero/wire (ETF encode/decode, frame tagging) + tuple_element |
 | `codec.gleam` | Base64 ETF serialization for SSR flags |
@@ -171,8 +177,8 @@ Four-level server-to-client messaging using OTP `pg` process groups:
 
 - **Wire format:** ETF (Erlang External Term Format), binary
 - **Call envelope:** `{module_name, request_id, msg}` for client to server RPC calls
-- **Response frame:** `<<0x00, request_id:32, response_etf>>` — correlated response
-- **Push frame:** `<<0x01, {module_name, msg}_etf>>` — server to client push
+- **Response frame:** `<<0x00, request_id:32, response_etf>>`: correlated response
+- **Push frame:** `<<0x01, {module_name, msg}_etf>>`: server to client push
 - **Transport:** WebSocket with auto-reconnect, or HTTP POST /rpc for non-WebSocket clients
 - **SSR:** First request renders HTML with serialized model embedded as flags
 - **Hydration:** Client reads flags, boots Lustre, takes over as SPA
@@ -181,7 +187,7 @@ Four-level server-to-client messaging using OTP `pg` process groups:
 
 ### Message Inspector
 
-Auto-enabled on localhost. All WebSocket messages are logged to the browser console with Gleam-syntax formatting and color-coded by direction:
+Enabled when `APP_ENV=dev`. The generated SSR handler exposes the value to the browser as `window.__APP_ENV__`, and the WebSocket client logs messages to the browser console only in dev unless `window.__RALLY_DEBUG__` overrides it:
 
 | Arrow | Color | Meaning |
 |---|---|---|
@@ -192,23 +198,23 @@ Auto-enabled on localhost. All WebSocket messages are logged to the browser cons
 RPC responses show round-trip latency (e.g. `rpc #3 (12.4ms)`). Connection lifecycle events (connected, disconnected, reconnected) are also logged.
 
 **Console API:**
-- `window.__RALLY_MESSAGES__` — array of all messages with timestamps, direction, raw data, and formatted strings
-- `window.__RALLY_FORMAT__(value)` — format any ETF-decoded value as Gleam syntax
-- `window.__RALLY_DEBUG__ = false` — disable inspector
-- `window.__RALLY_DEBUG__ = true` — enable in production
+- `window.__RALLY_MESSAGES__`: array of all messages with timestamps, direction, raw data, and formatted strings
+- `window.__RALLY_FORMAT__(value)`: format any ETF-decoded value as Gleam syntax
+- `window.__RALLY_DEBUG__ = false`: disable inspector in dev
+- `window.__RALLY_DEBUG__ = true`: enable inspector outside dev
 
 **Server-side:** All messages are logged to `system.messages` SQLite table with session ID, page, direction, variant name, raw ETF payload, and elapsed time.
 
 ## Dependencies
 
-- `libero` — RPC plumbing: handler scanning, dispatch codegen, ETF wire, decoder generation
-- `lustre` — UI framework (TEA, SSR, VDOM)
-- `mist` — HTTP/WebSocket server (BEAM)
-- `marmot` — SQL-to-Gleam codegen (introspects SQLite)
-- `sqlight` — SQLite NIF
-- `glance` — Gleam AST parser
-- `tom` — TOML config parser
-- `simplifile` — Filesystem operations
+- `libero`: RPC plumbing: handler scanning, dispatch codegen, ETF wire, decoder generation
+- `lustre`: UI framework (TEA, SSR, VDOM)
+- `mist`: HTTP/WebSocket server (BEAM)
+- `marmot`: SQL-to-Gleam codegen (introspects SQLite)
+- `sqlight`: SQLite NIF
+- `glance`: Gleam AST parser
+- `tom`: TOML config parser
+- `simplifile`: Filesystem operations
 
 ## SSR Hydration
 
@@ -239,7 +245,7 @@ shell_file = "src/shell.html"
 
 ## Examples
 
-- `examples/realworld/` — RealWorld (Conduit) clone: full CRUD with auth, articles, tags. Uses handler-as-contract pattern for all server interactions.
+- `examples/realworld/`: RealWorld (Conduit) clone: full CRUD with auth, articles, tags. Uses handler-as-contract pattern for all server interactions.
 
 ## Prior art
 
