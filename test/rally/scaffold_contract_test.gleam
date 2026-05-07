@@ -1,6 +1,6 @@
 import gleam/dict
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
 import rally/generator
@@ -57,6 +57,18 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
 
   script
   |> string.contains("ssr_handler.handle_request(route)")
+  |> should.equal(True)
+
+  script
+  |> string.contains("<script type=\"module\" src=\"/client.js\"></script>")
+  |> should.equal(True)
+
+  script
+  |> string.contains("client/build/dev/javascript/client/generated/app.mjs")
+  |> should.equal(True)
+
+  script
+  |> string.contains("gleam run -m app")
   |> should.equal(True)
 
   script
@@ -152,6 +164,100 @@ pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
   output
   |> string.contains("import pages/layout")
   |> should.equal(False)
+}
+
+pub fn run_does_not_swallow_generated_file_write_errors_test() {
+  let assert Ok(source) = simplifile.read("src/rally.gleam")
+
+  source
+  |> string.contains("let _ = write_file(config.output_http, http_source)")
+  |> should.equal(False)
+
+  source
+  |> string.contains("let _ = simplifile.create_directory_all(dirname(path))")
+  |> should.equal(False)
+}
+
+pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
+  let output =
+    ssr_handler.generate(
+      [
+        #(
+          ScannedRoute(
+            segments: [StaticSegment("home")],
+            variant_name: "Home",
+            params: [],
+            layout_module: None,
+            module_path: "pages/home_",
+          ),
+          PageContract(
+            model_variants: [],
+            msg_variants: [],
+            has_load: True,
+            has_init: True,
+            has_init_loaded: False,
+            has_model: True,
+            updates_client_context: False,
+            param_names: [],
+            source: "",
+            view_source: "",
+            init_source: "",
+            update_source: "",
+          ),
+        ),
+      ],
+      False,
+      False,
+      "server_context",
+      "<html><head></head><body><main></main></body></html>",
+    )
+
+  output
+  |> string.contains("Error(_) -> shell")
+  |> should.equal(True)
+}
+
+pub fn ssr_app_marker_preserves_tag_order_test() {
+  let output =
+    ssr_handler.generate(
+      [
+        #(
+          ScannedRoute(
+            segments: [StaticSegment("home")],
+            variant_name: "Home",
+            params: [],
+            layout_module: None,
+            module_path: "pages/home_",
+          ),
+          PageContract(
+            model_variants: [],
+            msg_variants: [],
+            has_load: True,
+            has_init: True,
+            has_init_loaded: False,
+            has_model: True,
+            updates_client_context: False,
+            param_names: [],
+            source: "",
+            view_source: "",
+            init_source: "",
+            update_source: "",
+          ),
+        ),
+      ],
+      False,
+      False,
+      "server_context",
+      "<html><head></head><body><main class=\"root\" id = \"app\"></main></body></html>",
+    )
+
+  output
+  |> string.contains("let tag_start = \"<\" <> string.reverse(after_lt_rev)")
+  |> should.equal(True)
+
+  output
+  |> string.contains("let id_dq_spaced = \"id = \\\"app\\\"\"")
+  |> should.equal(True)
 }
 
 fn test_scan_config() -> ScanConfig {

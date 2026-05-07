@@ -212,7 +212,7 @@ fn run() -> Result(String, String) {
   let shell_html = case simplifile.read(config.shell_file) {
     Ok(html) -> html
     Error(_) ->
-      "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>"
+      "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/client.js'></script></body>\n</html>"
   }
   let ssr_source =
     ssr_handler.generate(
@@ -229,14 +229,13 @@ fn run() -> Result(String, String) {
   use _ <- result.try(write_file(config.output_ws, ws_source))
 
   // 6b. Generate HTTP handler (for non-WebSocket RPC clients)
-  case handler_endpoints {
-    [] -> Nil
+  use _ <- result.try(case handler_endpoints {
+    [] -> Ok(Nil)
     _ -> {
       let http_source = http_handler.generate(handler_endpoints)
-      let _ = write_file(config.output_http, http_source)
-      Nil
+      write_file(config.output_http, http_source)
     }
-  }
+  })
 
   // 7. Read JS runtime files from the Rally package
   let rpc_ffi_path =
@@ -446,7 +445,12 @@ fn write_if_changed(path: String, content: String) -> Result(Nil, String) {
   case simplifile.read(path) {
     Ok(existing) if existing == content -> Ok(Nil)
     _ -> {
-      let _ = simplifile.create_directory_all(dirname(path))
+      use _ <- result.try(
+        simplifile.create_directory_all(dirname(path))
+        |> result.map_error(fn(e) {
+          "Failed to create directory for " <> path <> ": " <> string.inspect(e)
+        }),
+      )
       simplifile.write(path, content)
       |> result.map_error(fn(e) {
         "Failed to write " <> path <> ": " <> string.inspect(e)

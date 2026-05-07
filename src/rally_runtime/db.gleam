@@ -119,12 +119,19 @@ fn log_result(result: Result(List(a), sqlight.Error)) -> Nil {
   }
 }
 
-fn collapse_whitespace(sql: String) -> String {
+pub fn collapse_whitespace(sql: String) -> String {
   sql
   |> string.replace("\n", " ")
   |> string.replace("\t", " ")
-  |> string.replace("  ", " ")
+  |> do_collapse_whitespace
   |> string.trim()
+}
+
+fn do_collapse_whitespace(sql: String) -> String {
+  case string.contains(sql, "  ") {
+    True -> do_collapse_whitespace(string.replace(sql, "  ", " "))
+    False -> sql
+  }
 }
 
 @external(erlang, "rally_runtime_db_ffi", "add_db_timing")

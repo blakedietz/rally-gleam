@@ -93,8 +93,12 @@ fn page_module_path(module_path: String) -> String {
 /// - Replace rally_effect.send_to_server with local wrapper
 /// - Add transport import and local send_to_server wrapper
 fn post_process_page(source: String, variant_name: String) -> String {
+  let effect_aliases = effect_module_aliases(source)
   let has_send_to_server =
-    string.contains(source, "rally_effect.send_to_server(")
+    list.any(effect_aliases, fn(alias) {
+      string.contains(source, alias <> ".send_to_server(")
+      || string.contains(source, alias <> ".send_to_server (")
+    })
 
   let wrapper = case has_send_to_server {
     True ->
@@ -111,8 +115,44 @@ fn post_process_page(source: String, variant_name: String) -> String {
   }
 
   source
-  |> string.replace("rally_effect.send_to_server(", "send_to_server(")
+  |> replace_send_to_server_calls(effect_aliases)
   |> fn(s) { s <> wrapper }
+}
+
+fn effect_module_aliases(source: String) -> List(String) {
+  case glance.module(source) {
+    Error(_) -> ["rally_effect"]
+    Ok(ast) ->
+      ast.imports
+      |> list.filter_map(fn(def) {
+        let import_ = def.definition
+        case import_.module == "rally_runtime/effect" {
+          False -> Error(Nil)
+          True ->
+            case import_.alias {
+              option.Some(glance.Named(name)) -> Ok(name)
+              _ -> Ok("effect")
+            }
+        }
+      })
+      |> fn(aliases) {
+        case aliases {
+          [] -> ["rally_effect"]
+          _ -> aliases
+        }
+      }
+  }
+}
+
+fn replace_send_to_server_calls(
+  source: String,
+  aliases: List(String),
+) -> String {
+  list.fold(aliases, source, fn(acc, alias) {
+    acc
+    |> string.replace(alias <> ".send_to_server(", "send_to_server(")
+    |> string.replace(alias <> ".send_to_server (", "send_to_server (")
+  })
 }
 
 fn discover_client_context(source: String) -> List(DiscoveredType) {
@@ -250,7 +290,9 @@ export function readDarkModeCookie() {
 
 export function readLangCookie() {
   var m = document.cookie.match(/(?:^|;)\\s*__rally_lang=([^;]+)/);
-  return m ? m[1] : '';
+  if (m) return m[1];
+  var lang = navigator.language || navigator.userLanguage || '';
+  return lang ? lang.split('-')[0] : 'en';
 }
 "
 }

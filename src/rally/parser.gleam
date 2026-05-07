@@ -30,24 +30,22 @@ pub fn parse_page(
   let alias_map = build_alias_resolution_map(ast.imports)
   let type_alias_originals = build_type_alias_originals(ast.imports)
 
-  let model_variants =
-    extract_variants(
-      ast: ast,
-      type_name: "Model",
-      type_imports: type_imports,
-      alias_map: alias_map,
-      type_alias_originals: type_alias_originals,
-      module_path: module_path,
-    )
-  let msg_variants =
-    extract_variants(
-      ast: ast,
-      type_name: "Msg",
-      type_imports: type_imports,
-      alias_map: alias_map,
-      type_alias_originals: type_alias_originals,
-      module_path: module_path,
-    )
+  use model_variants <- result.try(extract_variants(
+    ast: ast,
+    type_name: "Model",
+    type_imports: type_imports,
+    alias_map: alias_map,
+    type_alias_originals: type_alias_originals,
+    module_path: module_path,
+  ))
+  use msg_variants <- result.try(extract_variants(
+    ast: ast,
+    type_name: "Msg",
+    type_imports: type_imports,
+    alias_map: alias_map,
+    type_alias_originals: type_alias_originals,
+    module_path: module_path,
+  ))
 
   let functions_list = ast.functions
   let has_load = has_function(functions_list, "load")
@@ -94,24 +92,22 @@ pub fn parse_client_context(
   let alias_map = build_alias_resolution_map(ast.imports)
   let type_alias_originals = build_type_alias_originals(ast.imports)
 
-  let context_variants =
-    extract_variants(
-      ast: ast,
-      type_name: "ClientContext",
-      type_imports: type_imports,
-      alias_map: alias_map,
-      type_alias_originals: type_alias_originals,
-      module_path: "client_context",
-    )
-  let msg_variants =
-    extract_variants(
-      ast: ast,
-      type_name: "ClientContextMsg",
-      type_imports: type_imports,
-      alias_map: alias_map,
-      type_alias_originals: type_alias_originals,
-      module_path: "client_context",
-    )
+  use context_variants <- result.try(extract_variants(
+    ast: ast,
+    type_name: "ClientContext",
+    type_imports: type_imports,
+    alias_map: alias_map,
+    type_alias_originals: type_alias_originals,
+    module_path: "client_context",
+  ))
+  use msg_variants <- result.try(extract_variants(
+    ast: ast,
+    type_name: "ClientContextMsg",
+    type_imports: type_imports,
+    alias_map: alias_map,
+    type_alias_originals: type_alias_originals,
+    module_path: "client_context",
+  ))
 
   let functions_list = ast.functions
   let has_init = has_function(functions_list, "init")
@@ -135,30 +131,30 @@ fn extract_variants(
   alias_map alias_map: Dict(String, String),
   type_alias_originals type_alias_originals: Dict(String, String),
   module_path module_path: String,
-) -> List(VariantInfo) {
+) -> Result(List(VariantInfo), String) {
   case list.find(ast.custom_types, fn(d) { d.definition.name == type_name }) {
-    Error(Nil) -> []
+    Error(Nil) -> Ok([])
     Ok(ct_def) -> {
       let custom_type = ct_def.definition
-      list.map(custom_type.variants, fn(variant) {
-        let fields =
-          list.map(variant.fields, fn(field) {
+      list.try_map(custom_type.variants, fn(variant) {
+        use fields <- result.try(
+          list.try_map(variant.fields, fn(field) {
             let #(label, type_) = case field {
               glance.LabelledVariantField(item:, label:) -> #(label, item)
               glance.UnlabelledVariantField(item:) -> #("value", item)
             }
-            VariantField(
-              label:,
-              type_: glance_type_to_field_type(
-                type_:,
-                type_imports:,
-                alias_map:,
-                type_alias_originals:,
-                module_path:,
-              ),
-            )
-          })
-        VariantInfo(name: variant.name, fields:)
+            use field_type <- result.try(glance_type_to_field_type(
+              type_:,
+              type_imports:,
+              alias_map:,
+              type_alias_originals:,
+              module_path:,
+              path: module_path <> "." <> type_name <> "." <> label,
+            ))
+            Ok(VariantField(label:, type_: field_type))
+          }),
+        )
+        Ok(VariantInfo(name: variant.name, fields:))
       })
     }
   }
@@ -171,7 +167,8 @@ fn glance_type_to_field_type(
   alias_map alias_map: Dict(String, String),
   type_alias_originals type_alias_originals: Dict(String, String),
   module_path module_path: String,
-) -> FieldType {
+  path path: String,
+) -> Result(FieldType, String) {
   let recurse = fn(t) {
     glance_type_to_field_type(
       type_: t,
@@ -179,6 +176,7 @@ fn glance_type_to_field_type(
       alias_map:,
       type_alias_originals:,
       module_path:,
+      path:,
     )
   }
   case t {
@@ -190,6 +188,7 @@ fn glance_type_to_field_type(
         alias_map:,
         type_alias_originals:,
         module_path:,
+        path:,
       )
     glance.NamedType(name:, module: None, parameters: params, ..) ->
       resolve_named_type(
@@ -199,22 +198,26 @@ fn glance_type_to_field_type(
         alias_map:,
         type_alias_originals:,
         module_path:,
+        path:,
       )
     glance.NamedType(name:, module: Some(m), parameters: params, ..) -> {
       let resolved_module = dict.get(alias_map, m) |> result.unwrap(or: m)
       let original_name =
         dict.get(type_alias_originals, name) |> result.unwrap(or: name)
-      field_type.UserType(
+      use args <- result.try(list.try_map(params, recurse))
+      Ok(field_type.UserType(
         module_path: resolved_module,
         type_name: original_name,
-        args: list.map(params, recurse),
-      )
+        args:,
+      ))
     }
-    glance.TupleType(elements:, ..) ->
-      field_type.TupleOf(elements: list.map(elements, recurse))
-    glance.VariableType(name:, ..) -> field_type.TypeVar(name:)
-    glance.FunctionType(..) -> field_type.TypeVar(name: "_fn")
-    glance.HoleType(..) -> field_type.TypeVar(name: "_")
+    glance.TupleType(elements:, ..) -> {
+      use elements <- result.try(list.try_map(elements, recurse))
+      Ok(field_type.TupleOf(elements:))
+    }
+    glance.VariableType(name:, ..) -> Ok(field_type.TypeVar(name:))
+    glance.FunctionType(..) -> Error("Unsupported function type in " <> path)
+    glance.HoleType(..) -> Error("Unsupported hole type in " <> path)
   }
 }
 
@@ -227,7 +230,8 @@ fn resolve_named_type(
   alias_map alias_map: Dict(String, String),
   type_alias_originals type_alias_originals: Dict(String, String),
   module_path module_path: String,
-) -> FieldType {
+  path path: String,
+) -> Result(FieldType, String) {
   let recurse = fn(t) {
     glance_type_to_field_type(
       type_: t,
@@ -235,20 +239,41 @@ fn resolve_named_type(
       alias_map:,
       type_alias_originals:,
       module_path:,
+      path:,
     )
   }
-  case field_type.builtin_field_type(name:, parameters: params, recurse:) {
-    Ok(ft) -> ft
-    Error(Nil) -> {
+  case name, params {
+    "Int", [] -> Ok(field_type.IntField)
+    "Float", [] -> Ok(field_type.FloatField)
+    "String", [] -> Ok(field_type.StringField)
+    "Bool", [] -> Ok(field_type.BoolField)
+    "BitArray", [] -> Ok(field_type.BitArrayField)
+    "Nil", [] -> Ok(field_type.NilField)
+    "List", [elem] -> {
+      use elem <- result.try(recurse(elem))
+      Ok(field_type.ListOf(element: elem))
+    }
+    "Option", [inner] -> {
+      use inner <- result.try(recurse(inner))
+      Ok(field_type.OptionOf(inner:))
+    }
+    "Result", [ok, err] -> {
+      use ok <- result.try(recurse(ok))
+      use err <- result.try(recurse(err))
+      Ok(field_type.ResultOf(ok:, err:))
+    }
+    "Dict", [key, value] -> {
+      use key <- result.try(recurse(key))
+      use value <- result.try(recurse(value))
+      Ok(field_type.DictOf(key:, value:))
+    }
+    _, _ -> {
       let resolved_module =
         dict.get(type_imports, name) |> result.unwrap(or: module_path)
       let type_name =
         dict.get(type_alias_originals, name) |> result.unwrap(or: name)
-      field_type.UserType(
-        module_path: resolved_module,
-        type_name:,
-        args: list.map(params, recurse),
-      )
+      use args <- result.try(list.try_map(params, recurse))
+      Ok(field_type.UserType(module_path: resolved_module, type_name:, args:))
     }
   }
 }

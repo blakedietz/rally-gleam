@@ -84,7 +84,7 @@ rm -f "$PROJECT_PATH/gleam.toml.bak"
 
 # Sample home page
 cat > "$PROJECT_PATH/src/pages/home_.gleam" <<'GLEAM'
-// Scaffolded by rally — yours to customize.
+// Scaffolded by rally: yours to customize.
 import gleam/string
 import lustre/element.{type Element}
 import lustre/element/html
@@ -149,9 +149,9 @@ pub fn server_decrement(
 }
 GLEAM
 
-# Example layout (optional — delete or modify freely)
+# Example layout (optional: delete or modify freely)
 cat > "$PROJECT_PATH/src/pages/layout.gleam" <<'GLEAM'
-// Scaffolded by rally — yours to customize.
+// Scaffolded by rally: yours to customize.
 import lustre/element.{type Element}
 
 /// A layout wraps page content in shared chrome (header, footer, etc.).
@@ -170,7 +170,7 @@ GLEAM
 
 # app.gleam (server entry point)
 cat > "$PROJECT_PATH/src/app.gleam" <<'GLEAM'
-// Scaffolded by rally — yours to customize.
+// Scaffolded by rally: yours to customize.
 import mist.{type Connection, type ResponseData}
 import gleam/bytes_tree
 import gleam/erlang/process
@@ -261,7 +261,7 @@ pub fn main() {
 }
 
 fn serve_client_js() -> Response(ResponseData) {
-  case simplifile.read("client/build/dev/javascript/client/app.mjs") {
+  case simplifile.read("client/build/dev/javascript/client/generated/app.mjs") {
     Ok(js) ->
       response.new(200)
       |> response.set_header("content-type", "application/javascript")
@@ -280,7 +280,7 @@ GLEAM
 
 # shell.html (HTML template for non-SSR routes and SPA fallback)
 cat > "$PROJECT_PATH/src/shell.html" <<'HTML'
-<!-- Scaffolded by rally — yours to customize. -->
+<!-- Scaffolded by rally: yours to customize. -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -290,14 +290,14 @@ cat > "$PROJECT_PATH/src/shell.html" <<'HTML'
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="/_build/client/generated/app.mjs"></script>
+  <script type="module" src="/client.js"></script>
 </body>
 </html>
 HTML
 
 # server_context.gleam
 cat > "$PROJECT_PATH/src/server_context.gleam" <<'GLEAM'
-// Scaffolded by rally — yours to customize.
+// Scaffolded by rally: yours to customize.
 import sqlight
 
 pub type ServerContext {
@@ -319,7 +319,7 @@ gleam run -m rally
 echo "==> Building client..."
 cd client && gleam build --target javascript && cd ..
 echo "==> Starting server..."
-gleam run
+gleam run -m app
 SCRIPT
 chmod +x "$PROJECT_PATH/bin/dev"
 

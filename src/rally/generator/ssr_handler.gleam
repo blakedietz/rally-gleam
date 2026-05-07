@@ -43,7 +43,7 @@ pub fn generate(
     False -> ""
   }
   let load_page_imports = case has_load_pages {
-    True -> "import gleam/string\nimport lustre/element\n"
+    True -> "import gleam/result\nimport gleam/string\nimport lustre/element\n"
     False -> ""
   }
 
@@ -150,52 +150,40 @@ fn shell_html() -> String {
 fn marker_helper(has_load_pages: Bool) -> String {
   case has_load_pages {
     True -> {
-      let dq = "\""
-      let bs = "\\"
       let body = [
-        "fn find_app_marker(shell: String) -> String {",
+        "fn insert_rendered(shell: String, rendered: String) -> String {",
+        "  case find_app_marker(shell) {",
+        "    Ok(marker) -> string.replace(shell, marker, marker <> rendered)",
+        "    Error(_) -> shell",
+        "  }",
+        "}",
+        "",
+        "fn find_app_marker(shell: String) -> Result(String, Nil) {",
         "  // Find the element with id=app (any tag, any attributes, any quoting).",
-        "  let dq = " <> dq <> bs <> dq <> dq,
-        "  let id_dq = "
-          <> dq
-          <> "id="
-          <> dq
-          <> " <> "
-          <> "dq"
-          <> " <> "
-          <> dq
-          <> "app"
-          <> dq
-          <> " <> "
-          <> "dq",
-        "  let id_sq = " <> dq <> "id='app'" <> dq,
+        "  let id_dq = \"id=\\\"app\\\"\"",
+        "  let id_sq = \"id='app'\"",
+        "  let id_dq_spaced = \"id = \\\"app\\\"\"",
+        "  let id_sq_spaced = \"id = 'app'\"",
         "  let id_attr = case string.contains(shell, id_dq) {",
-        "    True -> id_dq",
-        "    False -> id_sq",
+        "    True -> Ok(id_dq)",
+        "    False -> case string.contains(shell, id_sq) {",
+        "      True -> Ok(id_sq)",
+        "      False -> case string.contains(shell, id_dq_spaced) {",
+        "        True -> Ok(id_dq_spaced)",
+        "        False -> case string.contains(shell, id_sq_spaced) {",
+        "          True -> Ok(id_sq_spaced)",
+        "          False -> Error(Nil)",
+        "        }",
+        "      }",
+        "    }",
         "  }",
-        "  let #(before_id, after_id) = case string.split_once(shell, id_attr) {",
-        "    Ok(pair) -> pair",
-        "    Error(_) -> #(shell, " <> dq <> dq <> ")",
-        "  }",
+        "  use id_attr <- result.try(id_attr)",
+        "  use #(before_id, after_id) <- result.try(string.split_once(shell, id_attr))",
         "  let reversed_before = string.reverse(before_id)",
-        "  let #(after_lt_rev, _) = case string.split_once(reversed_before, "
-          <> dq
-          <> "<"
-          <> dq
-          <> ") {",
-        "    Ok(pair) -> pair",
-        "    Error(_) -> #(reversed_before, " <> dq <> dq <> ")",
-        "  }",
-        "  let tag_start = string.reverse(after_lt_rev) <> " <> dq <> "<" <> dq,
-        "  let #(tag_end, _) = case string.split_once(after_id, "
-          <> dq
-          <> ">"
-          <> dq
-          <> ") {",
-        "    Ok(pair) -> pair",
-        "    Error(_) -> #(after_id, " <> dq <> dq <> ")",
-        "  }",
-        "  tag_start <> id_attr <> tag_end <> " <> dq <> ">" <> dq,
+        "  use #(after_lt_rev, _) <- result.try(string.split_once(reversed_before, \"<\"))",
+        "  let tag_start = \"<\" <> string.reverse(after_lt_rev)",
+        "  use #(tag_end, _) <- result.try(string.split_once(after_id, \">\"))",
+        "  Ok(tag_start <> id_attr <> tag_end <> \">\")",
         "}",
       ]
       "\n" <> string.join(body, "\n") <> "\n"
@@ -336,13 +324,11 @@ fn generate_load_arms(
         let full_html_line = case use_session {
           True ->
             "      let shell = shell_html()\n"
-            <> "      let marker = find_app_marker(shell)\n"
-            <> "      let full_html = string.replace(shell, marker, marker <> rendered)\n"
+            <> "      let full_html = insert_rendered(shell, rendered)\n"
             <> "        <> env.browser_env_script() <> ctx_tag <> flags_tag\n"
           False ->
             "      let shell = shell_html()\n"
-            <> "      let marker = find_app_marker(shell)\n"
-            <> "      let full_html = string.replace(shell, marker, marker <> rendered)\n"
+            <> "      let full_html = insert_rendered(shell, rendered)\n"
             <> "        <> env.browser_env_script() <> flags_tag\n"
         }
         let load_line = case contract.has_init_loaded, has_client_context {

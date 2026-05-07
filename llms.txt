@@ -9,7 +9,7 @@ bin/new my_app
 cd my_app && bin/dev
 ```
 
-`bin/dev` runs the Rally codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), optionally runs Marmot for SQL codegen, builds the JS client, and starts the Mist server on port 8080. Fresh apps default to `APP_ENV=dev`; set `APP_ENV=prod` in production so session cookies are secure and Rally console logging is off.
+`bin/dev` runs the Rally codegen (scans `src/pages/`, generates router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), optionally runs Marmot for SQL codegen, builds the JS client, and starts the Mist server on port 8080. Fresh apps default to `APP_ENV=dev`; set `APP_ENV=prod` in production so session cookies are secure and Rally console logging is off. The default server serves the generated browser bundle at `/client.js`.
 
 ## Page module contract
 
@@ -86,6 +86,7 @@ Page modules import from `rally_runtime/effect`:
 - `send_to_client_context(variant)`: page-to-context messaging for cross-page state
 - `navigate(path)`: client-side URL push via modem
 - `get_ws_session()`: returns session ID for current connection (server-side only)
+- `read_lang()`: reads Rally's language cookie, then falls back to the browser language, then `"en"`
 - `effect.none()` / `effect.from(fn)`: standard lustre effects
 
 ## Project structure
@@ -113,7 +114,7 @@ Running `gleam run -m rally` produces:
 | `src/generated/router.gleam` | `Route` type, `parse_route`, `route_to_path`, `href` |
 | `src/generated/page_dispatch.gleam` | `PageModel`/`PageMsg` unions, init/update/view dispatch |
 | `src/generated/rpc_dispatch.gleam` | libero-generated RPC handler dispatch (pattern matches wire calls to server_ functions) |
-| `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, embeds model as flags |
+| `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, inserts it at `<div id="app">`, embeds model as flags |
 | `src/generated/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery |
 | `src/generated/http_handler.gleam` | HTTP RPC handler: POST /rpc with ETF body, calls rpc_dispatch, returns ETF response |
 | `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing |
@@ -225,6 +226,8 @@ Pages with a `load` function get server-side rendered on first request:
 3. The page's `view(client_context, model)` renders HTML, wrapped in layout if present
 4. The model is base64-ETF encoded and embedded as flags
 5. On the client, `init()` reads the flags for instant hydration
+
+The shell must contain an app marker with `id="app"` or `id='app'`; whitespace around `=` is allowed. If Rally cannot find a valid marker, it returns the shell unchanged instead of inserting partial SSR output into the wrong place.
 
 ## Configuration
 

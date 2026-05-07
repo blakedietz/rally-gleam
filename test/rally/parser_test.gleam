@@ -90,3 +90,29 @@ pub fn init() -> #(Model, Effect(Msg)) { todo }
   list.map(contract.msg_variants, fn(v: VariantInfo) { v.name })
   |> should.equal(["GotItems", "GotMaybe"])
 }
+
+pub fn parse_page_rejects_function_typed_fields_test() {
+  let source =
+    "
+pub type Model { Model(handler: fn() -> Nil) }
+pub fn init() -> #(Model, Effect(Msg)) { todo }
+"
+
+  let assert Error(message) =
+    parser.parse_page(source, module_path: "test/page")
+  message
+  |> should.equal("Unsupported function type in test/page.Model.handler")
+}
+
+pub fn parse_page_rejects_hole_typed_fields_test() {
+  let source =
+    "
+pub type Model { Model(value: _) }
+pub fn init() -> #(Model, Effect(Msg)) { todo }
+"
+
+  let assert Error(message) =
+    parser.parse_page(source, module_path: "test/page")
+  message
+  |> should.equal("Unsupported hole type in test/page.Model.value")
+}
