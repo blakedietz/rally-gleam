@@ -63,12 +63,11 @@ fn resolve_loop(
               ))
               let dest = client_root <> "/src/" <> module_path <> ".gleam"
               let file = client.GeneratedFile(dest, content)
-              let ffi_files = collect_ffi_files(src_root, client_root, module_path)
+              let ffi_files =
+                collect_ffi_files(src_root, client_root, module_path)
               let new_chain = list.append(chain, [module_path])
               let new_imports =
-                list.map(extract_imports(content), fn(imp) {
-                  #(imp, new_chain)
-                })
+                list.map(extract_imports(content), fn(imp) { #(imp, new_chain) })
               resolve_loop(
                 frontier: list.append(rest, new_imports),
                 visited:,
@@ -87,8 +86,7 @@ fn resolve_loop(
 fn extract_imports(source: String) -> List(String) {
   case glance.module(source) {
     Error(_) -> []
-    Ok(ast) ->
-      list.map(ast.imports, fn(def) { def.definition.module })
+    Ok(ast) -> list.map(ast.imports, fn(def) { def.definition.module })
   }
 }
 

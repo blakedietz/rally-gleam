@@ -43,7 +43,10 @@ pub fn single_local_import_test() {
 pub fn transitive_chain_test() {
   let dir = make_temp_dir("transitive")
   let src = dir <> "/src"
-  write_file(src <> "/foo.gleam", "import bar\npub fn hello() { bar.world() }\n")
+  write_file(
+    src <> "/foo.gleam",
+    "import bar\npub fn hello() { bar.world() }\n",
+  )
   write_file(src <> "/bar.gleam", "pub fn world() { \"world\" }\n")
   let seed = "import foo\npub fn init() { foo.hello() }\n"
   let assert Ok(files) =
@@ -92,7 +95,10 @@ pub fn generated_modules_skipped_test() {
 pub fn server_context_skipped_test() {
   let dir = make_temp_dir("server_ctx")
   let src = dir <> "/src"
-  write_file(src <> "/server_context.gleam", "pub type ServerContext { ServerContext }\n")
+  write_file(
+    src <> "/server_context.gleam",
+    "pub type ServerContext { ServerContext }\n",
+  )
   let seed = "import server_context\npub fn init() { Nil }\n"
   let assert Ok(files) =
     dependency_resolver.resolve(
@@ -161,7 +167,8 @@ pub fn mixed_local_and_external_test() {
   let dir = make_temp_dir("mixed")
   let src = dir <> "/src"
   write_file(src <> "/i18n.gleam", "pub fn pick() { \"en\" }\n")
-  let seed = "import i18n\nimport gleam/option\nimport glaze/basecoat/table\npub fn init() { i18n.pick() }\n"
+  let seed =
+    "import i18n\nimport gleam/option\nimport glaze/basecoat/table\npub fn init() { i18n.pick() }\n"
   let assert Ok(files) =
     dependency_resolver.resolve(
       seed_sources: [#("pages/home_", seed)],

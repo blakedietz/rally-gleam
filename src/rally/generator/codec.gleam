@@ -17,7 +17,9 @@ import gleam/string
 import libero/codegen
 import libero/field_type.{type FieldType, UserType}
 import libero/scanner.{type HandlerEndpoint}
-import libero/walker.{type DiscoveredType, type DiscoveredVariant, DiscoveredType, DiscoveredVariant}
+import libero/walker.{
+  type DiscoveredType, type DiscoveredVariant, DiscoveredType, DiscoveredVariant,
+}
 import rally/tree_shaker
 import rally/types.{type PageContract, type ScannedRoute}
 
@@ -337,15 +339,19 @@ fn emit_float_registrations(discovered: List(DiscoveredType)) -> String {
   }
 }
 
-fn emit_constructor_registrations(
-  discovered: List(DiscoveredType),
-) -> String {
+fn emit_constructor_registrations(discovered: List(DiscoveredType)) -> String {
   let variants =
     list.flat_map(discovered, fn(t) {
       list.map(t.variants, fn(v) {
         let alias =
           module_to_underscored(t.module_path) <> "_" <> v.variant_name
-        #(t.module_path, v.variant_name, v.atom_name, list.length(v.fields), alias)
+        #(
+          t.module_path,
+          v.variant_name,
+          v.atom_name,
+          list.length(v.fields),
+          alias,
+        )
       })
     })
   case variants {
@@ -365,8 +371,11 @@ fn emit_constructor_registrations(
               }
             })
             |> list.unique()
-          "import { " <> string.join(aliased, ", ")
-          <> " } from \"../" <> mod <> ".mjs\";"
+          "import { "
+          <> string.join(aliased, ", ")
+          <> " } from \"../"
+          <> mod
+          <> ".mjs\";"
         })
         |> string.join("\n")
       let calls =
@@ -381,7 +390,8 @@ fn emit_constructor_registrations(
           <> ");"
         })
         |> string.join("\n")
-      imports <> "\n\n"
+      imports
+      <> "\n\n"
       <> "let _codec_init_done = false;\n\n"
       <> "export function ensure_decoders() {\n"
       <> "  if (_codec_init_done) return;\n"
@@ -567,9 +577,7 @@ fn emit_types_gleam(
   let all_modules =
     endpoints
     |> list.flat_map(fn(e) {
-      list.flat_map(e.params, fn(p) {
-        collect_user_type_modules(p.1)
-      })
+      list.flat_map(e.params, fn(p) { collect_user_type_modules(p.1) })
     })
     |> list.append(
       list.flat_map(endpoints, fn(e) {
@@ -660,17 +668,10 @@ fn collect_user_type_modules(ft: FieldType) -> List(String) {
     field_type.ListOf(inner) -> collect_user_type_modules(inner)
     field_type.OptionOf(inner) -> collect_user_type_modules(inner)
     field_type.ResultOf(ok, err) ->
-      list.append(
-        collect_user_type_modules(ok),
-        collect_user_type_modules(err),
-      )
+      list.append(collect_user_type_modules(ok), collect_user_type_modules(err))
     field_type.DictOf(k, v) ->
-      list.append(
-        collect_user_type_modules(k),
-        collect_user_type_modules(v),
-      )
-    field_type.TupleOf(elems) ->
-      list.flat_map(elems, collect_user_type_modules)
+      list.append(collect_user_type_modules(k), collect_user_type_modules(v))
+    field_type.TupleOf(elems) -> list.flat_map(elems, collect_user_type_modules)
     _ -> []
   }
 }

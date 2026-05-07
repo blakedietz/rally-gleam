@@ -315,8 +315,7 @@ fn run() -> Result(String, String) {
     True -> {
       let assert Ok(cc_source) = simplifile.read(client_context_path)
       let shaken = tree_shaker.shake(cc_source, server_symbols:)
-      let ffi_path =
-        dirname(config.pages_root) <> "/client_context_ffi.mjs"
+      let ffi_path = dirname(config.pages_root) <> "/client_context_ffi.mjs"
       let ffi_files = case simplifile.read(ffi_path) {
         Ok(ffi_content) -> [
           client.GeneratedFile(
@@ -372,13 +371,11 @@ fn run() -> Result(String, String) {
         }),
     ])
 
-  use dependency_files <- result.try(
-    dependency_resolver.resolve(
-      seed_sources:,
-      src_root: dirname(config.pages_root),
-      client_root: config.client_root,
-    ),
-  )
+  use dependency_files <- result.try(dependency_resolver.resolve(
+    seed_sources:,
+    src_root: dirname(config.pages_root),
+    client_root: config.client_root,
+  ))
 
   use _ <- result.try(
     write_generated_files(
@@ -488,9 +485,7 @@ fn copy_layout_modules(
   })
 }
 
-fn check_server_context_from_session(
-  path: String,
-) -> #(Bool, String) {
+fn check_server_context_from_session(path: String) -> #(Bool, String) {
   case simplifile.read(path) {
     Ok(source) ->
       case string.contains(source, "pub fn from_session") {

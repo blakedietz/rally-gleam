@@ -72,8 +72,7 @@ pub fn handle_request(
   }
 
   let ctx_script = case use_session {
-    True ->
-      "
+    True -> "
 fn context_script(server_context: ServerContext, session_id: String, hostname: String) -> String {
   let #(client_context, _) = " <> from_session_module <> ".from_session(server_context, session_id, hostname)
   let encoded = codec.encode_flags(client_context)
@@ -89,26 +88,16 @@ fn context_script(server_context: ServerContext, session_id: String, hostname: S
   }
 
   let fn_body = case has_load_pages {
-    True ->
-      fn_params
-      <> "
-  case route {\n"
-      <> load_arms
-      <> "
+    True -> fn_params <> "
+  case route {\n" <> load_arms <> "
     router.NotFound(_) ->
       response.new(404)
       |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not found\")))
-    _ -> "
-      <> shell_call
-      <> "
+    _ -> " <> shell_call <> "
   }
 }"
-    False ->
-      fn_params
-      <> "
-  "
-      <> shell_call
-      <> "
+    False -> fn_params <> "
+  " <> shell_call <> "
 }"
   }
 
@@ -123,23 +112,17 @@ fn context_script(server_context: ServerContext, session_id: String, hostname: S
     |> string.replace("\n", "\\n")
 
   let shell_fn = case use_session {
-    True ->
-      "
+    True -> "
 fn serve_html_shell(server_context: ServerContext, session_id: String, hostname: String) -> response.Response(ResponseData) {
-  let html = \""
-      <> escaped_shell
-      <> "\" <> context_script(server_context, session_id, hostname)
+  let html = \"" <> escaped_shell <> "\" <> context_script(server_context, session_id, hostname)
   response.new(200)
   |> response.set_header(\"content-type\", \"text/html\")
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
 }
 "
-    False ->
-      "
+    False -> "
 fn serve_html_shell() -> response.Response(ResponseData) {
-  let html = \""
-      <> escaped_shell
-      <> "\"
+  let html = \"" <> escaped_shell <> "\"
   response.new(200)
   |> response.set_header(\"content-type\", \"text/html\")
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
@@ -148,12 +131,9 @@ fn serve_html_shell() -> response.Response(ResponseData) {
   }
 
   let shell_html_fn = case has_load_pages {
-    True ->
-      "
+    True -> "
 fn shell_html() -> String {
-  \""
-      <> escaped_shell
-      <> "\"
+  \"" <> escaped_shell <> "\"
 }
 "
     False -> ""
@@ -242,11 +222,12 @@ fn generate_load_arms(
         }
         let ctx_init = case use_session {
           True ->
-            "      let #(client_context, server_context) = " <> from_session_module <> ".from_session(server_context, session_id, hostname)\n"
+            "      let #(client_context, server_context) = "
+            <> from_session_module
+            <> ".from_session(server_context, session_id, hostname)\n"
           False ->
             case has_client_context {
-              True ->
-                "      let #(client_context, _) = client_context.init()\n"
+              True -> "      let #(client_context, _) = client_context.init()\n"
               False -> ""
             }
         }
@@ -274,9 +255,7 @@ fn generate_load_arms(
             <> ".layout(page_view))\n"
           }
           None, _ ->
-            "    let rendered = element.to_string("
-            <> view_call
-            <> ")\n"
+            "    let rendered = element.to_string(" <> view_call <> ")\n"
         }
         let ctx_script = case use_session {
           True ->
@@ -288,7 +267,9 @@ fn generate_load_arms(
           False -> "model"
         }
         let flags_line =
-          "      let flags = codec.encode_flags(" <> flags_target <> ")\n"
+          "      let flags = codec.encode_flags("
+          <> flags_target
+          <> ")\n"
           <> "      let flags_tag = \"<script>window.__RALLY_FLAGS__='\" <> flags <> \"'</script>\"\n"
         let full_html_line = case use_session {
           True ->

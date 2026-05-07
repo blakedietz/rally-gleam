@@ -348,7 +348,11 @@ fn collect_all_client_refs(
       let name = def.definition.name
       case
         set.contains(server_symbols, name)
-        || { name != "Model" && name != "Msg" && !set.contains(client_fn_names, name) }
+        || {
+          name != "Model"
+          && name != "Msg"
+          && !set.contains(client_fn_names, name)
+        }
       {
         True -> []
         False -> extract_type_refs(def.definition.aliased)

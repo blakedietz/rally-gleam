@@ -3,9 +3,9 @@ import gleam/list
 import gleam/option.{Some}
 import gleam/set
 import gleam/string
-import tom
 import rally/generator
 import rally/types.{type PageContract, type ScanConfig, type ScannedRoute}
+import tom
 
 pub type GeneratedFile {
   GeneratedFile(path: String, content: String)
@@ -246,7 +246,8 @@ fn app_gleam(
   let page_msg_type = generate_page_msg_type(routes, contract_map)
   let init_page_fn =
     generate_init_page(routes, contract_map, has_client_context)
-  let hydrate_page_fn = generate_hydrate_page(routes, contract_map, has_client_context)
+  let hydrate_page_fn =
+    generate_hydrate_page(routes, contract_map, has_client_context)
   let reinit_server_fn = generate_reinit_server(routes, contract_map)
   let update_page_fn =
     generate_update_page(routes, contract_map, has_client_context)
@@ -368,9 +369,13 @@ fn app_gleam(
   let view_body = case layout_module, has_client_context {
     Ok(layout), True -> {
       let layout_alias = last_segment(layout)
-      "  " <> layout_alias <> ".layout(model.client_context, ClientContextUpdate,
+      "  "
+      <> layout_alias
+      <> ".layout(model.client_context, ClientContextUpdate,
     html.div([attr.class(\"rally-app\")], [
-      " <> render_page_call <> ",
+      "
+      <> render_page_call
+      <> ",
       connection_banner(model.connection),
     ])
   )"
@@ -836,8 +841,7 @@ fn generate_update_page(
 
   case has_client_context {
     True -> {
-      let catch_all =
-        "    _, _ -> #(page_model, effect.none(), None)"
+      let catch_all = "    _, _ -> #(page_model, effect.none(), None)"
       let sig =
         "fn update_page(page_model: PageModel, page_msg: PageMsg, client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg), Option(client_context.ClientContextMsg)) {"
       sig

@@ -38,15 +38,9 @@ pub fn duplicate_constructor_names_get_aliased_imports_test() {
   let output = codec.emit_codec_ffi(discovered)
 
   let assert True =
-    string.contains(
-      output,
-      "Waiver as pages_admin_members_waivers_Waiver",
-    )
+    string.contains(output, "Waiver as pages_admin_members_waivers_Waiver")
   let assert True =
-    string.contains(
-      output,
-      "Waiver as pages_admin_members_waivers_id__Waiver",
-    )
+    string.contains(output, "Waiver as pages_admin_members_waivers_id__Waiver")
 
   let assert False = has_bare_import(output, "{ Waiver }")
 }
