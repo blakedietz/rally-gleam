@@ -56,7 +56,7 @@ pub fn handle(
         | Ok("server_update_settings") -> {
           let typed_msg: ClientMsg = wire.coerce(msg)
           case typed_msg {
-            ServerPublishArticle(title:, description:, body:, tags:) -> {
+            ServerPublishArticle(title: _, description: _, body: _, tags: _) -> {
               case
                 trace.try_call(fn() {
                   pages_editor_handler.server_publish_article(
@@ -66,7 +66,7 @@ pub fn handle(
                 })
               {
                 Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(result)),
+                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
                   server_context,
                 )
                 Error(reason) -> {
@@ -89,7 +89,7 @@ pub fn handle(
                 }
               }
             }
-            ServerChangePage(page:, tab_name:, tag:) -> {
+            ServerChangePage(page: _, tab_name: _, tag: _) -> {
               case
                 trace.try_call(fn() {
                   pages_home__handler.server_change_page(
@@ -99,7 +99,7 @@ pub fn handle(
                 })
               {
                 Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(result)),
+                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
                   server_context,
                 )
                 Error(reason) -> {
@@ -122,7 +122,7 @@ pub fn handle(
                 }
               }
             }
-            ServerSwitchTab(tab_name:, tag:) -> {
+            ServerSwitchTab(tab_name: _, tag: _) -> {
               case
                 trace.try_call(fn() {
                   pages_home__handler.server_switch_tab(
@@ -132,7 +132,7 @@ pub fn handle(
                 })
               {
                 Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(result)),
+                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
                   server_context,
                 )
                 Error(reason) -> {
@@ -155,7 +155,7 @@ pub fn handle(
                 }
               }
             }
-            ServerLogin(email:, password:) -> {
+            ServerLogin(email: _, password: _) -> {
               case
                 trace.try_call(fn() {
                   pages_login_handler.server_login(
@@ -165,7 +165,7 @@ pub fn handle(
                 })
               {
                 Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(result)),
+                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
                   server_context,
                 )
                 Error(reason) -> {
@@ -188,7 +188,7 @@ pub fn handle(
                 }
               }
             }
-            ServerRegister(username:, email:, password:) -> {
+            ServerRegister(username: _, email: _, password: _) -> {
               case
                 trace.try_call(fn() {
                   pages_register_handler.server_register(
@@ -198,7 +198,7 @@ pub fn handle(
                 })
               {
                 Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(result)),
+                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
                   server_context,
                 )
                 Error(reason) -> {
@@ -231,7 +231,7 @@ pub fn handle(
                 })
               {
                 Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(result)),
+                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
                   server_context,
                 )
                 Error(reason) -> {
@@ -254,7 +254,13 @@ pub fn handle(
                 }
               }
             }
-            ServerUpdateSettings(image:, username:, bio:, email:, password:) -> {
+            ServerUpdateSettings(
+              image: _,
+              username: _,
+              bio: _,
+              email: _,
+              password: _,
+            ) -> {
               case
                 trace.try_call(fn() {
                   pages_settings_handler.server_update_settings(
@@ -264,7 +270,7 @@ pub fn handle(
                 })
               {
                 Ok(result) -> #(
-                  wire.tag_response(request_id:, data: wire.encode(result)),
+                  wire.tag_response(request_id:, data: wire.encode(Ok(result))),
                   server_context,
                 )
                 Error(reason) -> {

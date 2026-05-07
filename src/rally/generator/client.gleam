@@ -3,6 +3,7 @@ import gleam/list
 import gleam/option.{Some}
 import gleam/set
 import gleam/string
+import libero/field_type.{UserType}
 import rally/generator
 import rally/types.{type PageContract, type ScanConfig, type ScannedRoute}
 import tom
@@ -318,8 +319,8 @@ fn app_gleam(
   let #(ctx_model, ctx_effects) = client_context.init()
   let current_path = router.route_to_path(route)
   let client_context = case codec.decode_flags(transport.read_client_context()) {
-    Ok(ctx) -> client_context.ClientContext(..ctx)
-    Error(_) -> client_context.ClientContext(..ctx_model)
+    Ok(ctx) -> ctx
+    Error(_) -> ctx_model
   }
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(data) -> hydrate_page(route, data, client_context)
@@ -435,7 +436,6 @@ import modem
 import generated/codec
 import generated/router
 import generated/transport
-import rally_runtime/effect as rally_effect
 
 @external(javascript, \"../generated/codec_ffi.mjs\", \"ensure_decoders\")
 fn ensure_decoders() -> Nil
@@ -535,9 +535,43 @@ fn connection_banner(connection: Connection) -> Element(Msg) {
 }
 
 fn generate_push_registrations(
-  _contracts: List(#(ScannedRoute, PageContract)),
+  contracts: List(#(ScannedRoute, PageContract)),
 ) -> String {
-  ""
+  contracts
+  |> list.filter_map(fn(pair) {
+    let #(route, contract) = pair
+    case find_to_client_msg_wrapper(route, contract) {
+      Ok(wrapper) -> {
+        let alias = page_module_alias(route)
+        Ok("
+    let _ =
+      transport.register_push_handler(\"" <> route.variant_name <> "\", fn(raw) {
+        dispatch(PageMsg(" <> route.variant_name <> "PageMsg(" <> alias <> "." <> wrapper <> "(transport.coerce(raw)))))
+      })")
+      }
+      Error(_) -> Error(Nil)
+    }
+  })
+  |> string.join("")
+}
+
+fn find_to_client_msg_wrapper(
+  route: ScannedRoute,
+  contract: PageContract,
+) -> Result(String, Nil) {
+  contract.msg_variants
+  |> list.find_map(fn(variant) {
+    case variant.fields {
+      [field] ->
+        case field.type_ {
+          UserType(module_path:, type_name: "ToClient", args: [])
+            if module_path == route.module_path
+          -> Ok(variant.name)
+          _ -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
 }
 
 fn router_ffi_mjs() -> String {
@@ -593,12 +627,20 @@ fn generate_page_msg_type(
 /// Generate a route pattern match expression, e.g. "router.Home" or
 /// "router.ArticleSlug(slug)" depending on whether the route has params.
 fn route_pattern(route: ScannedRoute) -> String {
+  route_pattern_with(route, "")
+}
+
+fn route_pattern_ignored(route: ScannedRoute) -> String {
+  route_pattern_with(route, "_")
+}
+
+fn route_pattern_with(route: ScannedRoute, prefix: String) -> String {
   case route.params {
     [] -> "router." <> route.variant_name
     params -> {
       let param_names =
         params
-        |> list.map(fn(p) { p.0 })
+        |> list.map(fn(p) { prefix <> p.0 })
         |> string.join(", ")
       "router." <> route.variant_name <> "(" <> param_names <> ")"
     }
@@ -694,9 +736,9 @@ fn generate_hydrate_page(
       case dict.get(contract_map, route.variant_name) {
         Ok(contract) if contract.has_model && contract.has_init_loaded -> {
           let alias = page_module_alias(route)
-          let pattern = route_pattern(route)
+          let pattern = route_pattern_ignored(route)
           let call_args = case has_client_context {
-            True -> "(client_context, transport.coerce(data))"
+            True -> "(_client_context, transport.coerce(data))"
             False -> "(transport.coerce(data))"
           }
           Ok(
@@ -717,7 +759,7 @@ fn generate_hydrate_page(
           )
         }
         Ok(contract) if contract.has_model -> {
-          let pattern = route_pattern(route)
+          let pattern = route_pattern_ignored(route)
           Ok(
             "    "
             <> pattern
@@ -733,7 +775,7 @@ fn generate_hydrate_page(
 
   let sig = case has_client_context {
     True ->
-      "fn hydrate_page(route: router.Route, data: a, client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {"
+      "fn hydrate_page(route: router.Route, data: a, _client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {"
     False ->
       "fn hydrate_page(route: router.Route, data: a) -> #(PageModel, Effect(Msg)) {"
   }

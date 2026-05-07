@@ -2,7 +2,6 @@
 
 import generated/rpc_dispatch
 import gleam/bit_array
-import gleam/dynamic
 import gleam/erlang/process
 import gleam/int
 import gleam/io
@@ -12,6 +11,7 @@ import gleam/time/duration
 import gleam/time/timestamp
 import mist.{type WebsocketConnection, type WebsocketMessage}
 import rally_runtime/effect
+import rally_runtime/env
 import rally_runtime/system
 import rally_runtime/topics
 import rally_runtime/wire
@@ -46,19 +46,24 @@ pub fn handler(
   msg: WebsocketMessage(a),
   conn: WebsocketConnection,
 ) {
-  io.println_error("[rally:ws] handler called")
+  debug_log("[rally:ws] handler called")
   case msg {
     mist.Binary(data) -> {
-      io.println_error(
+      debug_log(
         "[rally:ws] Binary frame: "
         <> int.to_string(bit_array.byte_size(data))
         <> " bytes",
       )
       case wire.decode_call(data) {
         Ok(#(page, request_id, _value)) if request_id == 0 -> {
-          io.println_error("[rally:ws] page_init: " <> page)
+          debug_log("[rally:ws] page_init: " <> page)
+          let old_page = effect.get_ws_page()
           let _ =
             effect.put_ws_state(conn, effect.get_stored_server_context(), page)
+          case old_page {
+            "" -> Nil
+            _ -> topics.leave("page:" <> old_page)
+          }
           topics.join("page:" <> page)
           let response_frame =
             wire.tag_response(request_id:, data: wire.encode(Nil))
@@ -66,11 +71,10 @@ pub fn handler(
           send_pending_frames(conn)
           mist.continue(state)
         }
-        Ok(#(_page, request_id, _raw)) -> {
-          io.println_error(
-            "[rally:ws] RPC: request_id=" <> int.to_string(request_id),
-          )
+        Ok(#(_page, request_id, raw)) -> {
+          debug_log("[rally:ws] RPC: request_id=" <> int.to_string(request_id))
           let server_context = effect.get_stored_server_context()
+          let current_page = effect.get_ws_page()
           let start = timestamp.system_time()
           let #(response_data, new_ctx) =
             rpc_dispatch.handle(server_context:, data:)
@@ -83,19 +87,19 @@ pub fn handler(
             system.get_conn(),
             session_id,
             Error(Nil),
-            "",
-            dynamic.nil(),
+            current_page,
+            raw,
             data,
             elapsed_ms,
           )
 
-          let _ = effect.put_ws_state(conn, new_ctx, "")
+          let _ = effect.put_ws_state(conn, new_ctx, current_page)
           let _ = mist.send_binary_frame(conn, response_data)
           send_pending_frames(conn)
           mist.continue(state)
         }
         Error(_) -> {
-          io.println_error("[rally:ws] decode_call FAILED")
+          debug_log("[rally:ws] decode_call FAILED")
           mist.continue(state)
         }
       }
@@ -121,4 +125,11 @@ fn send_pending_frames(conn: WebsocketConnection) -> Nil {
     let _ = mist.send_binary_frame(conn, frame)
     Nil
   })
+}
+
+fn debug_log(message: String) -> Nil {
+  case env.is_dev() {
+    True -> io.println_error(message)
+    False -> Nil
+  }
 }

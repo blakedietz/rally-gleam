@@ -1,7 +1,5 @@
 import rally_runtime/effect as rally_effect
 
-import password
-
 import lustre/event
 
 import lustre/element/html

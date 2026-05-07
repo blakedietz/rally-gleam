@@ -1,18 +1,19 @@
 import birdie
 import gleam/dict
 import gleam/list
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
-import libero/field_type.{IntField}
+import libero/field_type.{IntField, UserType}
+import libero/scanner
 import rally/generator
 import rally/generator/client
 import rally/generator/codec
 import rally/generator/ssr_handler
 import rally/types.{
   type PageContract, type ScanConfig, type ScannedRoute, DynamicSegment,
-  IntParam, PageContract, ScanConfig, ScannedRoute, StaticSegment, VariantField,
-  VariantInfo,
+  IntParam, PageContract, ScanConfig, ScannedRoute, StaticSegment, StringParam,
+  VariantField, VariantInfo,
 }
 
 fn basic_routes() -> List(ScannedRoute) {
@@ -72,6 +73,26 @@ pub fn router_output_snapshot_test() {
   birdie.snap(output, "route_gleam")
 }
 
+pub fn router_uses_qualified_percent_encode_without_value_import_test() {
+  let route =
+    ScannedRoute(
+      segments: [StaticSegment("articles"), DynamicSegment("slug", StringParam)],
+      variant_name: "ArticleSlug",
+      params: [#("slug", StringParam)],
+      layout_module: None,
+      module_path: "pages/articles/slug_",
+    )
+  let output = generator.generate([route])
+
+  output
+  |> string.contains("import gleam/uri.{type Uri, percent_encode}")
+  |> should.equal(False)
+
+  output
+  |> string.contains("uri.percent_encode(slug)")
+  |> should.equal(True)
+}
+
 pub fn dispatch_output_snapshot_test() {
   let routes = basic_routes()
   let output = generator.generate_dispatch(routes, basic_contracts(), False)
@@ -125,6 +146,195 @@ pub fn app_gleam_with_client_context_snapshot_test() {
   birdie.snap(file.content, "client_app_with_client_context_gleam")
 }
 
+pub fn client_app_omits_unused_effect_import_and_record_updates_test() {
+  let routes = basic_routes()
+  let contracts = basic_contracts()
+  let files =
+    client.generate_package(
+      routes,
+      contracts,
+      test_scan_config(),
+      dict.new(),
+      "",
+      "",
+      True,
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+
+  file.content
+  |> string.contains("import rally_runtime/effect as rally_effect")
+  |> should.equal(False)
+
+  file.content
+  |> string.contains("client_context.ClientContext(..ctx)")
+  |> should.equal(False)
+
+  file.content
+  |> string.contains("client_context.ClientContext(..ctx_model)")
+  |> should.equal(False)
+}
+
+pub fn client_app_underscores_ignored_hydrate_route_params_test() {
+  let routes = basic_routes()
+  let contracts = basic_contracts()
+  let files =
+    client.generate_package(
+      routes,
+      contracts,
+      test_scan_config(),
+      dict.new(),
+      "",
+      "",
+      False,
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+
+  file.content
+  |> string.contains("router.UsersId(_id) -> #(UsersIdPageModel")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("router.UsersId(id) -> #(UsersIdPageModel")
+  |> should.equal(False)
+}
+
+pub fn client_app_underscores_unused_hydrate_context_test() {
+  let routes = basic_routes()
+  let contracts = basic_contracts()
+  let files =
+    client.generate_package(
+      routes,
+      contracts,
+      test_scan_config(),
+      dict.new(),
+      "",
+      "",
+      True,
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+
+  file.content
+  |> string.contains("_client_context: client_context.ClientContext")
+  |> should.equal(True)
+}
+
+pub fn app_gleam_layout_with_client_context_uses_context_msg_mapper_test() {
+  let routes = [
+    ScannedRoute(
+      segments: [],
+      variant_name: "Home",
+      params: [],
+      layout_module: Some("pages/layout"),
+      module_path: "pages/home_",
+    ),
+  ]
+  let contracts =
+    list.map(routes, fn(route) {
+      #(
+        route,
+        PageContract(
+          model_variants: [
+            VariantInfo("Model", [VariantField("count", IntField)]),
+          ],
+          msg_variants: [],
+          has_load: True,
+          has_init: True,
+          has_init_loaded: False,
+          has_model: True,
+          updates_client_context: False,
+          param_names: [],
+          source: "",
+          view_source: "",
+          init_source: "",
+          update_source: "",
+        ),
+      )
+    })
+  let files =
+    client.generate_package(
+      routes,
+      contracts,
+      test_scan_config(),
+      dict.new(),
+      "",
+      "",
+      True,
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+
+  file.content
+  |> string.contains("layout.layout(model.client_context, ClientContextUpdate")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("layout.layout(model.client_context,\n    html.div")
+  |> should.equal(False)
+}
+
+pub fn ssr_layout_with_client_context_uses_v3_session_contract_test() {
+  let route =
+    ScannedRoute(
+      segments: [],
+      variant_name: "Home",
+      params: [],
+      layout_module: Some("pages/layout"),
+      module_path: "pages/home_",
+    )
+  let contract =
+    PageContract(
+      model_variants: [VariantInfo("Model", [VariantField("count", IntField)])],
+      msg_variants: [],
+      has_load: True,
+      has_init: True,
+      has_init_loaded: False,
+      has_model: True,
+      updates_client_context: False,
+      param_names: [],
+      source: "",
+      view_source: "",
+      init_source: "",
+      update_source: "",
+    )
+  let shell =
+    "<!DOCTYPE html>\n<html><head></head><body><div id='app'></div></body></html>"
+  let output =
+    ssr_handler.generate(
+      [#(route, contract)],
+      True,
+      True,
+      "server_context",
+      shell,
+    )
+
+  output
+  |> string.contains(
+    "server_context.from_session(server_context, session_id, hostname)",
+  )
+  |> should.equal(True)
+
+  output
+  |> string.contains(
+    "let client_context = server_context.from_session(server_context, session_id)",
+  )
+  |> should.equal(False)
+
+  output
+  |> string.contains("hostname: String")
+  |> should.equal(True)
+}
+
 pub fn transport_gleam_snapshot_test() {
   let routes = basic_routes()
   let contracts = basic_contracts()
@@ -169,6 +379,123 @@ pub fn app_gleam_snapshot_test() {
   birdie.snap(file.content, "client_app_gleam")
 }
 
+pub fn app_gleam_registers_page_push_handlers_test() {
+  let route =
+    ScannedRoute(
+      segments: [StaticSegment("article")],
+      variant_name: "Article",
+      params: [],
+      layout_module: None,
+      module_path: "pages/article",
+    )
+  let contract =
+    PageContract(
+      model_variants: [
+        VariantInfo("Model", [VariantField("count", IntField)]),
+      ],
+      msg_variants: [
+        VariantInfo("Clicked", []),
+        VariantInfo("GotServerMsg", [
+          VariantField("value", UserType("pages/article", "ToClient", [])),
+        ]),
+      ],
+      has_load: False,
+      has_init: True,
+      has_init_loaded: False,
+      has_model: True,
+      updates_client_context: False,
+      param_names: [],
+      source: "",
+      view_source: "",
+      init_source: "",
+      update_source: "",
+    )
+  let config = test_scan_config()
+  let files =
+    client.generate_package(
+      [route],
+      [#(route, contract)],
+      config,
+      dict.new(),
+      "",
+      "",
+      False,
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+
+  file.content
+  |> string.contains("transport.register_push_handler(\"Article\"")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains(
+    "PageMsg(ArticlePageMsg(pages_article.GotServerMsg(transport.coerce(raw))))",
+  )
+  |> should.equal(True)
+}
+
+pub fn client_page_drops_effect_import_after_send_to_server_rewrite_test() {
+  let route =
+    ScannedRoute(
+      segments: [],
+      variant_name: "Home",
+      params: [],
+      layout_module: None,
+      module_path: "pages/home_",
+    )
+  let contract =
+    PageContract(
+      model_variants: [
+        VariantInfo("Model", [VariantField("count", IntField)]),
+      ],
+      msg_variants: [
+        VariantInfo("Clicked", []),
+      ],
+      has_load: False,
+      has_init: True,
+      has_init_loaded: False,
+      has_model: True,
+      updates_client_context: False,
+      param_names: [],
+      source: "import lustre/effect.{type Effect}
+import rally_runtime/effect as rally_effect
+
+pub type Model { Model(count: Int) }
+pub type Msg { Clicked }
+pub type ToServer { Increment }
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(count: 0), effect.none())
+}
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case msg {
+    Clicked -> #(model, rally_effect.send_to_server(Increment))
+  }
+}
+",
+      view_source: "",
+      init_source: "",
+      update_source: "",
+    )
+  let files = codec.generate([#(route, contract)], [], option.None, [], [])
+  let assert Ok(file) =
+    list.find(files, fn(f: codec.CodecFile) {
+      string.contains(f.content, "send_to_server(Increment)")
+    })
+
+  file.content
+  |> string.contains("import rally_runtime/effect as rally_effect")
+  |> should.equal(False)
+
+  file.content
+  |> string.contains("send_to_server(Increment)")
+  |> should.equal(True)
+}
+
 pub fn types_gleam_snapshot_test() {
   let contracts = basic_contracts()
   let files = codec.generate(contracts, [], option.None, [], [])
@@ -180,6 +507,28 @@ pub fn types_gleam_snapshot_test() {
   birdie.snap(file.content, "client_types_gleam")
 }
 
+pub fn types_gleam_does_not_import_modules_used_only_by_responses_test() {
+  let endpoint =
+    scanner.HandlerEndpoint(
+      module_path: "pages/home_",
+      fn_name: "load_home",
+      return_ok: UserType("pages/home_", "Model", []),
+      return_err: IntField,
+      params: [],
+      mutates_context: False,
+      msg_type_name: None,
+    )
+  let files = codec.generate([], [], option.None, [endpoint], [])
+  let assert Ok(file) =
+    list.find(files, fn(f: codec.CodecFile) {
+      string.ends_with(f.path, "types.gleam")
+    })
+
+  file.content
+  |> string.contains("import pages/home_")
+  |> should.equal(False)
+}
+
 pub fn codec_gleam_snapshot_test() {
   let contracts = basic_contracts()
   let files = codec.generate(contracts, [], option.None, [], [])
@@ -189,6 +538,18 @@ pub fn codec_gleam_snapshot_test() {
     })
   let assert Ok(file) = codec_file
   birdie.snap(file.content, "client_codec_gleam")
+}
+
+pub fn codec_gleam_omits_unused_dynamic_type_import_test() {
+  let files = codec.generate([], [], option.None, [], [])
+  let assert Ok(file) =
+    list.find(files, fn(f: codec.CodecFile) {
+      string.ends_with(f.path, "codec.gleam")
+    })
+
+  file.content
+  |> string.contains("type Dynamic")
+  |> should.equal(False)
 }
 
 fn test_scan_config() -> ScanConfig {

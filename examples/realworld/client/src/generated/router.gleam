@@ -32,11 +32,11 @@ pub fn parse_route(uri: Uri) -> Route {
 pub fn route_to_path(route route: Route) -> String {
   case route {
     Home -> "/"
-    ArticleSlug(slug:) -> "/article/" <> slug
+    ArticleSlug(slug:) -> "/article/" <> uri.percent_encode(slug)
     Editor -> "/editor"
-    EditorSlug(slug:) -> "/editor/" <> slug
+    EditorSlug(slug:) -> "/editor/" <> uri.percent_encode(slug)
     Login -> "/login"
-    ProfileUsername(username:) -> "/profile/" <> username
+    ProfileUsername(username:) -> "/profile/" <> uri.percent_encode(username)
     Register -> "/register"
     Settings -> "/settings"
     NotFound(uri:) -> uri.to_string(uri)

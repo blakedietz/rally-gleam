@@ -43,3 +43,37 @@ pub fn from(f: fn(fn(a) -> Nil) -> Nil) -> Effect(a) {
 pub fn get_ws_session() -> String {
   ""
 }
+
+pub fn set_dark_mode(enabled: Bool) -> Effect(a) {
+  effect.from(fn(_dispatch) {
+    do_set_dark_mode(enabled)
+    Nil
+  })
+}
+
+@external(javascript, "./rally_effect_ffi.mjs", "setDarkMode")
+fn do_set_dark_mode(_enabled: Bool) -> Nil {
+  Nil
+}
+
+pub fn set_lang(lang: String) -> Effect(a) {
+  effect.from(fn(_dispatch) {
+    do_set_lang(lang)
+    Nil
+  })
+}
+
+@external(javascript, "./rally_effect_ffi.mjs", "setLang")
+fn do_set_lang(_lang: String) -> Nil {
+  Nil
+}
+
+@external(javascript, "./rally_effect_ffi.mjs", "readDarkModeCookie")
+pub fn read_dark_mode() -> Bool {
+  False
+}
+
+@external(javascript, "./rally_effect_ffi.mjs", "readLangCookie")
+pub fn read_lang() -> String {
+  ""
+}

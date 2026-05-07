@@ -1,4 +1,4 @@
-import client_context.{type ClientContext}
+import client_context.{type ClientContext, type ClientContextMsg}
 import gleam/option.{None, Some}
 import lustre/attribute as attr
 import lustre/element.{type Element}
@@ -6,6 +6,7 @@ import lustre/element/html
 
 pub fn layout(
   client_context: ClientContext,
+  _on_context_msg: fn(ClientContextMsg) -> msg,
   content: Element(msg),
 ) -> Element(msg) {
   html.div([], [

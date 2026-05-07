@@ -2,9 +2,11 @@ import gleam/list
 import gleam/option
 import gleam/string
 import libero/field_type
+import libero/scanner
 import libero/walker.{DiscoveredType, DiscoveredVariant}
 import rally/generator/codec
 import rally/types.{PageContract, ScannedRoute}
+import simplifile
 
 pub fn duplicate_constructor_names_get_aliased_imports_test() {
   let discovered = [
@@ -66,6 +68,45 @@ pub fn generated_decode_flags_matches_runtime_empty_string_error_test() {
   let assert False = string.contains(file.content, "\"No flags\"")
   let assert True =
     string.contains(file.content, "Failed to base64-decode flags")
+}
+
+pub fn codec_ffi_registers_nested_float_endpoint_field_types_test() {
+  let endpoint =
+    scanner.HandlerEndpoint(
+      module_path: "pages/measurements",
+      fn_name: "record_measurements",
+      return_ok: field_type.NilField,
+      return_err: field_type.NilField,
+      params: [
+        #("values", field_type.ListOf(field_type.FloatField)),
+      ],
+      mutates_context: False,
+      msg_type_name: option.None,
+    )
+  let files = codec.generate([], [], option.None, [endpoint], [])
+  let assert Ok(file) =
+    list.find(files, fn(file) { file.path == "src/generated/codec_ffi.mjs" })
+
+  let assert True =
+    string.contains(
+      file.content,
+      "import { registerConstructor, registerFieldTypes } from \"./rpc_ffi.mjs\";",
+    )
+  let assert True =
+    string.contains(
+      file.content,
+      "registerFieldTypes(\"server_record_measurements\", [{ kind: \"list\", element: \"float\" }]);",
+    )
+  let assert False = string.contains(file.content, "registerFloatFields")
+}
+
+pub fn copied_rpc_runtime_exposes_only_field_type_float_api_test() {
+  let assert Ok(source) = simplifile.read("src/rally_runtime/rpc_ffi.mjs")
+
+  let assert True =
+    string.contains(source, "export function registerFieldTypes")
+  let assert False = string.contains(source, "registerFloatFields")
+  let assert False = string.contains(source, "floatFieldRegistry")
 }
 
 pub fn page_post_process_handles_effect_alias_for_send_to_server_test() {

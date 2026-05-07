@@ -22,6 +22,7 @@ ensure() ->
 
 do_ensure() ->
     lists:foreach(fun(B) -> binary_to_atom(B) end, [
+        <<"article_preview">>,
         <<"change_page">>,
         <<"decode_error">>,
         <<"error">>,

@@ -10,6 +10,8 @@ import lustre/effect.{type Effect}
 
 import lustre/attribute as attr
 
+import gleam/option.{None, Some}
+
 import gleam/list
 
 import gleam/int

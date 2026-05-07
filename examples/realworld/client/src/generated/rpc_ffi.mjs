@@ -15,7 +15,7 @@ import {
   from_list as dictFromList,
   to_list as dictToList,
 } from "../../gleam_stdlib/gleam/dict.mjs";
-import { InternalError } from "./error.mjs";
+import { MalformedRequest, UnknownFunction, InternalError } from "./error.mjs";
 
 // ---------- Custom type constructor registry ----------
 // Generated codec_ffi.mjs registers per-type constructors here at init
@@ -88,32 +88,32 @@ export function identity(x) {
   return x;
 }
 
-// ---------- Float field registry ----------
+// ---------- Field type registry ----------
 //
 // JS has no int/float distinction - `2.0 === 2` and
 // `Number.isInteger(2.0) === true`. But ETF does distinguish them,
 // and Gleam's BEAM runtime treats Int and Float as different types.
 //
-// The generator discovers which constructor fields are typed as Float
-// and emits registerFloatFields() calls. The ETF encoder checks this
-// registry when encoding custom type fields, ensuring whole-number
-// floats like `2.0` are encoded as NEW_FLOAT_EXT (tag 70) instead of
-// INTEGER_EXT (tags 97/98).
+// The generator emits registerFieldTypes() calls. The ETF encoder checks
+// this registry when encoding custom type fields, ensuring whole-number
+// floats like `2.0` are encoded as NEW_FLOAT_EXT (tag 70), even when
+// nested inside containers, instead of INTEGER_EXT (tags 97/98).
 //
 // This is ETF-specific metadata - a JSON encoder would ignore it
 // since JSON has only one number type.
 
-/** @type {Map<string, Set<number>>} */
-const floatFieldRegistry = new Map();
+/** @type {Map<string, any[]>} */
+const fieldTypeRegistry = new Map();
 
 /**
- * Register which field indices of a custom-type atom should be encoded
- * as floats regardless of whether the JS value is a whole number.
+ * Register field type hints for a custom-type atom. Hints are generated
+ * from Gleam signatures so container elements typed as Float can still be
+ * encoded as ETF floats after JavaScript erases `2.0` to `2`.
  * @param {string} atomName snake_case constructor name
- * @param {number[]} fieldIndices 0-based positions of Float-typed fields
+ * @param {any[]} fieldTypes 0-based field type hints
  */
-export function registerFloatFields(atomName, fieldIndices) {
-  floatFieldRegistry.set(atomName, new Set(fieldIndices));
+export function registerFieldTypes(atomName, fieldTypes) {
+  fieldTypeRegistry.set(atomName, fieldTypes);
 }
 
 /**
@@ -625,8 +625,11 @@ class ETFEncoder {
     return this.buffer.slice(0, this.offset);
   }
 
-  /** @param {any} value */
-  encodeTerm(value) {
+  /**
+   * @param {any} value
+   * @param {any} typeHint
+   */
+  encodeTerm(value, typeHint = undefined) {
     if (value === undefined || value === null) {
       // Gleam Nil → atom "nil"
       this.writeAtom("nil");
@@ -644,7 +647,11 @@ class ETFEncoder {
     }
 
     if (typeof value === "number") {
-      this.encodeNumber(value);
+      if (typeHint === "float") {
+        this.encodeFloat(value);
+      } else {
+        this.encodeNumber(value);
+      }
       return;
     }
 
@@ -655,27 +662,42 @@ class ETFEncoder {
 
     // JS array = Gleam tuple
     if (Array.isArray(value)) {
-      this.encodeTuple(value);
+      const elementHints =
+        typeHint?.kind === "tuple" ? typeHint.elements : undefined;
+      this.encodeTuple(value, elementHints);
       return;
     }
 
     // Gleam linked list
     if (value instanceof Empty || value instanceof NonEmpty) {
       const arr = gleamListToArray(value);
-      this.encodeList(arr);
+      const elementHint = typeHint?.kind === "list" ? typeHint.element : undefined;
+      this.encodeList(arr, elementHint);
       return;
     }
 
     // Plain JS Map, useful for tests and low-level interop.
     if (value instanceof Map) {
-      this.encodeMap(value);
+      this.encodeMap(
+        value,
+        typeHint?.kind === "dict" ? typeHint.key : undefined,
+        typeHint?.kind === "dict" ? typeHint.value : undefined,
+      );
       return;
     }
 
-    // Gleam stdlib Dict (HAMT object). Convert through dict.to_list so the
-    // encoder follows the stdlib representation instead of guessing internals.
+    // Gleam stdlib Dict (HAMT object). Detected by duck-typing on the
+    // internal `root` + `size` fields of gleam_stdlib's persistent hash
+    // map implementation. This is coupled to stdlib internals: if the
+    // HAMT representation changes (different field names, different data
+    // structure), this branch silently stops matching and falls through
+    // to the unsupported-value error. Verify after gleam_stdlib upgrades.
     if (value && typeof value === "object" && "root" in value && "size" in value) {
-      this.encodeMap(new Map(gleamListToArray(dictToList(value))));
+      this.encodeMap(
+        new Map(gleamListToArray(dictToList(value))),
+        typeHint?.kind === "dict" ? typeHint.key : undefined,
+        typeHint?.kind === "dict" ? typeHint.value : undefined,
+      );
       return;
     }
 
@@ -722,18 +744,14 @@ class ETFEncoder {
           this.writeUint32(arity);
         }
         this.writeAtom(ctorName);
-        // Check float field registry - fields at registered indices
-        // must be encoded as floats even if Number.isInteger is true.
-        const floatIndices = floatFieldRegistry.get(ctorName);
+        // Check field type hints so whole-number floats, including nested
+        // values inside containers, retain their Gleam Float type in ETF.
+        const fieldTypes = fieldTypeRegistry.get(ctorName);
         keys.forEach((k, i) => {
           const fieldValue = value[k];
-          if (floatIndices && floatIndices.has(i)
-              && typeof fieldValue === "number") {
-            this.writeUint8(70); // NEW_FLOAT_EXT
-            this.writeFloat64(fieldValue);
-          } else {
-            this.encodeTerm(fieldValue);
-          }
+          const hintedField = hintForConstructorField(ctorName, i, typeHint)
+            ?? fieldTypes?.[i];
+          this.encodeTerm(fieldValue, hintedField);
         });
       }
       return;
@@ -785,6 +803,12 @@ class ETFEncoder {
     }
   }
 
+  /** @param {number} n */
+  encodeFloat(n) {
+    this.writeUint8(70); // NEW_FLOAT_EXT
+    this.writeFloat64(n);
+  }
+
   encodeBigInt(value) {
     const sign = value < 0n ? 1 : 0;
     let abs = value < 0n ? -value : value;
@@ -810,7 +834,7 @@ class ETFEncoder {
     this.writeBytes(new Uint8Array(digits));
   }
 
-  encodeTuple(elements) {
+  encodeTuple(elements, elementHints = undefined) {
     if (elements.length <= 255) {
       this.writeUint8(104); // SMALL_TUPLE_EXT
       this.writeUint8(elements.length);
@@ -818,12 +842,12 @@ class ETFEncoder {
       this.writeUint8(105); // LARGE_TUPLE_EXT
       this.writeUint32(elements.length);
     }
-    for (const el of elements) {
-      this.encodeTerm(el);
+    for (let i = 0; i < elements.length; i++) {
+      this.encodeTerm(elements[i], elementHints?.[i]);
     }
   }
 
-  encodeList(arr) {
+  encodeList(arr, elementHint = undefined) {
     if (arr.length === 0) {
       this.writeUint8(106); // NIL_EXT
       return;
@@ -831,19 +855,27 @@ class ETFEncoder {
     this.writeUint8(108); // LIST_EXT
     this.writeUint32(arr.length);
     for (const el of arr) {
-      this.encodeTerm(el);
+      this.encodeTerm(el, elementHint);
     }
     this.writeUint8(106); // NIL_EXT tail
   }
 
-  encodeMap(map) {
+  encodeMap(map, keyHint = undefined, valueHint = undefined) {
     this.writeUint8(116); // MAP_EXT
     this.writeUint32(map.size);
     map.forEach((val, key) => {
-      this.encodeTerm(key);
-      this.encodeTerm(val);
+      this.encodeTerm(key, keyHint);
+      this.encodeTerm(val, valueHint);
     });
   }
+}
+
+function hintForConstructorField(ctorName, index, typeHint) {
+  if (index !== 0 || !typeHint || typeof typeHint !== "object") return undefined;
+  if (typeHint.kind === "option" && ctorName === "some") return typeHint.inner;
+  if (typeHint.kind === "result" && ctorName === "ok") return typeHint.ok;
+  if (typeHint.kind === "result" && ctorName === "error") return typeHint.err;
+  return undefined;
 }
 
 // ---------- Helper ----------
@@ -965,8 +997,8 @@ export function decode_safe(buffer) {
 function debugEnabled() {
   if (typeof window === "undefined") return false;
   if (window.__RALLY_DEBUG__ !== undefined) return window.__RALLY_DEBUG__;
-  // Auto-enable on any non-HTTPS origin (dev servers use HTTP)
-  return location.protocol === "http:";
+  const appEnv = window.__APP_ENV__;
+  return appEnv === "dev" || appEnv === "development";
 }
 
 function formatRaw(value, depth = 0) {
@@ -1039,16 +1071,14 @@ function logRpc(direction, label, data, extra) {
   const arrow = direction;
   const style = colors[arrow] || "";
   const parts = [`%c${arrow} ${label}`, style];
+  console.groupCollapsed(...parts);
+  console.log(formatRaw(data));
   if (extra) {
-    console.groupCollapsed(...parts);
-    console.log(formatRaw(data));
     for (const [k, v] of Object.entries(extra)) {
       console.log(`${k}:`, v);
     }
-    console.groupEnd();
-  } else {
-    console.log(...parts, formatRaw(data));
   }
+  console.groupEnd();
 }
 
 if (typeof window !== "undefined") {
@@ -1223,7 +1253,7 @@ export function ensureSocket(url) {
   ws.addEventListener("message", (event) => {
     const bytes = new Uint8Array(event.data);
     if (bytes.byteLength < 1) {
-      console.warn("libero: dropped empty WebSocket frame");
+      if (debugEnabled()) console.warn("libero: dropped empty WebSocket frame");
       return;
     }
     const tag = bytes[0];
@@ -1238,7 +1268,7 @@ export function ensureSocket(url) {
       try {
         decoded = decode_value(payload);
       } catch (e) {
-        console.warn("rally: failed to decode push frame", e);
+        if (debugEnabled()) console.warn("rally: failed to decode push frame", e);
         return;
       }
       if (Array.isArray(decoded) && typeof decoded[0] === "string"
@@ -1253,7 +1283,9 @@ export function ensureSocket(url) {
     // Response frame (tag 0x00): extract request ID and match by ID.
     // Frame format: <<0x00, request_id:32-big, etf_bytes>>
     if (bytes.byteLength < 5) {
-      console.warn(`libero: dropped malformed response frame (${bytes.byteLength} bytes, need >= 5)`);
+      if (debugEnabled()) {
+        console.warn(`libero: dropped malformed response frame (${bytes.byteLength} bytes, need >= 5)`);
+      }
       return;
     }
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -1268,7 +1300,7 @@ export function ensureSocket(url) {
     try {
       decoded = decode_value(responsePayload);
     } catch (e) {
-      console.warn(`rally: failed to decode response #${requestId}`, e);
+      if (debugEnabled()) console.warn(`rally: failed to decode response #${requestId}`, e);
       const entry = responseCallbacks.get(requestId);
       if (entry) {
         responseCallbacks.delete(requestId);
@@ -1292,7 +1324,7 @@ export function ensureSocket(url) {
         logRpc("<-", `rpc #${requestId}`, decoded);
       }
       // Warn on framework-level errors so they're visible in dev
-      if (isDispatchError(decoded)) {
+      if (debugEnabled() && isDispatchError(decoded)) {
         console.error("[rally] RPC #" + requestId + " failed:", formatDispatchError(decoded));
       }
       entry.callback(decoded);
@@ -1451,3 +1483,8 @@ export function read_flags() {
   return flags;
 }
 
+export function read_client_context() {
+  const ctx = window.__RALLY_CLIENT_CONTEXT__ || "";
+  delete window.__RALLY_CLIENT_CONTEXT__;
+  return ctx;
+}

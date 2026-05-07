@@ -1,12 +1,14 @@
+import generated/http_handler
 import generated/router
 import generated/ssr_handler
 import generated/ws_handler
 import gleam/bytes_tree
 import gleam/erlang/process
-import gleam/http.{Get}
+import gleam/http.{Get, Post}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
 import gleam/list
+import gleam/result
 import gleam/string
 import mist.{type Connection, type ResponseData}
 import rally_runtime/db
@@ -44,6 +46,26 @@ pub fn main() {
           ws_handler.on_close,
         )
       }
+      "/rpc" -> {
+        case method {
+          Post -> {
+            case mist.read_body(req, max_body_limit: 16_000_000) {
+              Ok(Request(body: body, ..)) ->
+                http_handler.handle(body, server_context)
+              Error(_) ->
+                response.new(413)
+                |> response.set_body(
+                  mist.Bytes(bytes_tree.from_string("Request body too large")),
+                )
+            }
+          }
+          _ ->
+            response.new(405)
+            |> response.set_body(
+              mist.Bytes(bytes_tree.from_string("Not found")),
+            )
+        }
+      }
       _ -> {
         case string.starts_with(path, "/_build/") {
           True -> serve_static(string.drop_start(path, 8))
@@ -59,8 +81,15 @@ pub fn main() {
                   Error(_) -> session.generate_id()
                 }
                 let route = router.parse_route(request.to_uri(req))
+                let hostname =
+                  request.get_header(req, "host") |> result.unwrap("")
                 let resp =
-                  ssr_handler.handle_request(route, server_context, session_id)
+                  ssr_handler.handle_request(
+                    route,
+                    server_context,
+                    session_id,
+                    hostname,
+                  )
                 case request.get_header(req, "cookie") {
                   Ok(cookie) ->
                     case session.extract_session_id(cookie) {

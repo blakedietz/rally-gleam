@@ -314,6 +314,85 @@ fn get_value() {
   result |> string.contains("fn get_value(") |> should.be_true()
 }
 
+// -- Test: constructor used ONLY in patterns, never in expressions or types --
+
+pub fn keeps_import_used_only_in_case_pattern_without_type_ref_test() {
+  let source =
+    "import gleam/option.{None, Some}
+
+pub type Model { Model(count: Int) }
+pub type Msg { NoOp }
+
+pub fn view(model: Model) -> Element(Msg) {
+  case maybe_count(model) {
+    Some(n) -> html.text(int.to_string(n))
+    None -> html.text(\"none\")
+  }
+}
+
+fn maybe_count(model: Model) {
+  model.count
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // gleam/option is needed only because Some/None appear in case patterns.
+  result |> string.contains("gleam/option") |> should.be_true()
+}
+
+// -- Test: record field names do not keep same-named server-only imports --
+
+pub fn drops_import_matching_client_record_field_test() {
+  let source =
+    "import password
+import rally_runtime/effect as rally_effect
+import server_context.{type ServerContext}
+
+pub type Model {
+  Model(email: String, password: String)
+}
+
+pub type Msg {
+  UpdatedPassword(String)
+  ClickedLogin
+  GotLogin(Result(String, Nil))
+}
+
+pub type ServerLogin {
+  ServerLogin(email: String, password: String)
+}
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case msg {
+    UpdatedPassword(value) -> #(Model(..model, password: value), effect.none())
+    ClickedLogin -> #(
+      model,
+      rally_effect.rpc(
+        ServerLogin(email: model.email, password: model.password),
+        on_response: GotLogin,
+      ),
+    )
+    GotLogin(_) -> #(model, effect.none())
+  }
+}
+
+pub fn server_login(msg: ServerLogin, server_context: ServerContext) -> Result(String, Nil) {
+  case password.verify(msg.password, \"hash\") {
+    True -> Ok(\"ok\")
+    False -> Error(Nil)
+  }
+}
+"
+
+  let result =
+    tree_shaker.shake(source, server_symbols: ["ServerContext", "ServerLogin"])
+
+  result |> string.contains("import password") |> should.be_false()
+  result |> string.contains("model.password") |> should.be_true()
+  result |> string.contains("rally_effect.rpc") |> should.be_true()
+}
+
 // -- Test: constructor used ONLY in a case pattern, never as expression --
 
 pub fn keeps_import_used_only_in_case_pattern_test() {
@@ -420,4 +499,29 @@ pub fn server_get_name(msg: ServerGetName, server_context: ServerContext) -> Res
   // Client code should remain
   result |> string.contains("pub fn init()") |> should.be_true()
   result |> string.contains("rally_effect.rpc") |> should.be_true()
+}
+
+pub fn drops_rpc_import_used_only_by_removed_server_functions_test() {
+  let source =
+    "import rally_runtime/effect as rally_effect
+import server_context.{type ServerContext}
+
+pub type Model { Model(name: String) }
+pub type Msg { NoOp }
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(name: \"\"), effect.none())
+}
+
+pub fn server_notify(server_context: ServerContext) -> Result(Nil, Nil) {
+  let _ = rally_effect.broadcast_to_page(\"Home\", Nil)
+  Ok(Nil)
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: ["ServerContext"])
+
+  result
+  |> string.contains("import rally_runtime/effect as rally_effect")
+  |> should.be_false()
 }

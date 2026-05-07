@@ -2,6 +2,7 @@
 import generated/codec
 import generated/router
 import generated/transport
+import gleam/option.{type Option, None, Some}
 import lustre
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
@@ -52,6 +53,7 @@ pub type Model {
     page_model: PageModel,
     connection: Connection,
     client_context: client_context.ClientContext,
+    current_path: String,
   )
 }
 
@@ -78,17 +80,30 @@ fn init(_flags: Nil) -> #(Model, Effect(Msg)) {
   let _ = ensure_decoders()
   let route = router.parse_route_from_url()
   let flags = transport.read_flags()
-  let #(client_context, client_context_effects) = client_context.init()
+  let #(ctx_model, ctx_effects) = client_context.init()
+  let current_path = router.route_to_path(route)
+  let client_context = case
+    codec.decode_flags(transport.read_client_context())
+  {
+    Ok(ctx) -> ctx
+    Error(_) -> ctx_model
+  }
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
-    Ok(model) -> #(hydrate_page(route, model), effect.none())
+    Ok(data) -> hydrate_page(route, data, client_context)
     Error(_) -> init_page(route, client_context)
   }
   #(
-    Model(route:, page_model:, connection: Disconnected, client_context:),
+    Model(
+      route:,
+      page_model:,
+      connection: Disconnected,
+      client_context:,
+      current_path:,
+    ),
     effect.batch([
       init_transport(),
       modem.init(fn(uri) { UrlChanged(router.parse_route(uri)) }),
-      effect.map(client_context_effects, ClientContextUpdate),
+      effect.map(ctx_effects, ClientContextUpdate),
       page_effects,
     ]),
   )
@@ -103,6 +118,36 @@ fn init_transport() -> Effect(Msg) {
         dispatch(TransportDisconnected(reason))
       })
 
+    let _ =
+      transport.register_push_handler("ArticleSlug", fn(raw) {
+        dispatch(
+          PageMsg(
+            ArticleSlugPageMsg(
+              pages_article_slug_.GotServerMsg(transport.coerce(raw)),
+            ),
+          ),
+        )
+      })
+    let _ =
+      transport.register_push_handler("EditorSlug", fn(raw) {
+        dispatch(
+          PageMsg(
+            EditorSlugPageMsg(
+              pages_editor_slug_.GotServerMsg(transport.coerce(raw)),
+            ),
+          ),
+        )
+      })
+    let _ =
+      transport.register_push_handler("ProfileUsername", fn(raw) {
+        dispatch(
+          PageMsg(
+            ProfileUsernamePageMsg(
+              pages_profile_username_.GotServerMsg(transport.coerce(raw)),
+            ),
+          ),
+        )
+      })
     let _ =
       transport.register_push_handler("__ClientContext__", fn(raw) {
         dispatch(ClientContextUpdate(transport.coerce(raw)))
@@ -176,18 +221,36 @@ fn init_page(
   }
 }
 
-fn hydrate_page(route: router.Route, model: a) -> PageModel {
+fn hydrate_page(
+  route: router.Route,
+  data: a,
+  _client_context: client_context.ClientContext,
+) -> #(PageModel, Effect(Msg)) {
   case route {
-    router.ArticleSlug(slug) -> ArticleSlugPageModel(transport.coerce(model))
-    router.EditorSlug(slug) -> EditorSlugPageModel(transport.coerce(model))
-    router.Editor -> EditorPageModel(transport.coerce(model))
-    router.Home -> HomePageModel(transport.coerce(model))
-    router.Login -> LoginPageModel(transport.coerce(model))
-    router.ProfileUsername(username) ->
-      ProfileUsernamePageModel(transport.coerce(model))
-    router.Register -> RegisterPageModel(transport.coerce(model))
-    router.Settings -> SettingsPageModel(transport.coerce(model))
-    _ -> NoPageModel
+    router.ArticleSlug(_slug) -> #(
+      ArticleSlugPageModel(transport.coerce(data)),
+      effect.none(),
+    )
+    router.EditorSlug(_slug) -> #(
+      EditorSlugPageModel(transport.coerce(data)),
+      effect.none(),
+    )
+    router.Editor -> #(EditorPageModel(transport.coerce(data)), effect.none())
+    router.Home -> #(HomePageModel(transport.coerce(data)), effect.none())
+    router.Login -> #(LoginPageModel(transport.coerce(data)), effect.none())
+    router.ProfileUsername(_username) -> #(
+      ProfileUsernamePageModel(transport.coerce(data)),
+      effect.none(),
+    )
+    router.Register -> #(
+      RegisterPageModel(transport.coerce(data)),
+      effect.none(),
+    )
+    router.Settings -> #(
+      SettingsPageModel(transport.coerce(data)),
+      effect.none(),
+    )
+    _ -> #(NoPageModel, effect.none())
   }
 }
 
@@ -233,13 +296,14 @@ fn update_page(
   page_model: PageModel,
   page_msg: PageMsg,
   client_context: client_context.ClientContext,
-) -> #(PageModel, Effect(Msg)) {
+) -> #(PageModel, Effect(Msg), Option(client_context.ClientContextMsg)) {
   case page_model, page_msg {
     ArticleSlugPageModel(m), ArticleSlugPageMsg(msg) -> {
       let #(new_m, e) = pages_article_slug_.update(client_context, m, msg)
       #(
         ArticleSlugPageModel(new_m),
         effect.map(e, fn(msg) { PageMsg(ArticleSlugPageMsg(msg)) }),
+        None,
       )
     }
     EditorSlugPageModel(m), EditorSlugPageMsg(msg) -> {
@@ -247,6 +311,7 @@ fn update_page(
       #(
         EditorSlugPageModel(new_m),
         effect.map(e, fn(msg) { PageMsg(EditorSlugPageMsg(msg)) }),
+        None,
       )
     }
     EditorPageModel(m), EditorPageMsg(msg) -> {
@@ -254,6 +319,7 @@ fn update_page(
       #(
         EditorPageModel(new_m),
         effect.map(e, fn(msg) { PageMsg(EditorPageMsg(msg)) }),
+        None,
       )
     }
     HomePageModel(m), HomePageMsg(msg) -> {
@@ -261,6 +327,7 @@ fn update_page(
       #(
         HomePageModel(new_m),
         effect.map(e, fn(msg) { PageMsg(HomePageMsg(msg)) }),
+        None,
       )
     }
     LoginPageModel(m), LoginPageMsg(msg) -> {
@@ -268,6 +335,7 @@ fn update_page(
       #(
         LoginPageModel(new_m),
         effect.map(e, fn(msg) { PageMsg(LoginPageMsg(msg)) }),
+        None,
       )
     }
     ProfileUsernamePageModel(m), ProfileUsernamePageMsg(msg) -> {
@@ -275,6 +343,7 @@ fn update_page(
       #(
         ProfileUsernamePageModel(new_m),
         effect.map(e, fn(msg) { PageMsg(ProfileUsernamePageMsg(msg)) }),
+        None,
       )
     }
     RegisterPageModel(m), RegisterPageMsg(msg) -> {
@@ -282,6 +351,7 @@ fn update_page(
       #(
         RegisterPageModel(new_m),
         effect.map(e, fn(msg) { PageMsg(RegisterPageMsg(msg)) }),
+        None,
       )
     }
     SettingsPageModel(m), SettingsPageMsg(msg) -> {
@@ -289,9 +359,10 @@ fn update_page(
       #(
         SettingsPageModel(new_m),
         effect.map(e, fn(msg) { PageMsg(SettingsPageMsg(msg)) }),
+        None,
       )
     }
-    _, _ -> #(page_model, effect.none())
+    _, _ -> #(page_model, effect.none(), None)
   }
 }
 
@@ -339,13 +410,30 @@ fn render_page(
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     UrlChanged(route) -> {
-      let #(page_model, page_effects) = init_page(route, model.client_context)
-      #(Model(..model, route:, page_model:), page_effects)
+      case route == model.route {
+        True -> #(model, effect.none())
+        False -> {
+          let current_path = router.route_to_path(route)
+          let #(page_model, page_effects) =
+            init_page(route, model.client_context)
+          #(Model(..model, route:, page_model:, current_path:), page_effects)
+        }
+      }
     }
     PageMsg(page_msg) -> {
-      let #(page_model, page_effects) =
+      let #(page_model, page_effects, ctx_msg) =
         update_page(model.page_model, page_msg, model.client_context)
-      #(Model(..model, page_model:), page_effects)
+      let #(new_client_context, ctx_effects) = case ctx_msg {
+        Some(cm) -> {
+          let #(cc, ce) = client_context.update(model.client_context, cm)
+          #(cc, effect.map(ce, ClientContextUpdate))
+        }
+        None -> #(model.client_context, effect.none())
+      }
+      #(
+        Model(..model, page_model:, client_context: new_client_context),
+        effect.batch([page_effects, ctx_effects]),
+      )
     }
     TransportConnected -> #(
       Model(..model, connection: Connected),
@@ -369,6 +457,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 fn view(model: Model) -> Element(Msg) {
   layout.layout(
     model.client_context,
+    ClientContextUpdate,
     html.div([attr.class("rally-app")], [
       render_page(model.page_model, model.client_context),
       connection_banner(model.connection),

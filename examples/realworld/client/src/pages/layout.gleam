@@ -4,7 +4,9 @@ import lustre/element.{type Element}
 
 import lustre/attribute as attr
 
-import client_context.{type ClientContext}
+import gleam/option.{None, Some}
+
+import client_context.{type ClientContext, type ClientContextMsg}
 
 fn footer_view() -> Element(msg) {
   html.footer([], [
@@ -52,6 +54,7 @@ fn nav(client_context: ClientContext) -> Element(msg) {
 
 pub fn layout(
   client_context: ClientContext,
+  _on_context_msg: fn(ClientContextMsg) -> msg,
   content: Element(msg),
 ) -> Element(msg) {
   html.div([], [

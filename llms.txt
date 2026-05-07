@@ -72,9 +72,12 @@ pub fn update(model, msg) {
 - `Model`/`Msg` and client functions are standard Lustre TEA
 - `server_*` functions run on the BEAM with full DB/session access
 - `load` is SSR data loading, runs server-side before first render
-- `ServerContext` is defined in `server_context.gleam`, holds server dependencies. Also hosts `from_session` for SSR hydration.
+- `ServerContext` is defined in `server_context.gleam`, holds server dependencies. Server-side client context hydration lives in `client_context_server.gleam` when present, otherwise Rally falls back to `server_context.gleam`.
 - `ClientContext` is defined in `client_context.gleam`, holds cross-page client state. Client-safe (no server imports).
-- `layout` wraps all pages if `src/pages/layout.gleam` exports `pub fn layout(client_context, content)`
+- `layout` wraps all pages if `src/pages/layout.gleam` exports `pub fn layout(client_context, on_context_msg, content)`
+- Each Rally codegen run resets `client_root/src` before writing the generated client package, so stale copied dependencies and old generated modules do not stay in the JS build.
+- Generated code is expected to compile quietly. Rally avoids predictable unused imports, unused RPC dispatch bindings, fieldless record update warnings, and dead `rally_runtime/effect` imports after client page rewriting.
+- Rally owns client `ClientMsg` generation for RPC calls. The generated codec registers constructor field type hints so whole-number floats nested in lists, dicts, options, results, and tuples encode as ETF floats when the Gleam type says `Float`.
 
 ### Effect primitives
 
@@ -115,9 +118,9 @@ Running `gleam run -m rally` produces:
 | `src/generated/page_dispatch.gleam` | `PageModel`/`PageMsg` unions plus per-route `init_page`, `update_page`, and `view_page` dispatch |
 | `src/generated/rpc_dispatch.gleam` | libero-generated RPC handler dispatch (pattern matches wire calls to server_ functions) |
 | `src/generated/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, inserts it at `<div id="app">`, embeds model as flags, returns HTML with `content-type: text/html` |
-| `src/generated/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery |
+| `src/generated/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery, inbound message logging |
 | `src/generated/http_handler.gleam` | HTTP RPC handler: POST /rpc with ETF body, calls rpc_dispatch, returns ETF response |
-| `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing |
+| `client/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing, page push handler registration |
 | `client/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, ETF codec |
 | `client/src/pages/*.gleam` | Per-page client modules: tree-shaken page source with types, init/update/view, and private helpers |
 | `client/src/rally_runtime/effect.gleam` | Client-side effect shim: rpc, navigate, send_to_client_context backed by transport |
@@ -181,6 +184,8 @@ Four-level server-to-client messaging using OTP `pg` process groups:
 - **Response frame:** `<<0x00, request_id:32, response_etf>>`: correlated response
 - **Push frame:** `<<0x01, {module_name, msg}_etf>>`: server to client push
 - **Transport:** WebSocket with auto-reconnect, or HTTP POST /rpc for non-WebSocket clients
+- **HTTP RPC:** scaffolded apps and the RealWorld example route `POST /rpc` to `generated/http_handler.handle`
+- **Page pushes:** generated clients register a push handler for pages whose `Msg` has a single-field `ToClient` wrapper, usually `GotServerMsg(ToClient)`
 - **SSR:** First request renders HTML with serialized model embedded as flags
 - **Hydration:** Client reads flags, boots Lustre, takes over as SPA
 
@@ -204,7 +209,7 @@ RPC responses show round-trip latency (e.g. `rpc #3 (12.4ms)`). Connection lifec
 - `window.__RALLY_DEBUG__ = false`: disable inspector in dev
 - `window.__RALLY_DEBUG__ = true`: enable inspector outside dev
 
-**Server-side:** All messages are logged to `system.messages` SQLite table with session ID, page, direction, variant name, raw ETF payload, and elapsed time.
+**Server-side:** All messages are logged to `system.messages` SQLite table with session ID, page, direction, variant name derived from the decoded inbound value, raw ETF payload, and elapsed time.
 
 ## Runtime Data
 
@@ -230,7 +235,7 @@ RPC responses show round-trip latency (e.g. `rpc #3 (12.4ms)`). Connection lifec
 Pages with a `load` function get server-side rendered on first request:
 
 1. The SSR handler calls `load(server_context)` to get the page `Model`
-2. If `server_context.gleam` exports `pub fn from_session(server_context, session_id)`, it's called to build a `ClientContext`
+2. If `client_context_server.gleam` or `server_context.gleam` exports `pub fn from_session(server_context, session_id, hostname)`, it's called to build `#(ClientContext, ServerContext)`
 3. The page's `view(client_context, model)` renders HTML, wrapped in layout if present
 4. The model is base64-ETF encoded and embedded as flags
 5. On the client, `init()` reads the flags for instant hydration

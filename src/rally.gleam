@@ -206,7 +206,10 @@ fn run() -> Result(String, String) {
         option.Some(config.atoms_module),
       )
   }
-  let sd_source = generator.normalize_rpc_dispatch_context_import(sd_source)
+  let sd_source =
+    sd_source
+    |> generator.normalize_rpc_dispatch_context_import
+    |> generator.normalize_rpc_dispatch_unused_fields
   use _ <- result.try(write_file(config.output_server_dispatch, sd_source))
 
   // 6. Generate SSR handler
@@ -381,6 +384,8 @@ fn run() -> Result(String, String) {
     client_root: config.client_root,
   ))
 
+  reset_generated_client_src(config.client_root)
+
   use _ <- result.try(
     write_generated_files(
       list.flatten([
@@ -411,6 +416,11 @@ fn run() -> Result(String, String) {
   }
 
   Ok(int.to_string(list.length(routes)) <> " routes")
+}
+
+fn reset_generated_client_src(client_root: String) -> Nil {
+  let _ = simplifile.delete_all(paths: [client_root <> "/src"])
+  Nil
 }
 
 /// Extract the last path segment of a module path for file lookup.

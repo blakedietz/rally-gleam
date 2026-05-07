@@ -217,7 +217,16 @@ fn extract_expr_refs(expr: glance.Expression) -> List(String) {
       list.append(
         list.flat_map(subjects, extract_expr_refs),
         list.flat_map(clauses, fn(c: glance.Clause) {
-          extract_expr_refs(c.body)
+          list.flatten([
+            list.flat_map(c.patterns, fn(patterns) {
+              list.flat_map(patterns, extract_pattern_refs)
+            }),
+            case c.guard {
+              Some(guard) -> extract_expr_refs(guard)
+              None -> []
+            },
+            extract_expr_refs(c.body),
+          ])
         }),
       )
     }
@@ -285,6 +294,44 @@ fn extract_expr_refs(expr: glance.Expression) -> List(String) {
     glance.Int(..) -> []
     glance.Float(..) -> []
     glance.String(..) -> []
+  }
+}
+
+fn extract_pattern_refs(pattern: glance.Pattern) -> List(String) {
+  case pattern {
+    glance.PatternVariant(module:, constructor:, arguments:, ..) -> {
+      let module_refs = case module {
+        Some(module) -> [module]
+        None -> []
+      }
+      list.flatten([
+        [constructor],
+        module_refs,
+        list.flat_map(arguments, fn(arg) {
+          case arg {
+            glance.LabelledField(item: p, ..) -> extract_pattern_refs(p)
+            glance.ShorthandField(..) -> []
+            glance.UnlabelledField(item: p) -> extract_pattern_refs(p)
+          }
+        }),
+      ])
+    }
+    glance.PatternTuple(elements:, ..) ->
+      list.flat_map(elements, extract_pattern_refs)
+    glance.PatternList(elements:, tail:, ..) ->
+      list.append(list.flat_map(elements, extract_pattern_refs), case tail {
+        Some(tail) -> extract_pattern_refs(tail)
+        None -> []
+      })
+    glance.PatternAssignment(pattern:, ..) -> extract_pattern_refs(pattern)
+    glance.PatternBitString(segments:, ..) ->
+      list.flat_map(segments, fn(segment) { extract_pattern_refs(segment.0) })
+    glance.PatternInt(..) -> []
+    glance.PatternFloat(..) -> []
+    glance.PatternString(..) -> []
+    glance.PatternDiscard(..) -> []
+    glance.PatternVariable(..) -> []
+    glance.PatternConcatenate(..) -> []
   }
 }
 
@@ -406,10 +453,7 @@ fn extract_statement_all_refs(stmt: glance.Statement) -> List(String) {
 fn extract_expr_all_refs(expr: glance.Expression) -> List(String) {
   case expr {
     glance.Variable(name:, ..) -> [name]
-    glance.FieldAccess(container: glance.Variable(name:, ..), label:, ..) -> [
-      name,
-      label,
-    ]
+    glance.FieldAccess(container: glance.Variable(name:, ..), ..) -> [name]
     glance.FieldAccess(container:, ..) -> extract_expr_all_refs(container)
     glance.Call(function:, arguments:, ..) ->
       list.append(
@@ -429,7 +473,16 @@ fn extract_expr_all_refs(expr: glance.Expression) -> List(String) {
       list.append(
         list.flat_map(subjects, extract_expr_all_refs),
         list.flat_map(clauses, fn(c: glance.Clause) {
-          extract_expr_all_refs(c.body)
+          list.flatten([
+            list.flat_map(c.patterns, fn(patterns) {
+              list.flat_map(patterns, extract_pattern_refs)
+            }),
+            case c.guard {
+              Some(guard) -> extract_expr_all_refs(guard)
+              None -> []
+            },
+            extract_expr_all_refs(c.body),
+          ])
         }),
       )
     glance.Tuple(elements:, ..) ->

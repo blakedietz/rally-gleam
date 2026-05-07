@@ -6,6 +6,7 @@ import gleeunit/should
 import rally/generator
 import rally/generator/client
 import rally/generator/ssr_handler
+import rally/generator/ws_handler
 import rally/types.{
   type ScanConfig, PageContract, ScanConfig, ScannedRoute, StaticSegment,
 }
@@ -32,6 +33,25 @@ pub fn rpc_dispatch_context_import_is_local_test() {
 
   output
   |> should.equal("import server_context.{type ServerContext}\n")
+}
+
+pub fn rpc_dispatch_unused_fields_are_underscored_test() {
+  let output =
+    generator.normalize_rpc_dispatch_unused_fields(
+      "            ServerLogin(email:, password:) -> {\n              Nil\n            }\n            ServerLogout -> {\n              Nil\n            }\n",
+    )
+
+  output
+  |> string.contains("ServerLogin(email: _, password: _) -> {")
+  |> should.equal(True)
+
+  output
+  |> string.contains("ServerLogin(email:, password:) -> {")
+  |> should.equal(False)
+
+  output
+  |> string.contains("ServerLogout -> {")
+  |> should.equal(True)
 }
 
 pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
@@ -77,6 +97,73 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
 
   script
   |> string.contains("pub fn view(model: Model)")
+  |> should.equal(True)
+}
+
+pub fn scaffold_routes_http_rpc_test() {
+  let assert Ok(script) = simplifile.read("bin/new")
+
+  script
+  |> string.contains("import generated/http_handler")
+  |> should.equal(True)
+
+  script
+  |> string.contains("\"/rpc\" ->")
+  |> should.equal(True)
+
+  script
+  |> string.contains("mist.read_body(req, max_body_limit: 16_000_000)")
+  |> should.equal(True)
+
+  script
+  |> string.contains("http_handler.handle(body, server_context)")
+  |> should.equal(True)
+}
+
+pub fn realworld_routes_http_rpc_test() {
+  let assert Ok(source) =
+    simplifile.read("examples/realworld/src/curling.gleam")
+
+  source
+  |> string.contains("import generated/http_handler")
+  |> should.equal(True)
+
+  source
+  |> string.contains("\"/rpc\" ->")
+  |> should.equal(True)
+
+  source
+  |> string.contains("mist.read_body(req, max_body_limit: 16_000_000)")
+  |> should.equal(True)
+
+  source
+  |> string.contains("http_handler.handle(body, server_context)")
+  |> should.equal(True)
+}
+
+pub fn ws_handler_logs_decoded_rpc_value_test() {
+  let output = ws_handler.generate([], "generated@rpc_atoms")
+
+  output
+  |> string.contains(
+    "system.log_to_server(system.get_conn(), session_id, Error(Nil), current_page, raw, data, elapsed_ms)",
+  )
+  |> should.equal(True)
+
+  output
+  |> string.contains("dynamic.nil()")
+  |> should.equal(False)
+}
+
+pub fn codegen_resets_generated_client_src_test() {
+  let assert Ok(source) = simplifile.read("src/rally.gleam")
+
+  source
+  |> string.contains("reset_generated_client_src(config.client_root)")
+  |> should.equal(True)
+
+  source
+  |> string.contains("simplifile.delete_all(paths: [client_root <> \"/src\"])")
   |> should.equal(True)
 }
 

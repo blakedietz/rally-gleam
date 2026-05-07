@@ -58,6 +58,11 @@ fn send_page_init_raw(url: String, page: String, params: a) -> Nil
 @external(javascript, "./rpc_ffi.mjs", "read_flags")
 pub fn read_flags() -> String
 
+/// Read the server-provided ClientContext from SSR flags.
+/// Returns empty string if not present.
+@external(javascript, "./rpc_ffi.mjs", "read_client_context")
+pub fn read_client_context() -> String
+
 /// Type-level identity cast. The JS runtime representation is unchanged;
 /// this lets generated code bridge between Dynamic/generic and concrete types
 /// where the value is already the correct shape (decoded ETF, SSR flags).
