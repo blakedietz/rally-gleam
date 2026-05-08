@@ -265,3 +265,43 @@ pub fn javascript_external_passes_test() {
     )
   list.length(files) |> should.equal(1)
 }
+
+// Test 14: ffi files copied alongside local modules
+pub fn ffi_file_copied_test() {
+  let dir = make_temp_dir("ffi_copy")
+  let src = dir <> "/src"
+  write_file(src <> "/widget.gleam", "pub fn render() { Nil }\n")
+  write_file(src <> "/widget_ffi.mjs", "export function doThing() {}")
+  let seed = "import widget\npub fn init() { widget.render() }\n"
+  let assert Ok(files) =
+    dependency_resolver.resolve(
+      seed_sources: [#("pages/home_", seed)],
+      src_root: src,
+      client_root: dir <> "/client",
+    )
+  list.length(files) |> should.equal(2)
+  let paths = list.map(files, fn(f) { f.path })
+  paths
+  |> list.contains(dir <> "/client/src/widget.gleam")
+  |> should.be_true()
+  paths
+  |> list.contains(dir <> "/client/src/widget_ffi.mjs")
+  |> should.be_true()
+}
+
+// Test 15: no ffi file when sibling doesn't exist
+pub fn no_ffi_file_when_missing_test() {
+  let dir = make_temp_dir("no_ffi")
+  let src = dir <> "/src"
+  write_file(src <> "/plain.gleam", "pub fn go() { Nil }\n")
+  let seed = "import plain\npub fn init() { plain.go() }\n"
+  let assert Ok(files) =
+    dependency_resolver.resolve(
+      seed_sources: [#("pages/home_", seed)],
+      src_root: src,
+      client_root: dir <> "/client",
+    )
+  list.length(files) |> should.equal(1)
+  let assert Ok(file) = list.first(files)
+  file.path |> should.equal(dir <> "/client/src/plain.gleam")
+}

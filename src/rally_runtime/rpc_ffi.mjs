@@ -996,9 +996,7 @@ export function decode_safe(buffer) {
 
 function debugEnabled() {
   if (typeof window === "undefined") return false;
-  if (window.__RALLY_DEBUG__ !== undefined) return window.__RALLY_DEBUG__;
-  const appEnv = window.__APP_ENV__;
-  return appEnv === "dev" || appEnv === "development";
+  return window.__RALLY_DEBUG__ === true;
 }
 
 function formatRaw(value, depth = 0) {

@@ -54,7 +54,7 @@ pub fn shake(
       let client_type_aliases =
         filter_type_aliases(ast.type_aliases, server_set, client_refs)
       let client_constants =
-        filter_constants(ast.constants, all_client_fn_names, ast)
+        filter_constants(ast.constants, client_refs)
       let client_functions =
         extract_client_functions(ast, all_client_fn_names, source)
 
@@ -350,7 +350,7 @@ fn collect_all_client_refs(
     })
 
   let body_refs =
-    list.flat_map(client_fns, fn(def) { extract_all_refs(def.definition) })
+    list.flat_map(client_fns, fn(def) { extract_fn_references(def.definition) })
 
   let sig_refs =
     list.flat_map(client_fns, fn(def) {
@@ -434,120 +434,6 @@ fn extract_type_refs(t: glance.Type) -> List(String) {
   }
 }
 
-/// Extract all referenced names from a function: both expression refs and
-/// module names from field access (e.g. "auth_sql" from "auth_sql.find").
-fn extract_all_refs(f: glance.Function) -> List(String) {
-  f.body
-  |> list.flat_map(extract_statement_all_refs)
-}
-
-fn extract_statement_all_refs(stmt: glance.Statement) -> List(String) {
-  case stmt {
-    glance.Use(_, _, expr) -> extract_expr_all_refs(expr)
-    glance.Assignment(value: expr, ..) -> extract_expr_all_refs(expr)
-    glance.Assert(expression: expr, ..) -> extract_expr_all_refs(expr)
-    glance.Expression(expr) -> extract_expr_all_refs(expr)
-  }
-}
-
-fn extract_expr_all_refs(expr: glance.Expression) -> List(String) {
-  case expr {
-    glance.Variable(name:, ..) -> [name]
-    glance.FieldAccess(container: glance.Variable(name:, ..), ..) -> [name]
-    glance.FieldAccess(container:, ..) -> extract_expr_all_refs(container)
-    glance.Call(function:, arguments:, ..) ->
-      list.append(
-        extract_expr_all_refs(function),
-        list.flat_map(arguments, fn(a) {
-          case a {
-            glance.LabelledField(item: v, ..) -> extract_expr_all_refs(v)
-            glance.ShorthandField(..) -> []
-            glance.UnlabelledField(item: v) -> extract_expr_all_refs(v)
-          }
-        }),
-      )
-    glance.Fn(body:, ..) -> list.flat_map(body, extract_statement_all_refs)
-    glance.Block(statements:, ..) ->
-      list.flat_map(statements, extract_statement_all_refs)
-    glance.Case(subjects:, clauses:, ..) ->
-      list.append(
-        list.flat_map(subjects, extract_expr_all_refs),
-        list.flat_map(clauses, fn(c: glance.Clause) {
-          list.flatten([
-            list.flat_map(c.patterns, fn(patterns) {
-              list.flat_map(patterns, extract_pattern_refs)
-            }),
-            case c.guard {
-              Some(guard) -> extract_expr_all_refs(guard)
-              None -> []
-            },
-            extract_expr_all_refs(c.body),
-          ])
-        }),
-      )
-    glance.Tuple(elements:, ..) ->
-      list.flat_map(elements, extract_expr_all_refs)
-    glance.List(elements:, rest:, ..) ->
-      list.append(list.flat_map(elements, extract_expr_all_refs), case rest {
-        Some(r) -> extract_expr_all_refs(r)
-        None -> []
-      })
-    glance.RecordUpdate(record:, fields:, ..) ->
-      list.append(
-        extract_expr_all_refs(record),
-        list.flat_map(fields, fn(f) {
-          case f.item {
-            Some(v) -> extract_expr_all_refs(v)
-            None -> []
-          }
-        }),
-      )
-    glance.BinaryOperator(left:, right:, ..) ->
-      list.append(extract_expr_all_refs(left), extract_expr_all_refs(right))
-    glance.NegateInt(value:, ..) -> extract_expr_all_refs(value)
-    glance.NegateBool(value:, ..) -> extract_expr_all_refs(value)
-    glance.Panic(message:, ..) ->
-      case message {
-        Some(v) -> extract_expr_all_refs(v)
-        None -> []
-      }
-    glance.Todo(message:, ..) ->
-      case message {
-        Some(v) -> extract_expr_all_refs(v)
-        None -> []
-      }
-    glance.TupleIndex(tuple:, ..) -> extract_expr_all_refs(tuple)
-    glance.FnCapture(function:, arguments_before:, arguments_after:, ..) ->
-      list.flatten([
-        extract_expr_all_refs(function),
-        list.flat_map(arguments_before, fn(a) {
-          case a {
-            glance.LabelledField(item: v, ..) -> extract_expr_all_refs(v)
-            glance.ShorthandField(..) -> []
-            glance.UnlabelledField(item: v) -> extract_expr_all_refs(v)
-          }
-        }),
-        list.flat_map(arguments_after, fn(a) {
-          case a {
-            glance.LabelledField(item: v, ..) -> extract_expr_all_refs(v)
-            glance.ShorthandField(..) -> []
-            glance.UnlabelledField(item: v) -> extract_expr_all_refs(v)
-          }
-        }),
-      ])
-    glance.BitString(segments:, ..) ->
-      list.flat_map(segments, fn(seg) { extract_expr_all_refs(seg.0) })
-    glance.Echo(expression:, ..) ->
-      case expression {
-        Some(v) -> extract_expr_all_refs(v)
-        None -> []
-      }
-    glance.Int(..) -> []
-    glance.Float(..) -> []
-    glance.String(..) -> []
-  }
-}
-
 fn filter_imports(
   imports: List(glance.Definition(glance.Import)),
   server_symbols: Set(String),
@@ -627,10 +513,11 @@ fn filter_type_aliases(
 
 fn filter_constants(
   constants: List(glance.Definition(glance.Constant)),
-  _client_fn_names: Set(String),
-  _ast: glance.Module,
+  client_refs: Set(String),
 ) -> List(glance.Definition(glance.Constant)) {
-  constants
+  list.filter(constants, fn(def) {
+    set.contains(client_refs, def.definition.name)
+  })
 }
 
 fn extract_client_functions(

@@ -501,6 +501,54 @@ pub fn server_get_name(msg: ServerGetName, server_context: ServerContext) -> Res
   result |> string.contains("rally_effect.rpc") |> should.be_true()
 }
 
+// -- Test: constants used by client code survive, unused ones are stripped --
+
+pub fn keeps_client_referenced_constant_test() {
+  let source =
+    "pub type Model { Model(count: Int) }
+pub type Msg { NoOp }
+
+const items_per_page = 20
+const admin_key = \"secret-token\"
+
+pub fn view(model: Model) -> Element(Msg) {
+  html.text(int.to_string(items_per_page))
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  result |> string.contains("items_per_page") |> should.be_true()
+  result |> string.contains("admin_key") |> should.be_false()
+}
+
+// -- Test: constants only used by server code are stripped --
+
+pub fn strips_server_only_constant_test() {
+  let source =
+    "import server_context.{type ServerContext}
+
+pub type Model { Model }
+pub type Msg { NoOp }
+
+const db_table = \"users\"
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model, effect.none())
+}
+
+pub fn server_lookup(msg: ServerLookup, server_context: ServerContext) -> String {
+  db_table
+}
+"
+
+  let result =
+    tree_shaker.shake(source, server_symbols: ["ServerContext", "ServerLookup"])
+
+  result |> string.contains("db_table") |> should.be_false()
+  result |> string.contains("pub fn init()") |> should.be_true()
+}
+
 pub fn drops_rpc_import_used_only_by_removed_server_functions_test() {
   let source =
     "import rally_runtime/effect as rally_effect
