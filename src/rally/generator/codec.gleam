@@ -358,7 +358,7 @@ fn emit_codec_ffi_with_endpoints(
     <> "../../gleam_stdlib/gleam/option.mjs\";\n"
     <> "import { from_list as dictFromList } from \""
     <> "../../gleam_stdlib/gleam/dict.mjs\";\n"
-    <> "import { registerFieldTypes } from \"./rpc_ffi.mjs\";\n"
+    <> "import { registerTypedDecoder, registerFieldTypes } from \"./rpc_ffi.mjs\";\n"
 
   let ctor_setters =
     "setResultCtors(Ok, ResultError);\n"

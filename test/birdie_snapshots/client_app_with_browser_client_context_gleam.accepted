@@ -73,7 +73,7 @@ fn init(_flags: Nil) -> #(Model, Effect(Msg)) {
   let #(ctx_model, ctx_effects) = client_context.init()
   let current_path = router.route_to_path(route)
   let client_context = case codec.decode_flags(transport.read_client_context()) {
-    Ok(ctx) -> ctx
+    Ok(ctx) -> transport.apply_typed_decoder(ctx, "decode_client_context_client_context")
     Error(_) -> ctx_model
   }
   let client_context = client_context.ClientContext(
@@ -124,9 +124,9 @@ fn init_page(route: router.Route, client_context: client_context.ClientContext) 
 
 fn hydrate_page(route: router.Route, data: a, _client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {
   case route {
-    router.Home -> #(HomePageModel(transport.coerce(data)), effect.none())
-    router.About -> #(AboutPageModel(transport.coerce(data)), effect.none())
-    router.UsersId(_id) -> #(UsersIdPageModel(transport.coerce(data)), effect.none())
+    router.Home -> #(HomePageModel(transport.apply_typed_decoder(data, "decode_pages_home__model")), effect.none())
+    router.About -> #(AboutPageModel(transport.apply_typed_decoder(data, "decode_pages_about_model")), effect.none())
+    router.UsersId(_id) -> #(UsersIdPageModel(transport.apply_typed_decoder(data, "decode_pages_users_id__model")), effect.none())
     _ -> #(NoPageModel, effect.none())
   }
 }

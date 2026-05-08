@@ -403,7 +403,7 @@ pub fn client_app_uses_hydrate_context_when_init_loaded_needs_it_test() {
 
   file.content
   |> string.contains(
-    "pages_home_.init_loaded(client_context, transport.coerce(data))",
+    "pages_home_.init_loaded(client_context, transport.apply_typed_decoder(data, \"decode_pages_home__model\"))",
   )
   |> should.equal(True)
 

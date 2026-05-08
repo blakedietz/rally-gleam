@@ -284,6 +284,12 @@ pub fn decode(data: BitArray) -> a
 @external(javascript, \"./rpc_ffi.mjs\", \"decode_safe\")
 pub fn decode_safe(data: BitArray) -> Result(a, DecodeError)
 
+/// Apply a typed decoder to a raw ETF-decoded value.
+/// The decoder_name is the function name in codec_ffi.mjs
+/// (e.g. \"decode_client_context_client_context\").
+@external(javascript, \"./rpc_ffi.mjs\", \"decodeTyped\")
+pub fn apply_typed_decoder(value: a, decoder_name: String) -> b
+
 /// Send a ToServer message to the server.
 /// Encodes the message and sends it over the WebSocket.
 pub fn send_to_server(page: String, msg: a) -> Nil {
@@ -456,12 +462,19 @@ fn app_gleam(
 
   let modem_init = "modem.init(fn(uri) { UrlChanged(router.parse_route(uri)) })"
 
+  let ctx_decoder_name =
+    "decode_"
+    <> string.replace(client_context_module, "/", "_")
+    <> "_client_context"
+
   let ctx_init = case has_client_context {
     True -> "  let flags = transport.read_flags()
   let #(ctx_model, ctx_effects) = client_context.init()
   let current_path = router.route_to_path(route)
   let client_context = case codec.decode_flags(transport.read_client_context()) {
-    Ok(ctx) -> ctx
+    Ok(ctx) -> transport.apply_typed_decoder(ctx, \""
+    <> ctx_decoder_name
+    <> "\")
     Error(_) -> ctx_model
   }
 " <> init_context_overlay <> "  let #(page_model, page_effects) = case codec.decode_flags(flags) {
@@ -904,10 +917,11 @@ fn generate_hydrate_page(
         Ok(contract) if contract.has_model && contract.has_init_loaded -> {
           let alias = page_module_alias(route)
           let pattern = route_pattern_ignored(route)
+          let decoder_name = page_model_decoder_name(route.module_path)
           let call_args = case has_client_context {
             True ->
-              "(" <> hydrate_client_context_name <> ", transport.coerce(data))"
-            False -> "(transport.coerce(data))"
+              "(" <> hydrate_client_context_name <> ", transport.apply_typed_decoder(data, \"" <> decoder_name <> "\"))"
+            False -> "(transport.apply_typed_decoder(data, \"" <> decoder_name <> "\"))"
           }
           Ok(
             "    "
@@ -928,12 +942,13 @@ fn generate_hydrate_page(
         }
         Ok(contract) if contract.has_model -> {
           let pattern = route_pattern_ignored(route)
+          let decoder_name = page_model_decoder_name(route.module_path)
           Ok(
             "    "
             <> pattern
             <> " -> #("
             <> route.variant_name
-            <> "PageModel(transport.coerce(data)), effect.none())",
+            <> "PageModel(transport.apply_typed_decoder(data, \"" <> decoder_name <> "\")), effect.none())",
           )
         }
         _ -> Error(Nil)
@@ -1160,6 +1175,10 @@ fn generate_render_page(
 ///      "pages/article/slug_" -> import alias "pages_article_slug_"
 fn page_module_alias(route: ScannedRoute) -> String {
   string.replace(route.module_path, "/", "_")
+}
+
+fn page_model_decoder_name(module_path: String) -> String {
+  "decode_" <> string.replace(module_path, "/", "_") <> "_model"
 }
 
 fn last_segment(module_path: String) -> String {
