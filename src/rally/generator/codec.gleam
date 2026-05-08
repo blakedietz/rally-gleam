@@ -12,6 +12,7 @@ import gleam/dict
 import gleam/int
 import gleam/list
 import gleam/option
+import gleam/result
 import gleam/set
 import gleam/string
 import libero/codegen
@@ -25,6 +26,67 @@ import rally/types.{type PageContract, type ScannedRoute}
 
 pub type CodecFile {
   CodecFile(path: String, content: String)
+}
+
+/// One atom-name collision: an ETF atom that more than one Gleam type
+/// would register under. Because the JS constructor registry is keyed
+/// by atom name, late-registered constructors silently overwrite
+/// earlier ones, so pages decoding the loser get malformed records.
+pub type AtomCollision {
+  AtomCollision(atom_name: String, modules: List(String))
+}
+
+/// Find ETF atom-name collisions across discovered types.
+///
+/// Two Gleam variants in different modules with the same name (e.g.
+/// `pub type Discount { Discount(...) }` in two pages) compile to
+/// records with the same atom on the wire, and the JS constructor
+/// registry can only hold one mapping per atom. This is a build-time
+/// error, not a fixable runtime concern; surface it before generation
+/// so the user can rename one side.
+pub fn find_atom_collisions(
+  types: List(DiscoveredType),
+) -> List(AtomCollision) {
+  let buckets =
+    list.flat_map(types, fn(t) { t.variants })
+    |> list.fold(dict.new(), fn(acc, v) {
+      let existing = dict.get(acc, v.atom_name) |> result.unwrap([])
+      case list.contains(existing, v.module_path) {
+        True -> acc
+        False -> dict.insert(acc, v.atom_name, [v.module_path, ..existing])
+      }
+    })
+
+  buckets
+  |> dict.to_list
+  |> list.filter_map(fn(entry) {
+    let #(atom_name, modules) = entry
+    case modules {
+      [_, _, ..] ->
+        Ok(AtomCollision(atom_name:, modules: list.sort(modules, string.compare)))
+      _ -> Error(Nil)
+    }
+  })
+  |> list.sort(fn(a, b) { string.compare(a.atom_name, b.atom_name) })
+}
+
+/// Build a human-readable error message from a list of collisions.
+/// Used by the build pipeline to surface collisions before codegen.
+pub fn format_collisions(collisions: List(AtomCollision)) -> String {
+  let blocks =
+    list.map(collisions, fn(c) {
+      let module_lines =
+        list.map(c.modules, fn(m) { "    - " <> m })
+        |> string.join("\n")
+      "  atom \"" <> c.atom_name <> "\" registered by:\n" <> module_lines
+    })
+    |> string.join("\n\n")
+
+  "ETF atom-name collisions detected in client wire types.\n"
+  <> "Two or more Gleam types compile to the same atom on the wire,\n"
+  <> "which the JS constructor registry cannot disambiguate.\n"
+  <> "Rename one side of each collision so each variant has a unique name.\n\n"
+  <> blocks
 }
 
 /// Generate all codec files for the client package.

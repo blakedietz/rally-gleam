@@ -9,6 +9,167 @@ import rally/generator/codec
 import rally/types.{PageContract, ScannedRoute}
 import simplifile
 
+pub fn find_atom_collisions_returns_empty_when_all_atoms_unique_test() {
+  let discovered = [
+    DiscoveredType(
+      module_path: "pages/admin/foo",
+      type_name: "Foo",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "pages/admin/foo",
+          variant_name: "Foo",
+          atom_name: "foo",
+          float_field_indices: [],
+          fields: [field_type.IntField],
+        ),
+      ],
+    ),
+    DiscoveredType(
+      module_path: "pages/admin/bar",
+      type_name: "Bar",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "pages/admin/bar",
+          variant_name: "Bar",
+          atom_name: "bar",
+          float_field_indices: [],
+          fields: [field_type.StringField],
+        ),
+      ],
+    ),
+  ]
+
+  let assert [] = codec.find_atom_collisions(discovered)
+}
+
+pub fn find_atom_collisions_reports_two_modules_sharing_an_atom_test() {
+  let discovered = [
+    DiscoveredType(
+      module_path: "pages/admin/registration/discounts",
+      type_name: "Discount",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "pages/admin/registration/discounts",
+          variant_name: "Discount",
+          atom_name: "discount",
+          float_field_indices: [],
+          fields: [field_type.IntField],
+        ),
+      ],
+    ),
+    DiscoveredType(
+      module_path: "pages/admin/registration/discounts/id_",
+      type_name: "Discount",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "pages/admin/registration/discounts/id_",
+          variant_name: "Discount",
+          atom_name: "discount",
+          float_field_indices: [],
+          fields: [field_type.IntField, field_type.StringField],
+        ),
+      ],
+    ),
+  ]
+
+  let assert [collision] = codec.find_atom_collisions(discovered)
+  let assert "discount" = collision.atom_name
+  let assert True =
+    list.contains(collision.modules, "pages/admin/registration/discounts")
+  let assert True =
+    list.contains(collision.modules, "pages/admin/registration/discounts/id_")
+}
+
+pub fn find_atom_collisions_reports_multiple_distinct_collisions_test() {
+  let discovered = [
+    DiscoveredType(
+      module_path: "pages/foo",
+      type_name: "Item",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "pages/foo",
+          variant_name: "Item",
+          atom_name: "item",
+          float_field_indices: [],
+          fields: [],
+        ),
+      ],
+    ),
+    DiscoveredType(
+      module_path: "pages/bar",
+      type_name: "Item",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "pages/bar",
+          variant_name: "Item",
+          atom_name: "item",
+          float_field_indices: [],
+          fields: [],
+        ),
+      ],
+    ),
+    DiscoveredType(
+      module_path: "pages/baz",
+      type_name: "Tag",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "pages/baz",
+          variant_name: "Tag",
+          atom_name: "tag",
+          float_field_indices: [],
+          fields: [],
+        ),
+      ],
+    ),
+    DiscoveredType(
+      module_path: "pages/qux",
+      type_name: "Tag",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "pages/qux",
+          variant_name: "Tag",
+          atom_name: "tag",
+          float_field_indices: [],
+          fields: [],
+        ),
+      ],
+    ),
+  ]
+
+  let collisions = codec.find_atom_collisions(discovered)
+  let assert 2 = list.length(collisions)
+  let atoms = list.map(collisions, fn(c) { c.atom_name })
+  let assert True = list.contains(atoms, "item")
+  let assert True = list.contains(atoms, "tag")
+}
+
+pub fn format_collisions_error_lists_atom_and_each_module_test() {
+  let collisions = [
+    codec.AtomCollision(
+      atom_name: "discount",
+      modules: [
+        "pages/admin/registration/discounts",
+        "pages/admin/registration/discounts/id_",
+      ],
+    ),
+  ]
+  let msg = codec.format_collisions(collisions)
+
+  let assert True = string.contains(msg, "discount")
+  let assert True =
+    string.contains(msg, "pages/admin/registration/discounts")
+  let assert True =
+    string.contains(msg, "pages/admin/registration/discounts/id_")
+}
+
 pub fn duplicate_constructor_names_get_aliased_imports_test() {
   let discovered = [
     DiscoveredType(

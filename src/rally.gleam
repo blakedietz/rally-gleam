@@ -386,6 +386,10 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
       })
     option.None -> Ok(option.None)
   })
+  use Nil <- result.try(case codec.find_atom_collisions(discovered) {
+    [] -> Ok(Nil)
+    collisions -> Error(codec.format_collisions(collisions))
+  })
   let raw_codec_files =
     codec.generate(
       contracts,
