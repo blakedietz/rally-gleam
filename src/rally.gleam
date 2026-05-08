@@ -124,6 +124,8 @@ fn read_client_config(
       <> "/rpc_dispatch.gleam",
     output_server_atoms: "src/generated@" <> namespace <> "@rpc_atoms.erl",
     atoms_module: "generated@" <> namespace <> "@rpc_atoms",
+    output_server_wire: "src/generated@" <> namespace <> "@rpc_wire.erl",
+    wire_module: "generated@" <> namespace <> "@rpc_wire",
     output_ssr: "src/generated/" <> namespace <> "/ssr_handler.gleam",
     output_ws: "src/generated/" <> namespace <> "/ws_handler.gleam",
     output_http: "src/generated/" <> namespace <> "/http_handler.gleam",
@@ -156,6 +158,7 @@ fn read_legacy_config(
     tom.get_string(rally_config, ["output_server_atoms"])
     |> result.unwrap("src/generated@rpc_atoms.erl")
   let atoms_module = "generated@rpc_atoms"
+  let wire_module = "generated@rpc_wire"
   let output_ssr =
     tom.get_string(rally_config, ["output_ssr"])
     |> result.unwrap("src/generated/ssr_handler.gleam")
@@ -182,6 +185,8 @@ fn read_legacy_config(
     output_server_dispatch:,
     output_server_atoms:,
     atoms_module:,
+    output_server_wire: "src/generated@rpc_wire.erl",
+    wire_module:,
     output_ssr:,
     output_ws:,
     output_http:,
@@ -289,6 +294,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       libero.generate_dispatch(
         handler_endpoints,
         option.Some(config.atoms_module),
+        option.Some(config.wire_module),
       )
   }
   let sd_source =
@@ -366,6 +372,18 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     libero.generate_atoms(handler_endpoints, discovered, config.atoms_module)
   use _ <- result.try(
     write_file(config.output_server_atoms, atoms_erl)
+    |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
+  )
+
+  let wire_erl = case libero.generate_wire_erl(discovered:, wire_module: config.wire_module) {
+    Ok(src) -> src
+    Error(err) -> {
+      gen_error.print_error(err)
+      ""
+    }
+  }
+  use _ <- result.try(
+    write_file(config.output_server_wire, wire_erl)
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
   )
 
@@ -683,8 +701,8 @@ fn collect_server_symbols(
 ) -> List(String) {
   let handler_type_names =
     list.filter_map(endpoints, fn(e) {
-      case e.msg_type_name {
-        option.Some(name) -> Ok(name)
+      case e.msg_type {
+        option.Some(#(_module_path, name)) -> Ok(name)
         option.None -> Error(Nil)
       }
     })

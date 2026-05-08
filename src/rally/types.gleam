@@ -31,6 +31,8 @@ pub type ScanConfig {
     output_server_dispatch: String,
     output_server_atoms: String,
     atoms_module: String,
+    output_server_wire: String,
+    wire_module: String,
     output_ssr: String,
     output_ws: String,
     output_http: String,
