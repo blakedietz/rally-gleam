@@ -306,6 +306,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
       from_session_module,
       router_module,
       shell_html,
+      config.atoms_module,
     )
   use _ <- result.try(write_file(config.output_ssr, ssr_source))
 
