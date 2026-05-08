@@ -53,7 +53,8 @@ fn generate_frame_handler() -> String {
         Ok(#(page, request_id, _value)) if request_id == 0 -> {
           debug_log(\"[rally:ws] page_init: \" <> page)
           let old_page = effect.get_ws_page()
-          let _ = effect.put_ws_state(conn, effect.get_stored_server_context(), page)
+          let assert Ok(server_context) = effect.get_stored_server_context()
+          let _ = effect.put_ws_state(conn, server_context, page)
           case old_page {
             \"\" -> Nil
             _ -> topics.leave(\"page:\" <> old_page)
@@ -66,7 +67,7 @@ fn generate_frame_handler() -> String {
         }
         Ok(#(_page, request_id, raw)) -> {
           debug_log(\"[rally:ws] RPC: request_id=\" <> int.to_string(request_id))
-          let server_context = effect.get_stored_server_context()
+          let assert Ok(server_context) = effect.get_stored_server_context()
           let current_page = effect.get_ws_page()
           let start = timestamp.system_time()
           let #(response_data, new_ctx) = rpc_dispatch.handle(server_context:, data:)
@@ -75,7 +76,8 @@ fn generate_frame_handler() -> String {
             |> duration.to_milliseconds()
 
           let session_id = effect.get_ws_session()
-          system.log_to_server(system.get_conn(), session_id, Error(Nil), current_page, raw, data, elapsed_ms)
+          let assert Ok(db_conn) = system.get_conn()
+          system.log_to_server(db_conn, session_id, Error(Nil), current_page, raw, data, elapsed_ms)
 
           let _ = effect.put_ws_state(conn, new_ctx, current_page)
           let _ = mist.send_binary_frame(conn, response_data)
