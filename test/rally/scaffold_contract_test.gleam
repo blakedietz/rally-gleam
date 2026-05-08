@@ -173,7 +173,7 @@ pub fn ws_handler_logs_decoded_rpc_value_test() {
 
   output
   |> string.contains(
-    "system.log_to_server(system.get_conn(), session_id, Error(Nil), current_page, raw, data, elapsed_ms)",
+    "system.log_to_server(db: db_conn, session_id: session_id, user_id: Error(Nil), page: current_page, value: raw, raw_payload: data, elapsed_ms: elapsed_ms)",
   )
   |> should.equal(True)
 
@@ -274,6 +274,10 @@ pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
       "server_context",
       "generated/router",
       "<html><head></head><body><div id=\"app\"></div></body></html>",
+      "generated/public/rpc_atoms",
+      "generated@rpc_wire",
+      "client_context",
+      [],
     )
 
   output
@@ -326,6 +330,10 @@ pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
       "server_context",
       "generated/router",
       "<html><head></head><body><main></main></body></html>",
+      "generated/public/rpc_atoms",
+      "generated@rpc_wire",
+      "client_context",
+      [],
     )
 
   output
@@ -366,6 +374,10 @@ pub fn ssr_app_marker_preserves_tag_order_test() {
       "server_context",
       "generated/router",
       "<html><head></head><body><main class=\"root\" id = \"app\"></main></body></html>",
+      "generated/public/rpc_atoms",
+      "generated@rpc_wire",
+      "client_context",
+      [],
     )
 
   output
@@ -385,6 +397,8 @@ fn test_scan_config() -> ScanConfig {
     output_server_dispatch: "",
     output_server_atoms: "",
     atoms_module: "",
+    output_server_wire: "",
+    wire_module: "",
     output_ssr: "",
     output_ws: "",
     output_http: "",

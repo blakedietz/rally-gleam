@@ -135,6 +135,9 @@ pub fn ssr_handler_snapshot_test() {
       "generated/router",
       shell,
       "generated/public/rpc_atoms",
+      "generated@rpc_wire",
+      "client_context",
+      [],
     )
   birdie.snap(output, "ssr_handler_gleam")
 }
@@ -152,6 +155,9 @@ pub fn ssr_handler_sets_content_type_for_load_pages_test() {
       "generated/router",
       shell,
       "generated/public/rpc_atoms",
+      "generated@rpc_wire",
+      "client_context",
+      [],
     )
   let content_type_count =
     output
@@ -175,6 +181,9 @@ pub fn ssr_handler_with_client_context_snapshot_test() {
       "generated/router",
       shell,
       "generated/public/rpc_atoms",
+      "generated@rpc_wire",
+      "client_context",
+      [],
     )
   birdie.snap(output, "ssr_handler_with_client_context_gleam")
 }
@@ -499,6 +508,9 @@ pub fn ssr_layout_with_client_context_uses_v3_session_contract_test() {
       "generated/router",
       shell,
       "generated/public/rpc_atoms",
+      "generated@rpc_wire",
+      "client_context",
+      [],
     )
 
   output
@@ -780,7 +792,7 @@ pub fn types_gleam_does_not_import_modules_used_only_by_responses_test() {
       return_err: IntField,
       params: [],
       mutates_context: False,
-      msg_type_name: None,
+      msg_type: None,
     )
   let files = codec.generate([], [], [endpoint], [])
   let assert Ok(file) =
@@ -824,6 +836,8 @@ fn test_scan_config() -> ScanConfig {
     output_server_dispatch: "",
     output_server_atoms: "",
     atoms_module: "",
+    output_server_wire: "",
+    wire_module: "",
     output_ssr: "",
     output_ws: "",
     output_http: "",

@@ -13,7 +13,7 @@ pub fn open_creates_observability_tables_test() {
 pub fn log_to_client_persists_message_test() {
   let assert Ok(conn) = system.open(":memory:")
 
-  system.log_to_client(conn, "session-1", Ok(42), "/home", "GotThing", 12)
+  system.log_to_client(db: conn, session_id: "session-1", user_id: Ok(42), page: "/home", variant: "GotThing", elapsed_ms: 12)
 
   messages(conn)
   |> should.equal([#("session-1", 42, "/home", "to_client", "GotThing", 12)])
@@ -22,7 +22,7 @@ pub fn log_to_client_persists_message_test() {
 pub fn log_broadcast_persists_message_test() {
   let assert Ok(conn) = system.open(":memory:")
 
-  system.log_broadcast(conn, "/room", "RoomUpdated")
+  system.log_broadcast(db: conn, page: "/room", variant: "RoomUpdated")
 
   broadcast_messages(conn)
   |> should.equal([#("", "/room", "broadcast", "RoomUpdated")])

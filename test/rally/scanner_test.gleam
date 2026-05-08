@@ -17,6 +17,8 @@ fn test_config(dir: String) -> ScanConfig {
     output_server_dispatch: "",
     output_server_atoms: "",
     atoms_module: "",
+    output_server_wire: "",
+    wire_module: "",
     output_ssr: "",
     output_ws: "",
     output_http: "",

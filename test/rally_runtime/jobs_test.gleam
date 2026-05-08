@@ -6,9 +6,9 @@ import sqlight
 
 pub fn run_once_completes_ready_jobs_test() {
   let assert Ok(conn) = system.open(":memory:")
-  jobs.enqueue(conn, "welcome", <<"payload":utf8>>, 0)
+  jobs.enqueue(db: conn, name: "welcome", payload: <<"payload":utf8>>, run_at: 0)
 
-  jobs.run_once(conn, fn(name, payload) {
+  jobs.run_once(db: conn, handler: fn(name, payload) {
     name |> should.equal("welcome")
     payload |> should.equal(<<"payload":utf8>>)
     Ok(Nil)
@@ -20,9 +20,9 @@ pub fn run_once_completes_ready_jobs_test() {
 
 pub fn run_once_retries_failed_jobs_with_backoff_test() {
   let assert Ok(conn) = system.open(":memory:")
-  jobs.enqueue(conn, "retry_me", <<>>, 0)
+  jobs.enqueue(db: conn, name: "retry_me", payload: <<>>, run_at: 0)
 
-  jobs.run_once(conn, fn(_, _) { Error("nope") })
+  jobs.run_once(db: conn, handler: fn(_, _) { Error("nope") })
 
   let assert [row] = job_attempts(conn)
   row.status |> should.equal("pending")
@@ -45,7 +45,7 @@ pub fn run_once_reclaims_running_jobs_test() {
       expecting: decode.success(Nil),
     )
 
-  jobs.run_once(conn, fn(name, payload) {
+  jobs.run_once(db: conn, handler: fn(name, payload) {
     name |> should.equal("orphan")
     payload |> should.equal(<<"payload":utf8>>)
     Ok(Nil)
