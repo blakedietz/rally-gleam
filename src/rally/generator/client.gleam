@@ -17,35 +17,35 @@ pub type GeneratedFile {
 }
 
 pub fn generate_package(
-  routes: List(ScannedRoute),
-  contracts: List(#(ScannedRoute, PageContract)),
-  config: ScanConfig,
-  server_deps: dict.Dict(String, tom.Toml),
-  transport_ffi_content: String,
-  has_client_context: Bool,
+  routes routes: List(ScannedRoute),
+  contracts contracts: List(#(ScannedRoute, PageContract)),
+  config config: ScanConfig,
+  server_deps server_deps: dict.Dict(String, tom.Toml),
+  transport_ffi_content transport_ffi_content: String,
+  has_client_context has_client_context: Bool,
 ) -> List(GeneratedFile) {
   generate_package_with_client_context_contract(
-    routes,
-    contracts,
-    config,
-    server_deps,
-    transport_ffi_content,
-    case has_client_context {
+    routes:,
+    contracts:,
+    config:,
+    server_deps:,
+    transport_ffi_content:,
+    client_context_contract: case has_client_context {
       True -> Some(empty_client_context_contract())
       False -> None
     },
-    "client_context",
+    client_context_module: "client_context",
   )
 }
 
 pub fn generate_package_with_client_context_contract(
-  routes: List(ScannedRoute),
-  contracts: List(#(ScannedRoute, PageContract)),
-  config: ScanConfig,
-  server_deps: dict.Dict(String, tom.Toml),
-  transport_ffi_content: String,
-  client_context_contract: Option(ClientContextContract),
-  client_context_module: String,
+  routes routes: List(ScannedRoute),
+  contracts contracts: List(#(ScannedRoute, PageContract)),
+  config config: ScanConfig,
+  server_deps server_deps: dict.Dict(String, tom.Toml),
+  transport_ffi_content transport_ffi_content: String,
+  client_context_contract client_context_contract: Option(ClientContextContract),
+  client_context_module client_context_module: String,
 ) -> List(GeneratedFile) {
   [
     GeneratedFile(
@@ -71,10 +71,10 @@ pub fn generate_package_with_client_context_contract(
     GeneratedFile(
       config.client_root <> "/src/generated/app.gleam",
       app_gleam(
-        routes,
-        contracts,
-        client_context_contract,
-        client_context_module,
+        routes:,
+        contracts:,
+        client_context_contract:,
+        client_context_module:,
       ),
     ),
   ]
@@ -140,7 +140,7 @@ fn client_gleam_toml(
     |> list.filter(fn(pair) { pair.0 != "rally" && pair.0 != "marmot" })
     |> list.filter(fn(pair) { !is_server_runtime_dep(pair.0) })
     |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
-    |> list.map(fn(pair) { format_dep(pair.0, pair.1, prefix) })
+    |> list.map(fn(pair) { format_dep(name: pair.0, value: pair.1, prefix: prefix) })
     |> string.join("")
 
   header <> extra_deps
@@ -163,7 +163,7 @@ fn is_server_runtime_dep(name: String) -> Bool {
   )
 }
 
-fn format_dep(name: String, value: tom.Toml, prefix: String) -> String {
+fn format_dep(name name: String, value value: tom.Toml, prefix prefix: String) -> String {
   case value {
     tom.String(version) -> name <> " = \"" <> version <> "\"\n"
     tom.InlineTable(table) | tom.Table(table) -> {
@@ -191,7 +191,7 @@ fn format_dep(name: String, value: tom.Toml, prefix: String) -> String {
 fn client_path(path: String, prefix: String) -> String {
   case string.starts_with(path, "/") {
     True -> path
-    False -> prefix <> path
+    _ -> prefix <> path
   }
 }
 
@@ -373,10 +373,10 @@ fn client_context_init_overlay(fields: ClientContextSyncFields) -> String {
 }
 
 fn app_gleam(
-  routes: List(ScannedRoute),
-  contracts: List(#(ScannedRoute, PageContract)),
-  client_context_contract: Option(ClientContextContract),
-  client_context_module: String,
+  routes routes: List(ScannedRoute),
+  contracts contracts: List(#(ScannedRoute, PageContract)),
+  client_context_contract client_context_contract: Option(ClientContextContract),
+  client_context_module client_context_module: String,
 ) -> String {
   let has_client_context = option.is_some(client_context_contract)
   let sync_fields = client_context_sync_fields(client_context_contract)
@@ -393,14 +393,14 @@ fn app_gleam(
   let page_model_type = generate_page_model_type(routes, contract_map)
   let page_msg_type = generate_page_msg_type(routes, contract_map)
   let init_page_fn =
-    generate_init_page(routes, contract_map, has_client_context)
+    generate_init_page(routes:, contract_map:, has_client_context:)
   let hydrate_page_fn =
-    generate_hydrate_page(routes, contract_map, has_client_context)
+    generate_hydrate_page(routes:, contract_map:, has_client_context:)
   let reinit_server_fn = generate_reinit_server(routes, contract_map)
   let update_page_fn =
-    generate_update_page(routes, contract_map, has_client_context)
+    generate_update_page(routes:, contract_map:, has_client_context:)
   let render_page_fn =
-    generate_render_page(routes, contract_map, has_client_context)
+    generate_render_page(routes:, contract_map:, has_client_context:)
 
   // Detect layout module from routes (use the first one found)
   let layout_module =
@@ -424,7 +424,7 @@ fn app_gleam(
 
   let layout_import = case layout_module {
     Ok(layout) -> "\nimport " <> layout
-    Error(_) -> ""
+    Error(Nil) -> ""
   }
 
   let ctx_field = case has_client_context {
@@ -562,7 +562,7 @@ fn app_gleam(
     ])
   )"
     }
-    Error(_), _ -> "  html.div([attr.class(\"rally-app\")], [
+    Error(Nil), _ -> "  html.div([attr.class(\"rally-app\")], [
     " <> render_page_call <> ",
     connection_banner(model.connection),
   ])"
@@ -803,9 +803,9 @@ fn route_param_args(route: ScannedRoute) -> String {
 }
 
 fn generate_init_page(
-  routes: List(ScannedRoute),
-  contract_map: dict.Dict(String, PageContract),
-  has_client_context: Bool,
+  routes routes: List(ScannedRoute),
+  contract_map contract_map: dict.Dict(String, PageContract),
+  has_client_context has_client_context: Bool,
 ) -> String {
   let arms =
     routes
@@ -873,16 +873,16 @@ fn generate_init_page(
 }
 
 fn generate_hydrate_page(
-  routes: List(ScannedRoute),
-  contract_map: dict.Dict(String, PageContract),
-  has_client_context: Bool,
+  routes routes: List(ScannedRoute),
+  contract_map contract_map: dict.Dict(String, PageContract),
+  has_client_context has_client_context: Bool,
 ) -> String {
   let hydrate_uses_client_context =
     has_client_context
     && list.any(routes, fn(route) {
       case dict.get(contract_map, route.variant_name) {
         Ok(contract) -> contract.has_model && contract.has_init_loaded
-        Error(_) -> False
+        Error(Nil) -> False
       }
     })
   let hydrate_client_context_name = case hydrate_uses_client_context {
@@ -1011,9 +1011,9 @@ fn generate_reinit_server(
 }
 
 fn generate_update_page(
-  routes: List(ScannedRoute),
-  contract_map: dict.Dict(String, PageContract),
-  has_client_context: Bool,
+  routes routes: List(ScannedRoute),
+  contract_map contract_map: dict.Dict(String, PageContract),
+  has_client_context has_client_context: Bool,
 ) -> String {
   let arms =
     routes
@@ -1108,9 +1108,9 @@ fn generate_update_page(
 }
 
 fn generate_render_page(
-  routes: List(ScannedRoute),
-  contract_map: dict.Dict(String, PageContract),
-  has_client_context: Bool,
+  routes routes: List(ScannedRoute),
+  contract_map contract_map: dict.Dict(String, PageContract),
+  has_client_context has_client_context: Bool,
 ) -> String {
   let arms =
     routes
@@ -1172,7 +1172,7 @@ fn page_model_decoder_name(module_path: String) -> String {
 fn last_segment(module_path: String) -> String {
   case string.split(module_path, "/") |> list.last {
     Ok(seg) -> seg
-    Error(_) -> module_path
+    Error(Nil) -> module_path
   }
 }
 

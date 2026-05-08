@@ -56,6 +56,16 @@ function formatRaw(value, depth = 0) {
   return String(value);
 }
 
+function gleamListToArray(list) {
+  const out = [];
+  let node = list;
+  while (node instanceof NonEmpty) {
+    out.push(node.head);
+    node = node.tail;
+  }
+  return out;
+}
+
 function pascalCase(snake) {
   return snake.split("_").map(s => s.charAt(0).toUpperCase() + s.slice(1)).join("");
 }

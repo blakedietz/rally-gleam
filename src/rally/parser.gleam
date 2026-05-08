@@ -5,6 +5,8 @@
 
 import glance
 import gleam/dict.{type Dict}
+import gleam/io
+import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
@@ -18,12 +20,15 @@ import rally/types.{
 /// Parse a page module source to extract the contract.
 /// Uses Glance AST parsing for robust type extraction.
 pub fn parse_page(
-  source: String,
+  source source: String,
   module_path module_path: String,
 ) -> Result(PageContract, String) {
   use ast <- result.try(
     glance.module(source)
-    |> result.map_error(fn(e) { "Parse error: " <> string.inspect(e) }),
+    |> result.map_error(fn(e) {
+      io.println_error("Parse error: " <> glance_to_string(e))
+      "Parse error"
+    }),
   )
 
   let type_imports = build_type_import_map(ast.imports)
@@ -57,9 +62,9 @@ pub fn parse_page(
 
   let param_names = extract_init_params_from_ast(functions_list)
 
-  let view_source = extract_function_source(source, functions_list, "view")
-  let init_source = extract_function_source(source, functions_list, "init")
-  let update_source = extract_function_source(source, functions_list, "update")
+  let view_source = extract_function_source(source: source, functions: functions_list, name: "view")
+  let init_source = extract_function_source(source: source, functions: functions_list, name: "init")
+  let update_source = extract_function_source(source: source, functions: functions_list, name: "update")
   let updates_client_context =
     string.contains(update_source, "ClientContextMsg")
 
@@ -85,7 +90,10 @@ pub fn parse_client_context(
 ) -> Result(ClientContextContract, String) {
   use ast <- result.try(
     glance.module(source)
-    |> result.map_error(fn(e) { "Parse error: " <> string.inspect(e) }),
+    |> result.map_error(fn(e) {
+      io.println_error("Parse error: " <> glance_to_string(e))
+      "Parse error"
+    }),
   )
 
   let type_imports = build_type_import_map(ast.imports)
@@ -281,7 +289,7 @@ fn resolve_named_type(
 // ---------- Import maps (from libero scanner) ----------
 
 /// Build a map from unqualified type names to their full module paths.
-pub fn build_type_import_map(
+fn build_type_import_map(
   imports: List(glance.Definition(glance.Import)),
 ) -> Dict(String, String) {
   list.fold(imports, dict.new(), fn(acc, def) {
@@ -297,7 +305,7 @@ pub fn build_type_import_map(
 }
 
 /// Build a map from module aliases to full paths.
-pub fn build_alias_resolution_map(
+fn build_alias_resolution_map(
   imports: List(glance.Definition(glance.Import)),
 ) -> Dict(String, String) {
   list.fold(imports, dict.new(), fn(acc, def) {
@@ -312,7 +320,7 @@ pub fn build_alias_resolution_map(
 }
 
 /// Build a map from aliased type names to original names.
-pub fn build_type_alias_originals(
+fn build_type_alias_originals(
   imports: List(glance.Definition(glance.Import)),
 ) -> Dict(String, String) {
   list.fold(imports, dict.new(), fn(acc, def) {
@@ -330,9 +338,9 @@ pub fn build_type_alias_originals(
 
 /// Extract the source text of a named public function using AST span positions.
 fn extract_function_source(
-  source: String,
-  functions: List(glance.Definition(glance.Function)),
-  name: String,
+  source source: String,
+  functions functions: List(glance.Definition(glance.Function)),
+  name name: String,
 ) -> String {
   case
     list.find(functions, fn(def) {
@@ -396,5 +404,13 @@ fn extract_init_params_from_ast(
           _ -> Error(Nil)
         }
       })
+  }
+}
+
+fn glance_to_string(err: glance.Error) -> String {
+  case err {
+    glance.UnexpectedEndOfInput -> "unexpected end of input"
+    glance.UnexpectedToken(token: _, position:) ->
+      "unexpected token at byte offset " <> int.to_string(position.byte_offset)
   }
 }

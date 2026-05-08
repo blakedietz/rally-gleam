@@ -4,36 +4,30 @@
 
 @external(erlang, "rally_runtime_topics_ffi", "start")
 pub fn start() -> Nil {
-  panic as "topics: server-side only"
+  Nil
 }
 
 @external(erlang, "rally_runtime_topics_ffi", "join")
-pub fn join(topic: String) -> Nil {
-  let _ = topic
-  panic as "topics: server-side only"
+pub fn join(_topic: String) -> Nil {
+  Nil
 }
 
 @external(erlang, "rally_runtime_topics_ffi", "leave")
-pub fn leave(topic: String) -> Nil {
-  let _ = topic
-  panic as "topics: server-side only"
+pub fn leave(_topic: String) -> Nil {
+  Nil
 }
 
 @external(erlang, "rally_runtime_topics_ffi", "members")
-pub fn members(topic: String) -> List(a) {
-  let _ = topic
-  panic as "topics: server-side only"
+pub fn members(_topic: String) -> List(a) {
+  []
 }
 
 @external(erlang, "rally_runtime_topics_ffi", "broadcast")
-pub fn broadcast(topic: String, frame: BitArray) -> Nil {
-  let _ = topic
-  let _ = frame
-  panic as "topics: server-side only"
+pub fn broadcast(_topic: String, _frame: BitArray) -> Nil {
+  Nil
 }
 
 @external(erlang, "rally_runtime_topics_ffi", "receive_frame")
-pub fn receive_frame(timeout_ms: Int) -> Result(BitArray, Nil) {
-  let _ = timeout_ms
-  panic as "topics: server-side only"
+pub fn receive_frame(_timeout_ms: Int) -> Result(BitArray, Nil) {
+  Error(Nil)
 }

@@ -8,13 +8,14 @@ import gleam/string
 /// Removes server_* functions, load, and anything only reachable from server code.
 /// server_symbols: known server-only type names (e.g. "ServerContext", handler message types)
 pub fn shake(
-  source: String,
+  source source: String,
   server_symbols server_symbols: List(String),
 ) -> String {
   let server_set = set.from_list(server_symbols)
 
   case glance.module(source) {
-    Error(_) -> source
+    Error(glance.UnexpectedEndOfInput) -> source
+    Error(glance.UnexpectedToken(..)) -> source
     Ok(ast) -> {
       // Pass 1: identify server-only functions
       let server_fns =
@@ -38,7 +39,7 @@ pub fn shake(
         })
 
       let reachable_private =
-        collect_reachable_private_fns(ast, client_pub_fns, server_fns)
+        collect_reachable_private_fns(ast: ast, client_fns: client_pub_fns, server_fns: server_fns)
 
       let all_client_fn_names =
         list.map(client_pub_fns, fn(def) { def.definition.name })
@@ -47,16 +48,16 @@ pub fn shake(
 
       // Collect all symbols referenced by client code (for import filtering)
       let client_refs =
-        collect_all_client_refs(ast, all_client_fn_names, server_set)
+        collect_all_client_refs(ast: ast, client_fn_names: all_client_fn_names, server_symbols: server_set)
 
       // Reconstruct source with only client-safe parts
-      let client_imports = filter_imports(ast.imports, server_set, client_refs)
-      let client_types = filter_types(ast.custom_types, server_set, client_refs)
+      let client_imports = filter_imports(imports: ast.imports, server_symbols: server_set, client_refs: client_refs)
+      let client_types = filter_types(types: ast.custom_types, server_symbols: server_set, client_refs: client_refs)
       let client_type_aliases =
-        filter_type_aliases(ast.type_aliases, server_set, client_refs)
+        filter_type_aliases(aliases: ast.type_aliases, server_symbols: server_set, client_refs: client_refs)
       let client_constants = filter_constants(ast.constants, client_refs)
       let client_functions =
-        extract_client_functions(ast, all_client_fn_names, source)
+        extract_client_functions(ast: ast, client_fn_names: all_client_fn_names, source: source)
 
       let import_lines = list.map(client_imports, render_import)
       let type_lines =
@@ -129,9 +130,9 @@ fn type_references_server_symbol(
 // -- Pass 2: reachability from client roots --
 
 fn collect_reachable_private_fns(
-  ast: glance.Module,
-  client_fns: List(glance.Definition(glance.Function)),
-  server_fns: Set(String),
+  ast ast: glance.Module,
+  client_fns client_fns: List(glance.Definition(glance.Function)),
+  server_fns server_fns: Set(String),
 ) -> Set(String) {
   let private_fns =
     ast.functions
@@ -150,18 +151,18 @@ fn collect_reachable_private_fns(
     |> set.from_list
     |> set.intersection(private_fn_names)
 
-  expand_reachable(initial, private_fns, private_fn_names, initial)
+  expand_reachable(frontier: initial, private_fns: private_fns, all_private: private_fn_names, visited: initial)
 }
 
 fn expand_reachable(
-  frontier: Set(String),
-  private_fns: List(glance.Definition(glance.Function)),
-  all_private: Set(String),
-  visited: Set(String),
+  frontier frontier: Set(String),
+  private_fns private_fns: List(glance.Definition(glance.Function)),
+  all_private all_private: Set(String),
+  visited visited: Set(String),
 ) -> Set(String) {
   case set.is_empty(frontier) {
     True -> visited
-    False -> {
+    _ -> {
       let new_refs =
         private_fns
         |> list.filter(fn(def) { set.contains(frontier, def.definition.name) })
@@ -171,10 +172,10 @@ fn expand_reachable(
         |> set.difference(visited)
 
       expand_reachable(
-        new_refs,
-        private_fns,
-        all_private,
-        set.union(visited, new_refs),
+        frontier: new_refs,
+        private_fns: private_fns,
+        all_private: all_private,
+        visited: set.union(visited, new_refs),
       )
     }
   }
@@ -340,9 +341,9 @@ fn extract_pattern_refs(pattern: glance.Pattern) -> List(String) {
 
 /// Collect all referenced names from client function bodies, signatures, and types.
 fn collect_all_client_refs(
-  ast: glance.Module,
-  client_fn_names: Set(String),
-  server_symbols: Set(String),
+  ast ast: glance.Module,
+  client_fn_names client_fn_names: Set(String),
+  server_symbols server_symbols: Set(String),
 ) -> Set(String) {
   let client_fns =
     ast.functions
@@ -436,9 +437,9 @@ fn extract_type_refs(t: glance.Type) -> List(String) {
 }
 
 fn filter_imports(
-  imports: List(glance.Definition(glance.Import)),
-  server_symbols: Set(String),
-  client_refs: Set(String),
+  imports imports: List(glance.Definition(glance.Import)),
+  server_symbols server_symbols: Set(String),
+  client_refs client_refs: Set(String),
 ) -> List(glance.Definition(glance.Import)) {
   list.filter(imports, fn(def) {
     let imp = def.definition
@@ -473,14 +474,14 @@ fn filter_imports(
 fn last_segment(module_path: String) -> String {
   case string.split(module_path, "/") |> list.last {
     Ok(seg) -> seg
-    Error(_) -> module_path
+    Error(Nil) -> module_path
   }
 }
 
 fn filter_types(
-  types: List(glance.Definition(glance.CustomType)),
-  server_symbols: Set(String),
-  client_refs: Set(String),
+  types types: List(glance.Definition(glance.CustomType)),
+  server_symbols server_symbols: Set(String),
+  client_refs client_refs: Set(String),
 ) -> List(glance.Definition(glance.CustomType)) {
   list.filter(types, fn(def) {
     let name = def.definition.name
@@ -499,9 +500,9 @@ fn filter_types(
 }
 
 fn filter_type_aliases(
-  aliases: List(glance.Definition(glance.TypeAlias)),
-  server_symbols: Set(String),
-  client_refs: Set(String),
+  aliases aliases: List(glance.Definition(glance.TypeAlias)),
+  server_symbols server_symbols: Set(String),
+  client_refs client_refs: Set(String),
 ) -> List(glance.Definition(glance.TypeAlias)) {
   list.filter(aliases, fn(def) {
     let name = def.definition.name
@@ -520,9 +521,9 @@ fn filter_constants(
 }
 
 fn extract_client_functions(
-  ast: glance.Module,
-  client_fn_names: Set(String),
-  source: String,
+  ast ast: glance.Module,
+  client_fn_names client_fn_names: Set(String),
+  source source: String,
 ) -> List(String) {
   ast.functions
   |> list.filter(fn(def) { set.contains(client_fn_names, def.definition.name) })

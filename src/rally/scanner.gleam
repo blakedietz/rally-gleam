@@ -10,7 +10,7 @@ import rally/types.{
 import simplifile
 
 /// Convert a snake_case name to PascalCase.
-pub fn to_pascal_case(name: String) -> String {
+fn to_pascal_case(name: String) -> String {
   name
   |> string.split("_")
   |> list.map(string.capitalise)
@@ -21,18 +21,18 @@ pub fn to_pascal_case(name: String) -> String {
 fn param_type_for(name: String) -> ParamType {
   case name == "id" || string.ends_with(name, "_id") {
     True -> IntParam
-    False -> StringParam
+    _ -> StringParam
   }
 }
 
 /// Parse a filename stem (without .gleam extension) into a UrlSegment.
-pub fn parse_segment(stem: String) -> UrlSegment {
+fn parse_segment(stem: String) -> UrlSegment {
   case string.ends_with(stem, "_") {
     True -> {
       let param_name = string.drop_end(stem, 1)
       DynamicSegment(param_name, param_type_for(param_name))
     }
-    False -> StaticSegment(stem)
+    _ -> StaticSegment(stem)
   }
 }
 
@@ -76,11 +76,11 @@ type ScanAcc {
 
 /// Recursively scan a directory, accumulating routes and layout modules.
 fn scan_dir(
-  path: String,
-  prefix_segments: List(UrlSegment),
-  path_parts: List(String),
-  module_prefix: String,
-  acc: ScanAcc,
+  path path: String,
+  prefix_segments prefix_segments: List(UrlSegment),
+  path_parts path_parts: List(String),
+  module_prefix module_prefix: String,
+  acc acc: ScanAcc,
 ) -> Result(ScanAcc, String) {
   use entries <- result.try(
     simplifile.read_directory(at: path)
@@ -112,11 +112,11 @@ fn scan_dir(
         False -> {
           let seg = parse_segment(entry)
           scan_dir(
-            entry_path,
-            list.append(prefix_segments, [seg]),
-            list.append(path_parts, [entry]),
-            module_prefix,
-            acc,
+            path: entry_path,
+            prefix_segments: list.append(prefix_segments, [seg]),
+            path_parts: list.append(path_parts, [entry]),
+            module_prefix: module_prefix,
+            acc: acc,
           )
         }
       }
@@ -224,11 +224,11 @@ pub fn scan(config: ScanConfig) -> Result(List(ScannedRoute), String) {
   let module_prefix = derive_module_prefix(config.pages_root)
   let route_segments = route_root_segments(config.route_root)
   use acc <- result.try(scan_dir(
-    config.pages_root,
-    route_segments,
-    [],
-    module_prefix,
-    ScanAcc([], []),
+    path: config.pages_root,
+    prefix_segments: route_segments,
+    path_parts: [],
+    module_prefix: module_prefix,
+    acc: ScanAcc([], []),
   ))
   let layout_set = set.from_list(acc.layout_modules)
   let routes_with_layouts =
@@ -256,7 +256,7 @@ fn derive_module_prefix(pages_root: String) -> String {
         [] -> "pages"
         parts -> string.join(list.append(parts, ["pages"]), "/")
       }
-    Error(_) -> "pages"
+    Error(Nil) -> "pages"
   }
 }
 

@@ -77,7 +77,7 @@ fn generate_frame_handler() -> String {
 
           let session_id = effect.get_ws_session()
           let assert Ok(db_conn) = system.get_conn()
-          system.log_to_server(db_conn, session_id, Error(Nil), current_page, raw, data, elapsed_ms)
+          system.log_to_server(db: db_conn, session_id: session_id, user_id: Error(Nil), page: current_page, value: raw, raw_payload: data, elapsed_ms: elapsed_ms)
 
           let _ = effect.put_ws_state(conn, new_ctx, current_page)
           let _ = mist.send_binary_frame(conn, response_data)

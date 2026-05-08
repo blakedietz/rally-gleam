@@ -11,6 +11,9 @@ import gleam/http/response
 import mist.{type ResponseData}
 import generated/router
 import rally_runtime/env
+
+@external(erlang, "generated/public/rpc_atoms", "ensure")
+fn ensure_atoms() -> Nil
 import server_context.{type ServerContext}
 import rally_runtime/codec
 import gleam/result
@@ -26,6 +29,7 @@ pub fn handle_request(
   session_id: String,
   hostname: String,
 ) -> response.Response(ResponseData) {
+  ensure_atoms()
   case route {
     router.Home -> {
       let #(client_context, server_context) = server_context.from_session(server_context, session_id, hostname)

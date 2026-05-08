@@ -49,10 +49,8 @@ pub fn coerce(value: a) -> b {
 }
 
 @external(erlang, "rally_runtime_wire_ffi", "tuple_element")
-pub fn tuple_element(tuple: Dynamic, index: Int) -> Dynamic {
-  let _ = tuple
-  let _ = index
-  panic as "rally_runtime/wire.tuple_element: server-side only"
+pub fn tuple_element(_tuple: Dynamic, _index: Int) -> Dynamic {
+  dynamic.nil()
 }
 
 @external(erlang, "gleam_stdlib", "identity")

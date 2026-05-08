@@ -28,3 +28,8 @@ glinter = ">= 2.17.0 and < 3.0.0"
 [tools.glinter]
 stats = true
 warnings_as_errors = false
+exclude = ["tmp/**", "examples/**"]
+
+[tools.glinter.ignore]
+"src/rally_runtime/*.gleam" = ["unused_exports"]
+"src/**/*.gleam" = ["deep_nesting", "stringly_typed_error"]

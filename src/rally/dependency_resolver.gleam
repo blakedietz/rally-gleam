@@ -1,7 +1,7 @@
 import glance
+import gleam/bool
 import gleam/int
 import gleam/list
-import gleam/result
 import gleam/set.{type Set}
 import gleam/string
 import rally/generator/client
@@ -47,7 +47,35 @@ fn resolve_loop(
           let file_path = src_root <> "/" <> module_path <> ".gleam"
           let visited = set.insert(visited, module_path)
           case simplifile.read(file_path) {
-            Error(_) ->
+            Ok(content) -> {
+              case check_erlang_external(content: content, module_path: module_path, chain: chain) {
+                Ok(_) -> {
+                  let dest = client_root <> "/src/" <> module_path <> ".gleam"
+                  let file = client.GeneratedFile(dest, content)
+                  let ffi_files =
+                    collect_ffi_files(src_root: src_root, client_root: client_root, module_path: module_path)
+                  let new_chain = list.append(chain, [module_path])
+                  let new_imports =
+                    list.map(extract_imports(content), fn(imp) { #(imp, new_chain) })
+                  resolve_loop(
+                    frontier: list.append(rest, new_imports),
+                    visited:,
+                    src_root:,
+                    client_root:,
+                    acc: list.append([file, ..ffi_files], acc),
+                  )
+                }
+                _ ->
+                  resolve_loop(
+                    frontier: rest,
+                    visited:,
+                    src_root:,
+                    client_root:,
+                    acc:,
+                  )
+              }
+            }
+            _ ->
               resolve_loop(
                 frontier: rest,
                 visited:,
@@ -55,27 +83,6 @@ fn resolve_loop(
                 client_root:,
                 acc:,
               )
-            Ok(content) -> {
-              use Nil <- result.try(check_erlang_external(
-                content,
-                module_path,
-                chain,
-              ))
-              let dest = client_root <> "/src/" <> module_path <> ".gleam"
-              let file = client.GeneratedFile(dest, content)
-              let ffi_files =
-                collect_ffi_files(src_root, client_root, module_path)
-              let new_chain = list.append(chain, [module_path])
-              let new_imports =
-                list.map(extract_imports(content), fn(imp) { #(imp, new_chain) })
-              resolve_loop(
-                frontier: list.append(rest, new_imports),
-                visited:,
-                src_root:,
-                client_root:,
-                acc: list.append([file, ..ffi_files], acc),
-              )
-            }
           }
         }
       }
@@ -85,15 +92,15 @@ fn resolve_loop(
 
 fn extract_imports(source: String) -> List(String) {
   case glance.module(source) {
-    Error(_) -> []
     Ok(ast) -> list.map(ast.imports, fn(def) { def.definition.module })
+    _ -> []
   }
 }
 
 fn collect_ffi_files(
-  src_root: String,
-  client_root: String,
-  module_path: String,
+  src_root src_root: String,
+  client_root client_root: String,
+  module_path module_path: String,
 ) -> List(client.GeneratedFile) {
   let ffi_path = src_root <> "/" <> module_path <> "_ffi.mjs"
   case simplifile.read(ffi_path) {
@@ -101,7 +108,7 @@ fn collect_ffi_files(
       let dest = client_root <> "/src/" <> module_path <> "_ffi.mjs"
       [client.GeneratedFile(dest, content)]
     }
-    Error(_) -> []
+    _ -> []
   }
 }
 
@@ -111,53 +118,48 @@ fn should_skip(module_path: String) -> Bool {
 }
 
 fn check_erlang_external(
-  content: String,
-  module_path: String,
-  chain: List(String),
+  content content: String,
+  module_path module_path: String,
+  chain chain: List(String),
 ) -> Result(Nil, String) {
-  case string.contains(content, "@external(erlang,") {
-    False -> Ok(Nil)
-    True ->
-      case string.contains(content, "@external(javascript,") {
-        True -> Ok(Nil)
-        False -> {
-          let line = find_line_number(content, "@external(erlang,")
-          let chain_str =
-            string.join(
-              list.map(list.append(chain, [module_path]), fn(c) {
-                c <> ".gleam"
-              }),
-              " -> ",
-            )
-          Error(
-            module_path
-            <> ".gleam (line "
-            <> int.to_string(line)
-            <> ") contains @external(erlang, ...) which can't compile for JavaScript.\n\n"
-            <> "  Import chain: "
-            <> chain_str
-            <> "\n\n"
-            <> "  Server-only code belongs in page modules as server_* functions (which rally\n"
-            <> "  strips from the client), or in separate modules that client code doesn't import.",
-          )
-        }
-      }
+  let has_erlang = string.contains(content, "@external(erlang,")
+  let has_javascript = string.contains(content, "@external(javascript,")
+  let error_msg = {
+    let line = find_line_number(content, "@external(erlang,")
+    let chain_str =
+      string.join(
+        list.map(list.append(chain, [module_path]), fn(c) {
+          c <> ".gleam"
+        }),
+        " -> ",
+      )
+    module_path
+    <> ".gleam (line "
+    <> int.to_string(line)
+    <> ") contains @external(erlang, ...) which can't compile for JavaScript.\n\n"
+    <> "  Import chain: "
+    <> chain_str
+    <> "\n\n"
+    <> "  Server-only code belongs in page modules as server_* functions (which rally\n"
+    <> "  strips from the client), or in separate modules that client code doesn't import."
   }
+  use <- bool.guard(when: has_erlang && !has_javascript, return: Error(error_msg))
+  Ok(Nil)
 }
 
 fn find_line_number(content: String, needle: String) -> Int {
   content
   |> string.split("\n")
-  |> do_find_line(needle, 1)
+  |> do_find_line(needle: needle, n: 1)
 }
 
-fn do_find_line(lines: List(String), needle: String, n: Int) -> Int {
+fn do_find_line(lines lines: List(String), needle needle: String, n n: Int) -> Int {
   case lines {
     [] -> n
     [line, ..rest] ->
       case string.contains(line, needle) {
         True -> n
-        False -> do_find_line(rest, needle, n + 1)
+        _ -> do_find_line(lines: rest, needle: needle, n: n + 1)
       }
   }
 }

@@ -4,22 +4,22 @@ import gleam/string
 import rally/types.{type PageContract, type ScannedRoute}
 
 pub fn generate(
-  page_contracts: List(#(ScannedRoute, PageContract)),
-  has_client_context: Bool,
-  has_from_session: Bool,
-  from_session_module: String,
-  router_module: String,
-  shell_html: String,
-  atoms_module: String,
+  page_contracts page_contracts: List(#(ScannedRoute, PageContract)),
+  has_client_context has_client_context: Bool,
+  has_from_session has_from_session: Bool,
+  from_session_module from_session_module: String,
+  router_module router_module: String,
+  shell_html shell_html: String,
+  atoms_module atoms_module: String,
 ) -> String {
   let use_session = has_client_context && has_from_session
   let from_session_ref = last_segment(from_session_module)
   let load_arms =
     generate_load_arms(
-      page_contracts,
-      has_client_context,
-      use_session,
-      from_session_ref,
+      page_contracts: page_contracts,
+      has_client_context: has_client_context,
+      use_session: use_session,
+      from_session_module: from_session_ref,
     )
   let has_load_pages = load_arms != ""
 
@@ -197,7 +197,7 @@ fn marker_helper(has_load_pages: Bool) -> String {
       ]
       "\n" <> string.join(body, "\n") <> "\n"
     }
-    False -> ""
+    _ -> ""
   }
 }
 
@@ -239,7 +239,7 @@ fn module_to_alias(module_path: String) -> String {
 fn last_segment(module_path: String) -> String {
   case string.split(module_path, "/") |> list.last {
     Ok(seg) -> seg
-    Error(_) -> module_path
+    Error(Nil) -> module_path
   }
 }
 
@@ -265,10 +265,10 @@ fn generate_layout_imports(
 }
 
 fn generate_load_arms(
-  page_contracts: List(#(ScannedRoute, PageContract)),
-  has_client_context: Bool,
-  use_session: Bool,
-  from_session_module: String,
+  page_contracts page_contracts: List(#(ScannedRoute, PageContract)),
+  has_client_context has_client_context: Bool,
+  use_session use_session: Bool,
+  from_session_module from_session_module: String,
 ) -> String {
   page_contracts
   |> list.filter_map(fn(pair) {
@@ -339,13 +339,9 @@ fn generate_load_arms(
           <> "      let flags_tag = \"<script>window.__RALLY_FLAGS__='\" <> flags <> \"'</script>\"\n"
         let full_html_line = case use_session {
           True ->
-            "      let shell = shell_html()\n"
-            <> "      let full_html = insert_rendered(shell, rendered)\n"
-            <> "        <> env.browser_env_script() <> ctx_tag <> flags_tag\n"
+            "      let shell = shell_html()\n      let full_html = insert_rendered(shell, rendered)\n        <> env.browser_env_script() <> ctx_tag <> flags_tag\n"
           False ->
-            "      let shell = shell_html()\n"
-            <> "      let full_html = insert_rendered(shell, rendered)\n"
-            <> "        <> env.browser_env_script() <> flags_tag\n"
+            "      let shell = shell_html()\n      let full_html = insert_rendered(shell, rendered)\n        <> env.browser_env_script() <> flags_tag\n"
         }
         let load_line = case contract.has_init_loaded, has_client_context {
           True, True ->

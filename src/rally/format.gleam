@@ -13,16 +13,16 @@ pub fn format_gleam(code: String) -> String {
   let tmp_dir = get_tmp_dir()
   let tmp = tmp_dir <> "/rally_fmt_" <> suffix <> ".gleam"
   case simplifile.write(tmp, code) {
-    Error(_) -> {
+    Ok(_) -> {
+      let formatted = run_format(tmp, code)
+      let _delete_result = simplifile.delete(tmp)
+      formatted
+    }
+    _ -> {
       io.println_error(
         "warning: could not write temp file for formatting, skipping gleam format",
       )
       code
-    }
-    Ok(_) -> {
-      let formatted = run_format(tmp, code)
-      let _ = simplifile.delete(tmp)
-      formatted
     }
   }
 }
@@ -60,7 +60,7 @@ fn run_executable(program: String, args: List(String)) -> Int
 
 fn get_tmp_dir() -> String {
   let dir = "./tmp/rally_format"
-  let _ = simplifile.create_directory_all(dir)
+  let _dir_result = simplifile.create_directory_all(dir)
   dir
 }
 

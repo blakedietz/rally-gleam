@@ -56,7 +56,7 @@ pub fn query(
     timestamp.difference(start, timestamp.system_time())
     |> duration.to_milliseconds()
   add_db_timing(elapsed_ms)
-  log_query(sql, list.length(params), elapsed_ms)
+  log_query(sql: sql, param_count: list.length(params), elapsed_ms: elapsed_ms)
   log_result(result)
   result
 }
@@ -69,16 +69,19 @@ pub fn transaction(
 ) -> Result(a, sqlight.Error) {
   let id = int.absolute_value(unique_id())
   let savepoint = "sp_" <> int.to_string(id)
-  let assert Ok(_) = sqlight.exec("SAVEPOINT " <> savepoint <> ";", on: conn)
+  use _ <- result.try(sqlight.exec("SAVEPOINT " <> savepoint <> ";", on: conn))
   case body() {
     Ok(val) -> {
-      let assert Ok(_) = sqlight.exec("RELEASE " <> savepoint <> ";", on: conn)
+      use _ <- result.try(
+        sqlight.exec("RELEASE " <> savepoint <> ";", on: conn),
+      )
       Ok(val)
     }
     Error(err) -> {
-      let assert Ok(_) =
-        sqlight.exec("ROLLBACK TO " <> savepoint <> ";", on: conn)
-      let assert Ok(_) = sqlight.exec("RELEASE " <> savepoint <> ";", on: conn)
+      let _rollback = sqlight.exec("ROLLBACK TO " <> savepoint <> ";", on: conn)
+      use _ <- result.try(
+        sqlight.exec("RELEASE " <> savepoint <> ";", on: conn),
+      )
       Error(err)
     }
   }
@@ -97,7 +100,7 @@ pub fn init_timing() -> Nil {
 
 // --- Internal ---
 
-fn log_query(sql: String, param_count: Int, elapsed_ms: Int) -> Nil {
+fn log_query(sql sql: String, param_count param_count: Int, elapsed_ms elapsed_ms: Int) -> Nil {
   let msg =
     collapse_whitespace(sql)
     <> " | params: "
@@ -130,7 +133,7 @@ pub fn collapse_whitespace(sql: String) -> String {
 fn do_collapse_whitespace(sql: String) -> String {
   case string.contains(sql, "  ") {
     True -> do_collapse_whitespace(string.replace(sql, "  ", " "))
-    False -> sql
+    _ -> sql
   }
 }
 

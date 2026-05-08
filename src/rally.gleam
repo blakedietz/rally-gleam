@@ -6,6 +6,7 @@ import gleam/option
 import gleam/result
 import gleam/string
 import libero
+import libero/gen_error as gen_error
 import libero/scanner as libero_scanner
 import rally/dependency_resolver
 import rally/format
@@ -22,10 +23,14 @@ import rally/types.{type ScanConfig, ScanConfig}
 import simplifile
 import tom
 
-pub fn main() {
+type RallyError {
+  RallyError(message: String)
+}
+
+pub fn main() -> Nil {
   case run() {
     Ok(msg) -> io.println("rally: " <> msg)
-    Error(msg) -> {
+    Error(RallyError(msg)) -> {
       io.println_error("rally error: " <> msg)
       halt(1)
     }
@@ -35,16 +40,18 @@ pub fn main() {
 @external(erlang, "erlang", "halt")
 fn halt(code: Int) -> Nil
 
-fn read_configs() -> Result(List(ScanConfig), String) {
+fn read_configs() -> Result(List(ScanConfig), RallyError) {
   use toml_str <- result.try(
     simplifile.read("gleam.toml")
     |> result.map_error(fn(e) {
-      "Cannot read gleam.toml: " <> string.inspect(e)
+      RallyError("Cannot read gleam.toml: " <> simplifile.describe_error(e))
     }),
   )
   use toml_map <- result.try(
     tom.parse(toml_str)
-    |> result.map_error(fn(e) { "Invalid gleam.toml: " <> string.inspect(e) }),
+    |> result.map_error(fn(e) {
+      RallyError("Invalid gleam.toml: " <> tom_error_to_string(e))
+    }),
   )
 
   let rally_config =
@@ -71,32 +78,38 @@ fn read_configs() -> Result(List(ScanConfig), String) {
       use configs <- result.try(
         list.try_map(clients, fn(client) {
           case client {
-            tom.Table(client_config) | tom.InlineTable(client_config) ->
-              read_client_config(client_config, server_deps, rally_package_path)
-            _ -> Error("Each [[tools.rally.clients]] entry must be a table")
+            tom.Table(cfg) | tom.InlineTable(cfg) ->
+              read_client_config(client_config: cfg, server_deps:, rally_package_path:)
+            _ ->
+              Error(
+                RallyError("Each [[tools.rally.clients]] entry must be a table"),
+              )
           }
         }),
       )
       case configs {
         [] ->
-          Ok([read_legacy_config(rally_config, server_deps, rally_package_path)])
+          Ok([read_legacy_config(rally_config:, server_deps:, rally_package_path:)])
         _ -> Ok(configs)
       }
     }
-    Error(_) ->
-      Ok([read_legacy_config(rally_config, server_deps, rally_package_path)])
+    _ ->
+      Ok([read_legacy_config(rally_config:, server_deps:, rally_package_path:)])
   }
 }
 
 fn read_client_config(
-  client_config: dict.Dict(String, tom.Toml),
-  server_deps: dict.Dict(String, tom.Toml),
-  rally_package_path: String,
-) -> Result(ScanConfig, String) {
+  client_config client_config: dict.Dict(String, tom.Toml),
+  server_deps server_deps: dict.Dict(String, tom.Toml),
+  rally_package_path rally_package_path: String,
+) -> Result(ScanConfig, RallyError) {
   use namespace <- result.try(
     tom.get_string(client_config, ["namespace"])
-    |> result.map_error(fn(_) {
-      "Each [[tools.rally.clients]] entry needs namespace = \"...\""
+    |> result.map_error(fn(e) {
+      RallyError(
+        "Each [[tools.rally.clients]] entry needs namespace = \"...\": "
+        <> tom_get_error_to_string(e),
+      )
     }),
   )
   let route_root =
@@ -123,9 +136,9 @@ fn read_client_config(
 }
 
 fn read_legacy_config(
-  rally_config: dict.Dict(String, tom.Toml),
-  server_deps: dict.Dict(String, tom.Toml),
-  rally_package_path: String,
+  rally_config rally_config: dict.Dict(String, tom.Toml),
+  server_deps server_deps: dict.Dict(String, tom.Toml),
+  rally_package_path rally_package_path: String,
 ) -> ScanConfig {
   let pages_root =
     tom.get_string(rally_config, ["pages_root"])
@@ -158,7 +171,6 @@ fn read_legacy_config(
   let route_root =
     tom.get_string(rally_config, ["route_root"])
     |> result.unwrap("/")
-
   let shell_file =
     tom.get_string(rally_config, ["shell_file"])
     |> result.unwrap("src/shell.html")
@@ -181,17 +193,18 @@ fn read_legacy_config(
   )
 }
 
-fn run() -> Result(String, String) {
+fn run() -> Result(String, RallyError) {
   use configs <- result.try(read_configs())
   use Nil <- result.try(list.try_each(configs, generate_for_config))
   Ok(int.to_string(list.length(configs)) <> " client(s)")
 }
 
-fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
-  // 1. Scan pages directory
-  use routes <- result.try(scanner.scan(config))
+fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
+  use routes <- result.try(
+    scanner.scan(config)
+    |> result.map_error(fn(msg) { RallyError("scan error: " <> msg) }),
+  )
 
-  // 1b. Scan for server_ handler endpoints via libero
   let handler_endpoints = case libero.scan() {
     Ok(endpoints) -> {
       case endpoints {
@@ -206,14 +219,11 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
       endpoints
     }
     Error(errors) -> {
-      list.each(errors, fn(e) {
-        io.println_error("rally: libero scanner error: " <> string.inspect(e))
-      })
+      list.each(errors, gen_error.print_error)
       []
     }
   }
 
-  // 2. Parse each page module for its contract
   let contracts =
     list.filter_map(routes, fn(route) {
       let file_path =
@@ -225,7 +235,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
         Ok(source) -> {
           case parser.parse_page(source, module_path: route.module_path) {
             Ok(contract) -> Ok(#(route, contract))
-            Error(_) -> {
+            _ -> {
               io.println_error(
                 "warning: failed to parse " <> file_path <> ", skipping",
               )
@@ -233,14 +243,13 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
             }
           }
         }
-        Error(_) -> {
+        _ -> {
           io.println_error("warning: cannot read " <> file_path <> ", skipping")
           Error(Nil)
         }
       }
     })
 
-  // 3. Detect client_context.gleam and server_context.gleam
   let client_context_path =
     dirname(config.pages_root) <> "/client_context.gleam"
   let client_context_module = module_from_src_path(client_context_path)
@@ -264,9 +273,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
   let router_module = module_from_src_path(config.output_route)
   let rpc_dispatch_module = module_from_src_path(config.output_server_dispatch)
 
-  // 4. Generate route type + page dispatch
   let route_source = generator.generate(routes)
-  use _ <- result.try(write_file(config.output_route, route_source))
   let dispatch_source =
     generator.generate_dispatch(
       routes,
@@ -275,9 +282,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
       router_module,
       client_context_module,
     )
-  use _ <- result.try(write_file(config.output_dispatch, dispatch_source))
 
-  // 5. Generate RPC dispatch via libero
   let sd_source = case handler_endpoints {
     [] -> generator.generate_empty_rpc_dispatch(config.atoms_module)
     _ ->
@@ -290,12 +295,10 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
     sd_source
     |> generator.normalize_rpc_dispatch_context_import
     |> generator.normalize_rpc_dispatch_unused_fields
-  use _ <- result.try(write_file(config.output_server_dispatch, sd_source))
 
-  // 6. Generate SSR handler
   let shell_html = case simplifile.read(config.shell_file) {
     Ok(html) -> html
-    Error(_) ->
+    _ ->
       "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/client.js'></script></body>\n</html>"
   }
   let ssr_source =
@@ -308,46 +311,39 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
       shell_html,
       config.atoms_module,
     )
-  use _ <- result.try(write_file(config.output_ssr, ssr_source))
 
-  // 6. Generate WebSocket handler
-  let ws_source =
-    ws_handler.generate(contracts, config.atoms_module, rpc_dispatch_module)
-  use _ <- result.try(write_file(config.output_ws, ws_source))
+  // Write generated files, aborting on first failure
+  let result = do_write_files(
+    config:,
+    route_source:,
+    dispatch_source:,
+    sd_source:,
+    ssr_source:,
+    contracts:,
+    handler_endpoints:,
+    rpc_dispatch_module:,
+  )
+  use _ <- result.try(result)
 
-  // 6b. Generate HTTP handler (for non-WebSocket RPC clients)
-  use _ <- result.try(case handler_endpoints {
-    [] -> Ok(Nil)
-    _ -> {
-      let http_source =
-        http_handler.generate(handler_endpoints, rpc_dispatch_module)
-      write_file(config.output_http, http_source)
-    }
-  })
-
-  // 7. Read rally transport JS runtime from the Rally package.
-  // ETF codec files (rpc_ffi.mjs, decoders_prelude.mjs) come from
-  // libero as a proper JS dependency of the generated client.
   let transport_ffi_path =
     config.rally_package_path <> "/src/rally_runtime/transport_ffi.mjs"
   use transport_ffi_content <- result.try(
     simplifile.read(transport_ffi_path)
     |> result.map_error(fn(e) {
-      "Cannot read transport_ffi.mjs from rally package at "
-      <> transport_ffi_path
-      <> ": "
-      <> string.inspect(e)
+      RallyError(
+        "Cannot read transport_ffi.mjs from rally package at "
+        <> transport_ffi_path
+        <> ": "
+        <> simplifile.describe_error(e)
+      )
     }),
   )
 
-  // 8. Walk type graph for codec generation.
-  // Seeds come from handler endpoint params/return types AND
-  // ClientContext types so the walker resolves field types properly.
   let client_context_source = case has_client_context {
     True ->
       case simplifile.read(client_context_path) {
         Ok(source) -> option.Some(source)
-        Error(_) -> option.None
+        _ -> option.None
       }
     False -> option.None
   }
@@ -361,43 +357,36 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
   let discovered = case libero.walk(seeds) {
     Ok(types) -> types
     Error(errors) -> {
-      list.each(errors, fn(e) {
-        io.println_error("rally: walker error: " <> string.inspect(e))
-      })
+      list.each(errors, gen_error.print_error)
       []
     }
   }
 
-  // 8b. Generate and write the atoms pre-registration file
   let atoms_erl =
     libero.generate_atoms(handler_endpoints, discovered, config.atoms_module)
-  use _ <- result.try(write_file(config.output_server_atoms, atoms_erl))
+  use _ <- result.try(
+    write_file(config.output_server_atoms, atoms_erl)
+    |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
+  )
 
   let server_symbols = collect_server_symbols(handler_endpoints)
 
-  // 10. Generate codec files and per-page client modules
   use client_context_contract <- result.try(case client_context_source {
     option.Some(source) ->
       parser.parse_client_context(source)
       |> result.map(option.Some)
       |> result.map_error(fn(error) {
-        "Cannot parse client_context.gleam: " <> error
+        RallyError("Cannot parse client_context.gleam: " <> error)
       })
     option.None -> Ok(option.None)
   })
   let raw_codec_files =
-    codec.generate(
-      contracts,
-      discovered,
-      handler_endpoints,
-      server_symbols,
-    )
+    codec.generate(contracts, discovered, handler_endpoints, server_symbols)
   let codec_files =
     list.map(raw_codec_files, fn(f: codec.CodecFile) {
       client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
     })
 
-  // 11. Generate client package
   let client_files =
     client.generate_package_with_client_context_contract(
       routes,
@@ -410,33 +399,35 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
     )
   let client_context_files = case has_client_context {
     True -> {
-      let assert Ok(cc_source) = simplifile.read(client_context_path)
-      let shaken = tree_shaker.shake(cc_source, server_symbols:)
-      let ffi_path = dirname(config.pages_root) <> "/client_context_ffi.mjs"
-      let ffi_files = case simplifile.read(ffi_path) {
-        Ok(ffi_content) -> [
-          client.GeneratedFile(
-            config.client_root <> "/src/" <> client_context_module <> "_ffi.mjs",
-            ffi_content,
-          ),
-        ]
-        Error(_) -> []
+      case simplifile.read(client_context_path) {
+        Ok(cc_source) -> {
+          let shaken = tree_shaker.shake(cc_source, server_symbols:)
+          let ffi_path = dirname(config.pages_root) <> "/client_context_ffi.mjs"
+          let ffi_files = case simplifile.read(ffi_path) {
+            Ok(ffi_content) -> [
+              client.GeneratedFile(
+                config.client_root <> "/src/" <> client_context_module <> "_ffi.mjs",
+                ffi_content,
+              ),
+            ]
+            _ -> []
+          }
+          [
+            client.GeneratedFile(
+              config.client_root <> "/src/" <> client_context_module <> ".gleam",
+              shaken,
+            ),
+            ..ffi_files
+          ]
+        }
+        _ -> []
       }
-      [
-        client.GeneratedFile(
-          config.client_root <> "/src/" <> client_context_module <> ".gleam",
-          shaken,
-        ),
-        ..ffi_files
-      ]
     }
     False -> []
   }
 
-  // Copy layout modules to client package (tree-shaken)
-  let layout_files = copy_layout_modules(routes, config, server_symbols)
+  let layout_files = copy_layout_modules(routes:, config:, server_symbols:)
 
-  // 12. Resolve transitive local dependencies from client sources
   let seed_sources =
     list.flatten([
       raw_codec_files
@@ -447,9 +438,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
         })
         |> list.map(fn(f: codec.CodecFile) {
           let module_path =
-            f.path
-            |> string.drop_start(4)
-            |> string.drop_end(6)
+            f.path |> string.drop_start(4) |> string.drop_end(6)
           #(module_path, f.content)
         }),
       layout_files
@@ -469,11 +458,16 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
         }),
     ])
 
-  use dependency_files <- result.try(dependency_resolver.resolve(
-    seed_sources:,
-    src_root: source_root_for_pages(config.pages_root),
-    client_root: config.client_root,
-  ))
+  use dependency_files <- result.try(
+    dependency_resolver.resolve(
+      seed_sources:,
+      src_root: source_root_for_pages(config.pages_root),
+      client_root: config.client_root,
+    )
+    |> result.map_error(fn(msg) {
+      RallyError("dependency resolution error: " <> msg)
+    }),
+  )
 
   reset_generated_client_src(config.client_root)
 
@@ -486,40 +480,77 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
         layout_files,
         dependency_files,
       ]),
-    ),
+    )
+    |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
   )
 
-  // Clean up empty generated modules
-  case simplifile.read(config.output_dispatch) {
+  let _dispatch_result = case simplifile.read(config.output_dispatch) {
     Ok(content) ->
       case
         !string.contains(content, "pub fn")
         && !string.contains(content, "pub type")
         && !string.contains(content, "pub const")
       {
-        True -> {
-          let _ = simplifile.delete(config.output_dispatch)
-          Nil
-        }
-        False -> Nil
+        True -> simplifile.delete(config.output_dispatch)
+        False -> Ok(Nil)
       }
-    Error(_) -> Nil
+    _ -> Ok(Nil)
   }
 
   Ok(Nil)
 }
 
+fn do_write_files(
+  config config: ScanConfig,
+  route_source route_source: String,
+  dispatch_source dispatch_source: String,
+  sd_source sd_source: String,
+  ssr_source ssr_source: String,
+  contracts contracts: List(#(types.ScannedRoute, types.PageContract)),
+  handler_endpoints handler_endpoints: List(libero_scanner.HandlerEndpoint),
+  rpc_dispatch_module rpc_dispatch_module: String,
+) -> Result(Nil, RallyError) {
+  let ws_source = ws_handler.generate(contracts, config.atoms_module, rpc_dispatch_module)
+  use _ <- result.try(
+    write_file(config.output_route, route_source)
+    |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
+  )
+  use _ <- result.try(
+    write_file(config.output_dispatch, dispatch_source)
+    |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
+  )
+  use _ <- result.try(
+    write_file(config.output_server_dispatch, sd_source)
+    |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
+  )
+  use _ <- result.try(
+    write_file(config.output_ssr, ssr_source)
+    |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
+  )
+  use _ <- result.try(
+    write_file(config.output_ws, ws_source)
+    |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
+  )
+  use _ <- result.try(case handler_endpoints {
+    [] -> Ok(Nil)
+    _ -> {
+      let http_source = http_handler.generate(handler_endpoints, rpc_dispatch_module)
+      write_file(config.output_http, http_source)
+      |> result.map_error(fn(msg) { RallyError("write error: " <> msg) })
+    }
+  })
+  Ok(Nil)
+}
+
 fn reset_generated_client_src(client_root: String) -> Nil {
-  let _ = simplifile.delete_all(paths: [client_root <> "/src"])
+  let _delete_result = simplifile.delete_all(paths: [client_root <> "/src"])
   Nil
 }
 
-/// Extract the last path segment of a module path for file lookup.
-/// "admin/pages/settings/general" -> "settings/general"
 fn last_module_segment(module_path: String) -> String {
   case string.split_once(module_path, "pages/") {
     Ok(#(_, rest)) -> rest
-    Error(_) -> module_path
+    _ -> module_path
   }
 }
 
@@ -550,12 +581,15 @@ fn write_if_changed(path: String, content: String) -> Result(Nil, String) {
       use _ <- result.try(
         simplifile.create_directory_all(dirname(path))
         |> result.map_error(fn(e) {
-          "Failed to create directory for " <> path <> ": " <> string.inspect(e)
+          "Failed to create directory for "
+          <> path
+          <> ": "
+          <> simplifile.describe_error(e)
         }),
       )
       simplifile.write(path, content)
       |> result.map_error(fn(e) {
-        "Failed to write " <> path <> ": " <> string.inspect(e)
+        "Failed to write " <> path <> ": " <> simplifile.describe_error(e)
       })
     }
   }
@@ -569,9 +603,7 @@ fn dirname(path: String) -> String {
 }
 
 fn module_from_src_path(path: String) -> String {
-  path
-  |> string.drop_start(4)
-  |> string.drop_end(6)
+  path |> string.drop_start(4) |> string.drop_end(6)
 }
 
 fn source_root_for_pages(pages_root: String) -> String {
@@ -580,9 +612,9 @@ fn source_root_for_pages(pages_root: String) -> String {
     Ok(prefix_parts) ->
       case take_through_src(prefix_parts, []) {
         Ok(src_parts) -> string.join(src_parts, "/")
-        Error(_) -> dirname(pages_root)
+        _ -> dirname(pages_root)
       }
-    Error(_) -> dirname(pages_root)
+    _ -> dirname(pages_root)
   }
 }
 
@@ -609,9 +641,9 @@ fn take_through_src(
 }
 
 fn copy_layout_modules(
-  routes: List(types.ScannedRoute),
-  config: ScanConfig,
-  server_symbols: List(String),
+  routes routes: List(types.ScannedRoute),
+  config config: ScanConfig,
+  server_symbols server_symbols: List(String),
 ) -> List(client.GeneratedFile) {
   routes
   |> list.filter_map(fn(route) {
@@ -630,7 +662,7 @@ fn copy_layout_modules(
         let dest = config.client_root <> "/src/" <> layout_module <> ".gleam"
         Ok(client.GeneratedFile(dest, shaken))
       }
-      Error(_) -> Error(Nil)
+      _ -> Error(Nil)
     }
   })
 }
@@ -657,4 +689,20 @@ fn collect_server_symbols(
       }
     })
   ["ServerContext", ..handler_type_names]
+}
+
+fn tom_error_to_string(e: tom.ParseError) -> String {
+  case e {
+    tom.Unexpected(got:, expected:) ->
+      "unexpected character '" <> got <> "', expected " <> expected
+    tom.KeyAlreadyInUse(key:) -> "duplicate key: " <> string.join(key, ".")
+  }
+}
+
+fn tom_get_error_to_string(e: tom.GetError) -> String {
+  case e {
+    tom.NotFound(key:) -> "key not found: " <> string.join(key, ".")
+    tom.WrongType(key:, expected:, got:) ->
+      "expected " <> expected <> ", got " <> got <> " at " <> string.join(key, ".")
+  }
 }

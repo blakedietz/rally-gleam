@@ -12,13 +12,13 @@ pub fn encode_flags(value: a) -> String {
 
 /// Decode a base64 ETF string back to a Gleam value.
 /// Used client-side during hydration to read the server-rendered model.
-pub fn decode_flags(flags: String) -> Result(a, String) {
-  use bits <- result.try(
-    bit_array.base64_decode(flags)
-    |> result.map_error(fn(_) { "Failed to base64-decode flags" }),
-  )
+pub fn decode_flags(flags: String) -> Result(a, Nil) {
+  use bits <- result.try(case bit_array.base64_decode(flags) {
+    Ok(bits) -> Ok(bits)
+    _ -> Error(Nil)
+  })
   case wire.decode_safe(bits) {
     Ok(value) -> Ok(value)
-    Error(err) -> Error("Failed to ETF-decode flags: " <> err.message)
+    _ -> Error(Nil)
   }
 }

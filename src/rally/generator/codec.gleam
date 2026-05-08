@@ -29,10 +29,10 @@ pub type CodecFile {
 
 /// Generate all codec files for the client package.
 pub fn generate(
-  contracts: List(#(ScannedRoute, PageContract)),
-  discovered: List(DiscoveredType),
-  endpoints: List(HandlerEndpoint),
-  server_symbols: List(String),
+  contracts contracts: List(#(ScannedRoute, PageContract)),
+  discovered discovered: List(DiscoveredType),
+  endpoints endpoints: List(HandlerEndpoint),
+  server_symbols server_symbols: List(String),
 ) -> List(CodecFile) {
   let codec_files = [
     CodecFile(
@@ -112,7 +112,8 @@ fn post_process_page(source: String, variant_name: String) -> String {
 
 fn effect_module_aliases(source: String) -> List(String) {
   case glance.module(source) {
-    Error(_) -> ["rally_effect"]
+    Error(glance.UnexpectedEndOfInput) -> ["rally_effect"]
+    Error(glance.UnexpectedToken(..)) -> ["rally_effect"]
     Ok(ast) ->
       ast.imports
       |> list.filter_map(fn(def) {
@@ -165,11 +166,12 @@ fn drop_unused_effect_import(source: String, aliases: List(String)) -> String {
 /// source so the walker can discover ClientContext types with proper
 /// field type resolution, instead of the old hardcoded-StringField path.
 pub fn client_context_seeds(
-  source: String,
-  module_path: String,
+  source source: String,
+  module_path module_path: String,
 ) -> List(#(String, String)) {
   case glance.module(source) {
-    Error(_) -> []
+    Error(glance.UnexpectedEndOfInput) -> []
+    Error(glance.UnexpectedToken(..)) -> []
     Ok(ast) ->
       list.map(ast.custom_types, fn(def) {
         #(module_path, def.definition.name)
@@ -300,7 +302,7 @@ fn to_pascal_case(name: String) -> String {
   |> list.map(fn(word) {
     case string.pop_grapheme(word) {
       Ok(#(first, rest)) -> string.uppercase(first) <> rest
-      Error(_) -> word
+      Error(Nil) -> word
     }
   })
   |> string.join("")
@@ -309,36 +311,18 @@ fn to_pascal_case(name: String) -> String {
 // ---------- JS typed decoders (codec_ffi.mjs) ----------
 // Ported from libero's codegen_decoders.gleam
 
-pub fn emit_codec_ffi(discovered: List(DiscoveredType)) -> String {
-  emit_codec_ffi_with_endpoints(discovered, [])
-}
-
 fn emit_codec_ffi_with_endpoints(
   discovered: List(DiscoveredType),
   endpoints: List(HandlerEndpoint),
 ) -> String {
   let stdlib_setters =
-    "import { setResultCtors, setOptionCtors, setListCtors, "
-    <> "setDictFromList } from \"../../libero/libero/decoders_prelude.mjs\";"
+    "import { setResultCtors, setOptionCtors, setListCtors, setDictFromList } from \"../../libero/libero/decoders_prelude.mjs\";"
 
   let imports =
-    "import { decode_int, decode_float, decode_string, decode_bool, "
-    <> "decode_bit_array, decode_nil, decode_list_of, decode_option_of, "
-    <> "decode_result_of, decode_dict_of, decode_tuple_of, DecodeError } from \""
-    <> "../../libero/libero/decoders_prelude.mjs\";\n"
-    <> "import { Ok, Error as ResultError, Empty, NonEmpty } from \""
-    <> "../../gleam_stdlib/gleam.mjs\";\n"
-    <> "import { Some, None } from \""
-    <> "../../gleam_stdlib/gleam/option.mjs\";\n"
-    <> "import { from_list as dictFromList } from \""
-    <> "../../gleam_stdlib/gleam/dict.mjs\";\n"
-    <> "import { registerAtomDecoder, registerFieldTypes } from \"../../libero/libero/rpc_ffi.mjs\";\n"
+    "import { decode_int, decode_float, decode_string, decode_bool, decode_bit_array, decode_nil, decode_list_of, decode_option_of, decode_result_of, decode_dict_of, decode_tuple_of, DecodeError } from \"../../libero/libero/decoders_prelude.mjs\";\nimport { Ok, Error as ResultError, Empty, NonEmpty } from \"../../gleam_stdlib/gleam.mjs\";\nimport { Some, None } from \"../../gleam_stdlib/gleam/option.mjs\";\nimport { from_list as dictFromList } from \"../../gleam_stdlib/gleam/dict.mjs\";\nimport { registerAtomDecoder, registerFieldTypes } from \"../../libero/libero/rpc_ffi.mjs\";\n"
 
   let ctor_setters =
-    "setResultCtors(Ok, ResultError);\n"
-    <> "setOptionCtors(Some, None);\n"
-    <> "setListCtors(Empty, NonEmpty);\n"
-    <> "setDictFromList(dictFromList);"
+    "setResultCtors(Ok, ResultError);\nsetOptionCtors(Some, None);\nsetListCtors(Empty, NonEmpty);\nsetDictFromList(dictFromList);"
 
   let module_imports = emit_module_imports(discovered)
   let float_registrations = codegen_decoders.emit_float_type_registrations(discovered:, endpoints:)

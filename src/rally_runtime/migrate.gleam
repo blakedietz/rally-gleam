@@ -84,7 +84,7 @@ pub fn run(
       io.println("  migrations: up to date (v" <> int.to_string(current) <> ")")
       Ok(Nil)
     }
-    _ -> run_pending(conn, dir, pending)
+    _ -> run_pending(conn: conn, dir: dir, files: pending)
   }
 }
 
@@ -114,7 +114,7 @@ fn get_current_version(
       |> result.map(fn(_) { 0 })
     }
     Ok(_multiple) -> {
-      let _ =
+      let _cleanup =
         sqlight.exec(
           "DELETE FROM schema_migrations; INSERT INTO schema_migrations (last_migration) VALUES (0);",
           on: conn,
@@ -126,9 +126,9 @@ fn get_current_version(
 }
 
 fn run_pending(
-  conn: sqlight.Connection,
-  dir: String,
-  files: List(#(Int, String)),
+  conn conn: sqlight.Connection,
+  dir dir: String,
+  files files: List(#(Int, String)),
 ) -> Result(Nil, MigrationError) {
   case files {
     [] -> Ok(Nil)
@@ -151,31 +151,45 @@ fn run_pending(
         }),
       )
 
-      case sqlight.exec(sql, on: conn) {
+      use _ <- result.try(run_migration_sql(conn: conn, num: num, file: file, sql: sql))
+      run_pending(conn: conn, dir: dir, files: rest)
+    }
+  }
+}
+
+fn run_migration_sql(
+  conn conn: sqlight.Connection,
+  num num: Int,
+  file file: String,
+  sql sql: String,
+) -> Result(Nil, MigrationError) {
+  case sqlight.exec(sql, on: conn) {
+    Ok(_) -> {
+      case
+        sqlight.exec(
+          "UPDATE schema_migrations SET last_migration = "
+            <> int.to_string(num)
+            <> ";",
+          on: conn,
+        )
+      {
         Ok(_) -> {
-          case
-            sqlight.exec(
-              "UPDATE schema_migrations SET last_migration = "
-                <> int.to_string(num)
-                <> ";",
-              on: conn,
-            )
-          {
-            Ok(_) -> {
-              let assert Ok(_) = sqlight.exec("COMMIT", on: conn)
-              run_pending(conn, dir, rest)
-            }
+          case sqlight.exec("COMMIT", on: conn) {
+            Ok(_) -> Ok(Nil)
             Error(e) -> {
-              let _ = sqlight.exec("ROLLBACK", on: conn)
               Error(VersionUpdateFailed(message: e.message))
             }
           }
         }
         Error(e) -> {
-          let _ = sqlight.exec("ROLLBACK", on: conn)
-          Error(MigrationFailed(filename: file, message: e.message))
+          let _rollback = sqlight.exec("ROLLBACK", on: conn)
+          Error(VersionUpdateFailed(message: e.message))
         }
       }
+    }
+    Error(e) -> {
+      let _rollback = sqlight.exec("ROLLBACK", on: conn)
+      Error(MigrationFailed(filename: file, message: e.message))
     }
   }
 }

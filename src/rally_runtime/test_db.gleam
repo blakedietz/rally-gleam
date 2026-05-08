@@ -1,38 +1,40 @@
+import gleam/result
 import rally_runtime/migrate
 import sqlight
 
 @external(erlang, "rally_runtime_test_db_ffi", "clone_db")
-fn clone_db(template: sqlight.Connection) -> Result(sqlight.Connection, Nil) {
-  let _ = template
-  panic as "clone_db: server-side only"
+fn clone_db(_template: sqlight.Connection) -> Result(sqlight.Connection, Nil) {
+  Error(Nil)
 }
 
 @external(erlang, "rally_runtime_test_db_ffi", "pt_put")
-fn pt_put(key: String, value: Result(sqlight.Connection, Nil)) -> Nil {
-  let _ = key
-  let _ = value
-  panic as "pt_put: server-side only"
+fn pt_put(_key: String, _value: Result(sqlight.Connection, Nil)) -> Nil {
+  Nil
 }
 
 @external(erlang, "rally_runtime_test_db_ffi", "pt_get")
 fn pt_get(
-  key: String,
-  default: Result(sqlight.Connection, Nil),
+  _key: String,
+  _default: Result(sqlight.Connection, Nil),
 ) -> Result(sqlight.Connection, Nil) {
-  let _ = key
-  let _ = default
-  panic as "pt_get: server-side only"
+  Error(Nil)
 }
 
-fn template_db(migrations_dir: String) -> sqlight.Connection {
+fn template_db(migrations_dir: String) -> Result(sqlight.Connection, Nil) {
   let cache_key = "rally_test_template:" <> migrations_dir
   case pt_get(cache_key, Error(Nil)) {
-    Ok(conn) -> conn
+    Ok(conn) -> Ok(conn)
     Error(Nil) -> {
-      let assert Ok(conn) = sqlight.open(":memory:")
-      let assert Ok(_) = migrate.run(conn:, dir: migrations_dir)
+      use conn <- result.try(case sqlight.open(":memory:") {
+        Ok(conn) -> Ok(conn)
+        _ -> Error(Nil)
+      })
+      use _ <- result.try(case migrate.run(conn:, dir: migrations_dir) {
+        Ok(_) -> Ok(Nil)
+        _ -> Error(Nil)
+      })
       pt_put(cache_key, Ok(conn))
-      conn
+      Ok(conn)
     }
   }
 }
@@ -41,7 +43,7 @@ fn template_db(migrations_dir: String) -> sqlight.Connection {
 /// The first call runs migrations into a template db cached via
 /// persistent_term. Subsequent calls clone it via SQLite's backup
 /// API (page-level copy), avoiding re-running migrations per test.
-pub fn setup(migrations_dir: String) -> sqlight.Connection {
-  let assert Ok(conn) = clone_db(template_db(migrations_dir))
-  conn
+pub fn setup(migrations_dir: String) -> Result(sqlight.Connection, Nil) {
+  use conn <- result.try(template_db(migrations_dir))
+  clone_db(conn)
 }

@@ -142,7 +142,7 @@ fn parse_route_arm(route: ScannedRoute) -> String {
       let #(name, _) = single
       let val_name = name <> "_val"
       let constructor =
-        build_constructor_with_vals(variant_name, params, [#(name, val_name)])
+        build_constructor_with_vals(variant_name: variant_name, params: params, val_pairs: [#(name, val_name)])
       "    "
       <> pattern
       <> " ->\n      case int.parse("
@@ -172,7 +172,7 @@ fn parse_route_arm(route: ScannedRoute) -> String {
           #(name, name <> "_val")
         })
       let constructor =
-        build_constructor_with_vals(variant_name, params, val_pairs)
+        build_constructor_with_vals(variant_name: variant_name, params: params, val_pairs: val_pairs)
       "    "
       <> pattern
       <> " ->\n      case "
@@ -222,9 +222,9 @@ fn build_constructor(
 
 /// Build the constructor expression substituting int params with their _val names.
 fn build_constructor_with_vals(
-  variant_name: String,
-  params: List(#(String, types.ParamType)),
-  val_pairs: List(#(String, String)),
+  variant_name variant_name: String,
+  params params: List(#(String, types.ParamType)),
+  val_pairs val_pairs: List(#(String, String)),
 ) -> String {
   case params {
     [] -> variant_name
@@ -239,7 +239,7 @@ fn build_constructor_with_vals(
                 list.find(val_pairs, fn(vp) { vp.0 == name })
               {
                 Ok(#(_, v)) -> v
-                Error(_) -> name
+                Error(Nil) -> name
               }
               name <> ": " <> val_name
             }
@@ -281,14 +281,14 @@ fn route_to_path_arm(route: ScannedRoute) -> String {
 fn build_path_expr(segments: List(UrlSegment)) -> String {
   case segments {
     [] -> "\"/\""
-    _ -> string.join(merge_static_segments(segments, "", []), " <> ")
+    _ -> string.join(merge_static_segments(segments: segments, buf: "", acc: []), " <> ")
   }
 }
 
 fn merge_static_segments(
-  segments: List(UrlSegment),
-  buf: String,
-  acc: List(String),
+  segments segments: List(UrlSegment),
+  buf buf: String,
+  acc acc: List(String),
 ) -> List(String) {
   case segments {
     [] ->
@@ -297,13 +297,13 @@ fn merge_static_segments(
         _ -> list.reverse(["\"" <> buf <> "\"", ..acc])
       }
     [StaticSegment(name), ..rest] ->
-      merge_static_segments(rest, buf <> "/" <> name, acc)
+      merge_static_segments(segments: rest, buf: buf <> "/" <> name, acc: acc)
     [DynamicSegment(param_name, IntParam), ..rest] -> {
       let acc = case buf {
         "" -> ["\"/\"", ..acc]
         _ -> ["\"" <> buf <> "/\"", ..acc]
       }
-      merge_static_segments(rest, "", [
+      merge_static_segments(segments: rest, buf: "", acc: [
         "int.to_string(" <> param_name <> ")",
         ..acc
       ])
@@ -313,7 +313,7 @@ fn merge_static_segments(
         "" -> ["\"/\"", ..acc]
         _ -> ["\"" <> buf <> "/\"", ..acc]
       }
-      merge_static_segments(rest, "", [
+      merge_static_segments(segments: rest, buf: "", acc: [
         "uri.percent_encode(" <> param_name <> ")",
         ..acc
       ])
@@ -335,11 +335,11 @@ fn generate_href() -> String {
 
 /// Generate a complete page_dispatch.gleam source file from scanned routes.
 pub fn generate_dispatch(
-  routes: List(ScannedRoute),
-  contracts: List(#(ScannedRoute, PageContract)),
-  has_client_context: Bool,
-  router_module: String,
-  client_context_module: String,
+  routes routes: List(ScannedRoute),
+  contracts contracts: List(#(ScannedRoute, PageContract)),
+  has_client_context has_client_context: Bool,
+  router_module router_module: String,
+  client_context_module client_context_module: String,
 ) -> String {
   let contract_map =
     contracts
@@ -370,11 +370,11 @@ import lustre/element/html
   <> "\n\n"
   <> dispatch_page_msg_type(routes, contract_map)
   <> "\n\n"
-  <> dispatch_init_page(routes, contract_map, has_client_context)
+  <> dispatch_init_page(routes:, contract_map:, has_client_context:)
   <> "\n\n"
-  <> dispatch_update_page(routes, contract_map, has_client_context)
+  <> dispatch_update_page(routes:, contract_map:, has_client_context:)
   <> "\n\n"
-  <> dispatch_view_page(routes, contract_map, has_client_context)
+  <> dispatch_view_page(routes:, contract_map:, has_client_context:)
 }
 
 fn import_as(module_path: String, alias: String) -> String {
@@ -387,7 +387,7 @@ fn import_as(module_path: String, alias: String) -> String {
 fn last_segment(module_path: String) -> String {
   case string.split(module_path, "/") |> list.last {
     Ok(seg) -> seg
-    Error(_) -> module_path
+    Error(Nil) -> module_path
   }
 }
 
@@ -430,9 +430,9 @@ fn dispatch_page_msg_type(
 }
 
 fn dispatch_init_page(
-  routes: List(ScannedRoute),
-  contract_map: dict.Dict(String, PageContract),
-  has_client_context: Bool,
+  routes routes: List(ScannedRoute),
+  contract_map contract_map: dict.Dict(String, PageContract),
+  has_client_context has_client_context: Bool,
 ) -> String {
   let arms =
     routes
@@ -482,9 +482,9 @@ fn dispatch_init_page(
 }
 
 fn dispatch_update_page(
-  routes: List(ScannedRoute),
-  contract_map: dict.Dict(String, PageContract),
-  has_client_context: Bool,
+  routes routes: List(ScannedRoute),
+  contract_map contract_map: dict.Dict(String, PageContract),
+  has_client_context has_client_context: Bool,
 ) -> String {
   let arms =
     routes
@@ -569,9 +569,9 @@ fn dispatch_update_page(
 }
 
 fn dispatch_view_page(
-  routes: List(ScannedRoute),
-  contract_map: dict.Dict(String, PageContract),
-  has_client_context: Bool,
+  routes routes: List(ScannedRoute),
+  contract_map contract_map: dict.Dict(String, PageContract),
+  has_client_context has_client_context: Bool,
 ) -> String {
   let arms =
     routes
