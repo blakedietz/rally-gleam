@@ -300,7 +300,6 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       libero.generate_dispatch(
         handler_endpoints,
         option.Some(config.atoms_module),
-        option.Some(config.wire_module),
       )
   }
   let sd_source =
@@ -313,17 +312,6 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     _ ->
       "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/client.js'></script></body>\n</html>"
   }
-  // Collect (module_path, type_name) for each page model that SSR encodes
-  // as flags. The wire module has encode_<qualified>/1 for each type.
-  let page_model_types =
-    list.filter_map(contracts, fn(pair) {
-      let #(route, contract) = pair
-      case contract.has_load && contract.has_model {
-        True -> Ok(#(route.module_path, "Model"))
-        False -> Error(Nil)
-      }
-    })
-
   let ssr_source =
     ssr_handler.generate(
       contracts,
@@ -333,9 +321,6 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       router_module,
       shell_html,
       config.atoms_module,
-      config.wire_module,
-      client_context_module,
-      page_model_types,
     )
 
   // Write generated files, aborting on first failure
