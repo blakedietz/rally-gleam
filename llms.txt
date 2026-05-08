@@ -145,6 +145,8 @@ Running `gleam run -m rally` produces:
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
 | `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam |
 | `generator/codec.gleam` | Client codegen: per-page modules (tree-shaken), types.gleam (ClientMsg), codec_ffi.mjs (ETF decoders), codec.gleam (decode_flags), rally_effect shim |
+| `dependency_resolver.gleam` | Follows import chains from page modules to build the full set of server-only symbols, client-safe functions, and shared dependencies used by the tree shaker |
+| `types.gleam` | Shared types: ScannedRoute, PageContract, ScanConfig, ClientContextContract, segment and variant field representations |
 | `tree_shaker.gleam` | Source-level tree shaker: extracts client-safe code from page modules using Glance AST |
 | `generator/ssr_handler.gleam` | SSR handler generation |
 | `generator/ws_handler.gleam` | WebSocket handler: calls rpc_dispatch.handle, drains push frames |
@@ -271,6 +273,7 @@ route_root = "/"
 ## Testing
 
 ```sh
-gleam test                    # 99 tests: scanner, generator, parser, wire, codec, topics, session, broadcast, snapshots
-gleam run -m birdie           # review snapshot changes
+gleam test                       # 192 tests: scanner, generator, parser, wire, codec, topics, session, broadcast, snapshots
+gleam run -m birdie accept       # accept all new snapshots
+gleam run -m birdie              # review snapshot changes interactively
 ```
