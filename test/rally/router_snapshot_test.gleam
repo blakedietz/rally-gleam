@@ -181,7 +181,7 @@ pub fn app_gleam_with_client_context_snapshot_test() {
   let contracts = basic_contracts()
   let config = test_scan_config()
   let files =
-    client.generate_package(routes, contracts, config, dict.new(), "", "", True)
+    client.generate_package(routes, contracts, config, dict.new(), "", True)
   let app =
     list.find(files, fn(f: client.GeneratedFile) {
       string.ends_with(f.path, "app.gleam")
@@ -201,7 +201,6 @@ pub fn app_gleam_with_browser_client_context_snapshot_test() {
       config,
       dict.new(),
       "",
-      "",
       Some(client_context_contract_with_browser_fields()),
       "client_context",
     )
@@ -220,7 +219,6 @@ pub fn client_app_syncs_browser_client_context_fields_test() {
       basic_contracts(),
       test_scan_config(),
       dict.new(),
-      "",
       "",
       Some(client_context_contract_with_browser_fields()),
       "client_context",
@@ -283,7 +281,6 @@ pub fn client_app_omits_unused_effect_import_and_record_updates_test() {
       test_scan_config(),
       dict.new(),
       "",
-      "",
       True,
     )
   let assert Ok(file) =
@@ -314,7 +311,6 @@ pub fn client_app_underscores_ignored_hydrate_route_params_test() {
       test_scan_config(),
       dict.new(),
       "",
-      "",
       False,
     )
   let assert Ok(file) =
@@ -340,7 +336,6 @@ pub fn client_app_underscores_unused_hydrate_context_test() {
       contracts,
       test_scan_config(),
       dict.new(),
-      "",
       "",
       True,
     )
@@ -386,7 +381,6 @@ pub fn client_app_uses_hydrate_context_when_init_loaded_needs_it_test() {
       [#(route, contract)],
       test_scan_config(),
       dict.new(),
-      "",
       "",
       True,
     )
@@ -450,7 +444,6 @@ pub fn app_gleam_layout_with_client_context_uses_context_msg_mapper_test() {
       contracts,
       test_scan_config(),
       dict.new(),
-      "",
       "",
       True,
     )
@@ -532,7 +525,6 @@ pub fn transport_gleam_snapshot_test() {
       config,
       dict.new(),
       "",
-      "",
       False,
     )
   let transport =
@@ -551,7 +543,6 @@ pub fn transport_gleam_exposes_safe_decode_test() {
       test_scan_config(),
       dict.new(),
       "",
-      "",
       False,
     )
   let assert Ok(file) =
@@ -564,7 +555,7 @@ pub fn transport_gleam_exposes_safe_decode_test() {
   |> should.equal(True)
   file.content
   |> string.contains(
-    "@external(javascript, \"./rpc_ffi.mjs\", \"decode_safe\")",
+    "@external(javascript, \"../../libero/libero/rpc_ffi.mjs\", \"decode_safe\")",
   )
   |> should.equal(True)
   file.content
@@ -574,7 +565,7 @@ pub fn transport_gleam_exposes_safe_decode_test() {
   |> should.equal(True)
   file.content
   |> string.contains(
-    "@external(javascript, \"./rpc_ffi.mjs\", \"decode_safe_raw\")",
+    "@external(javascript, \"../../libero/libero/rpc_ffi.mjs\", \"decode_safe_raw\")",
   )
   |> should.equal(True)
 }
@@ -587,7 +578,6 @@ pub fn transport_gleam_exposes_rpc_error_handler_test() {
       test_scan_config(),
       dict.new(),
       "",
-      "",
       False,
     )
   let assert Ok(file) =
@@ -597,7 +587,7 @@ pub fn transport_gleam_exposes_rpc_error_handler_test() {
 
   file.content
   |> string.contains(
-    "@external(javascript, \"./rpc_ffi.mjs\", \"registerRpcErrorHandler\")",
+    "@external(javascript, \"./transport_ffi.mjs\", \"registerRpcErrorHandler\")",
   )
   |> should.equal(True)
   file.content
@@ -622,7 +612,6 @@ pub fn app_gleam_snapshot_test() {
       contracts,
       config,
       dict.new(),
-      "",
       "",
       False,
     )
@@ -672,7 +661,6 @@ pub fn app_gleam_registers_page_push_handlers_test() {
       [#(route, contract)],
       config,
       dict.new(),
-      "",
       "",
       False,
     )

@@ -324,25 +324,16 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
     }
   })
 
-  // 7. Read JS runtime files from the Rally package
-  let rpc_ffi_path =
-    config.rally_package_path <> "/src/rally_runtime/rpc_ffi.mjs"
-  use rpc_ffi_content <- result.try(
-    simplifile.read(rpc_ffi_path)
+  // 7. Read rally transport JS runtime from the Rally package.
+  // ETF codec files (rpc_ffi.mjs, decoders_prelude.mjs) come from
+  // libero as a proper JS dependency of the generated client.
+  let transport_ffi_path =
+    config.rally_package_path <> "/src/rally_runtime/transport_ffi.mjs"
+  use transport_ffi_content <- result.try(
+    simplifile.read(transport_ffi_path)
     |> result.map_error(fn(e) {
-      "Cannot read rpc_ffi.mjs from rally package at "
-      <> rpc_ffi_path
-      <> ": "
-      <> string.inspect(e)
-    }),
-  )
-  let decoders_prelude_path =
-    config.rally_package_path <> "/src/rally_runtime/decoders_prelude.mjs"
-  use decoders_prelude_content <- result.try(
-    simplifile.read(decoders_prelude_path)
-    |> result.map_error(fn(e) {
-      "Cannot read decoders_prelude.mjs from rally package at "
-      <> decoders_prelude_path
+      "Cannot read transport_ffi.mjs from rally package at "
+      <> transport_ffi_path
       <> ": "
       <> string.inspect(e)
     }),
@@ -405,15 +396,14 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
       client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
     })
 
-  // 11. Generate client package (includes rpc_ffi.mjs and decoders_prelude.mjs)
+  // 11. Generate client package
   let client_files =
     client.generate_package_with_client_context_contract(
       routes,
       contracts,
       config,
       config.server_deps,
-      rpc_ffi_content,
-      decoders_prelude_content,
+      transport_ffi_content,
       client_context_contract,
       client_context_module,
     )

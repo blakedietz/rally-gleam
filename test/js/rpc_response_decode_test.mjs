@@ -17,7 +17,7 @@ import {
   setResultCtors,
   setOptionCtors,
   setListCtors,
-} from "../../src/rally_runtime/decoders_prelude.mjs";
+} from "../../../libero/src/libero/decoders_prelude.mjs";
 
 // ---------- Gleam stdlib type stubs ----------
 

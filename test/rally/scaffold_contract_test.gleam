@@ -205,7 +205,7 @@ pub fn client_package_keeps_absolute_dependency_paths_test() {
       ),
     ])
   let files =
-    client.generate_package([], [], test_scan_config(), deps, "", "", False)
+    client.generate_package([], [], test_scan_config(), deps, "", False)
   let assert Ok(file) =
     list.find(files, fn(file) { file.path == ".generated_client/gleam.toml" })
 
@@ -225,7 +225,7 @@ pub fn client_package_does_not_copy_server_runtime_deps_test() {
       ),
     ])
   let files =
-    client.generate_package([], [], test_scan_config(), deps, "", "", False)
+    client.generate_package([], [], test_scan_config(), deps, "", False)
   let assert Ok(file) =
     list.find(files, fn(file) { file.path == ".generated_client/gleam.toml" })
 
@@ -239,7 +239,7 @@ pub fn client_package_does_not_copy_server_runtime_deps_test() {
 
   file.content
   |> string.contains("libero")
-  |> should.equal(False)
+  |> should.equal(True)
 }
 
 pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {

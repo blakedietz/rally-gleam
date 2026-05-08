@@ -319,20 +319,20 @@ fn emit_codec_ffi_with_endpoints(
 ) -> String {
   let stdlib_setters =
     "import { setResultCtors, setOptionCtors, setListCtors, "
-    <> "setDictFromList } from \"./decoders_prelude.mjs\";"
+    <> "setDictFromList } from \"../../libero/libero/decoders_prelude.mjs\";"
 
   let imports =
     "import { decode_int, decode_float, decode_string, decode_bool, "
     <> "decode_bit_array, decode_nil, decode_list_of, decode_option_of, "
     <> "decode_result_of, decode_dict_of, decode_tuple_of, DecodeError } from \""
-    <> "./decoders_prelude.mjs\";\n"
+    <> "../../libero/libero/decoders_prelude.mjs\";\n"
     <> "import { Ok, Error as ResultError, Empty, NonEmpty } from \""
     <> "../../gleam_stdlib/gleam.mjs\";\n"
     <> "import { Some, None } from \""
     <> "../../gleam_stdlib/gleam/option.mjs\";\n"
     <> "import { from_list as dictFromList } from \""
     <> "../../gleam_stdlib/gleam/dict.mjs\";\n"
-    <> "import { registerAtomDecoder, registerFieldTypes } from \"./rpc_ffi.mjs\";\n"
+    <> "import { registerAtomDecoder, registerFieldTypes } from \"../../libero/libero/rpc_ffi.mjs\";\n"
 
   let ctor_setters =
     "setResultCtors(Ok, ResultError);\n"
