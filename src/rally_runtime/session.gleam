@@ -17,7 +17,13 @@ pub fn extract_session_id(cookie_header: String) -> Result(String, Nil) {
   |> list.map(string.trim)
   |> list.find_map(fn(pair) {
     case string.split_once(pair, "=") {
-      Ok(#("rally_session", value)) -> Ok(string.trim(value))
+      Ok(#("rally_session", value)) -> {
+        let session_id = string.trim(value)
+        case session_id {
+          "" -> Error(Nil)
+          _ -> Ok(session_id)
+        }
+      }
       _ -> Error(Nil)
     }
   })

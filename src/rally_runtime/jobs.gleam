@@ -93,7 +93,7 @@ fn fetch_ready_jobs(db: sqlight.Connection, now: Int) -> List(Job) {
   case
     sqlight.query(
       "UPDATE jobs SET status = 'running'
-       WHERE id IN (SELECT id FROM jobs WHERE status = 'pending' AND run_at <= ?1 ORDER BY run_at LIMIT 10)
+       WHERE id IN (SELECT id FROM jobs WHERE status IN ('pending', 'running') AND run_at <= ?1 ORDER BY run_at LIMIT 10)
        RETURNING id, name, payload, attempts",
       on: db,
       with: [sqlight.int(now)],

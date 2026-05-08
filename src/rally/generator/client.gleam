@@ -450,9 +450,7 @@ fn app_gleam(
   let #(ctx_model, ctx_effects) = client_context.init()
   let current_path = router.route_to_path(route)
   let client_context = case codec.decode_flags(transport.read_client_context()) {
-    Ok(ctx) -> transport.apply_typed_decoder(ctx, \""
-    <> ctx_decoder_name
-    <> "\")
+    Ok(ctx) -> transport.apply_typed_decoder(ctx, \"" <> ctx_decoder_name <> "\")
     Error(_) -> ctx_model
   }
 " <> init_context_overlay <> "  let #(page_model, page_effects) = case codec.decode_flags(flags) {
@@ -823,7 +821,10 @@ fn generate_init_page(
             False, _ -> "(" <> string.drop_start(param_args, 2) <> ")"
           }
           let server_init_call = case route.params {
-            [] -> ""
+            [] ->
+              "      transport.send_page_init(\""
+              <> route.variant_name
+              <> "\", Nil)\n"
             params -> {
               let param_names = list.map(params, fn(p) { p.0 })
               let params_tuple = case param_names {
@@ -898,8 +899,15 @@ fn generate_hydrate_page(
           let decoder_name = page_model_decoder_name(route.module_path)
           let call_args = case has_client_context {
             True ->
-              "(" <> hydrate_client_context_name <> ", transport.apply_typed_decoder(data, \"" <> decoder_name <> "\"))"
-            False -> "(transport.apply_typed_decoder(data, \"" <> decoder_name <> "\"))"
+              "("
+              <> hydrate_client_context_name
+              <> ", transport.apply_typed_decoder(data, \""
+              <> decoder_name
+              <> "\"))"
+            False ->
+              "(transport.apply_typed_decoder(data, \""
+              <> decoder_name
+              <> "\"))"
           }
           Ok(
             "    "
@@ -926,7 +934,9 @@ fn generate_hydrate_page(
             <> pattern
             <> " -> #("
             <> route.variant_name
-            <> "PageModel(transport.apply_typed_decoder(data, \"" <> decoder_name <> "\")), effect.none())",
+            <> "PageModel(transport.apply_typed_decoder(data, \""
+            <> decoder_name
+            <> "\")), effect.none())",
           )
         }
         _ -> Error(Nil)

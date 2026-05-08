@@ -20,9 +20,9 @@ pub fn shake(
       let server_fns =
         ast.functions
         |> list.filter_map(fn(def) {
-          let f = def.definition
-          case is_server_function(f, server_set) {
-            True -> Ok(f.name)
+          let function = def.definition
+          case is_server_function(function, server_set) {
+            True -> Ok(function.name)
             False -> Error(Nil)
           }
         })
@@ -32,8 +32,9 @@ pub fn shake(
       let client_pub_fns =
         ast.functions
         |> list.filter(fn(def) {
-          let f = def.definition
-          f.publicity == glance.Public && !set.contains(server_fns, f.name)
+          let function = def.definition
+          function.publicity == glance.Public
+          && !set.contains(server_fns, function.name)
         })
 
       let reachable_private =
@@ -53,8 +54,7 @@ pub fn shake(
       let client_types = filter_types(ast.custom_types, server_set, client_refs)
       let client_type_aliases =
         filter_type_aliases(ast.type_aliases, server_set, client_refs)
-      let client_constants =
-        filter_constants(ast.constants, client_refs)
+      let client_constants = filter_constants(ast.constants, client_refs)
       let client_functions =
         extract_client_functions(ast, all_client_fn_names, source)
 
@@ -136,8 +136,9 @@ fn collect_reachable_private_fns(
   let private_fns =
     ast.functions
     |> list.filter(fn(def) {
-      let f = def.definition
-      f.publicity != glance.Public && !set.contains(server_fns, f.name)
+      let function = def.definition
+      function.publicity != glance.Public
+      && !set.contains(server_fns, function.name)
     })
 
   let private_fn_names =
@@ -354,15 +355,15 @@ fn collect_all_client_refs(
 
   let sig_refs =
     list.flat_map(client_fns, fn(def) {
-      let f = def.definition
+      let function = def.definition
       let param_refs =
-        list.flat_map(f.parameters, fn(p) {
+        list.flat_map(function.parameters, fn(p) {
           case p.type_ {
             Some(t) -> extract_type_refs(t)
             None -> []
           }
         })
-      let return_refs = case f.return {
+      let return_refs = case function.return {
         Some(t) -> extract_type_refs(t)
         None -> []
       }
@@ -488,12 +489,10 @@ fn filter_types(
       False -> True
       True -> {
         // Keep server types whose constructors are referenced by client code
-        let has_client_ref =
-          set.contains(client_refs, name)
-          || list.any(def.definition.variants, fn(v) {
-            set.contains(client_refs, v.name)
-          })
-        has_client_ref
+        set.contains(client_refs, name)
+        || list.any(def.definition.variants, fn(v) {
+          set.contains(client_refs, v.name)
+        })
       }
     }
   })

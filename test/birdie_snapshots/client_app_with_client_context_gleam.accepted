@@ -99,10 +99,12 @@ fn init_transport() -> Effect(Msg) {
 fn init_page(route: router.Route, client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {
   case route {
     router.Home -> {
+      transport.send_page_init("Home", Nil)
       let #(m, e) = pages_home_.init(client_context)
       #(HomePageModel(m), effect.map(e, fn(msg) { PageMsg(HomePageMsg(msg)) }))
     }
     router.About -> {
+      transport.send_page_init("About", Nil)
       let #(m, e) = pages_about.init(client_context)
       #(AboutPageModel(m), effect.map(e, fn(msg) { PageMsg(AboutPageMsg(msg)) }))
     }

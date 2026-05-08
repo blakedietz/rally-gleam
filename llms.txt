@@ -190,6 +190,7 @@ Four-level server-to-client messaging using OTP `pg` process groups:
 - **Transport:** WebSocket with auto-reconnect, or HTTP POST /rpc for non-WebSocket clients
 - **HTTP RPC:** scaffolded apps and the RealWorld example route `POST /rpc` to `generated/<namespace>/http_handler.handle`
 - **Page pushes:** generated clients register a push handler for pages whose `Msg` has a single-field `ToClient` wrapper, usually `GotServerMsg(ToClient)`
+- **Page init:** generated clients send a page-init frame for every route initialization, including static routes with `Nil` params, so the WebSocket process keeps its current page and page-topic subscriptions in sync after SPA navigation.
 - **SSR:** First request renders HTML with serialized model embedded as flags
 - **Hydration:** Client reads flags, boots Lustre, takes over as SPA
 
@@ -219,7 +220,7 @@ RPC responses show round-trip latency (e.g. `rpc #3 (12.4ms)`). Connection lifec
 
 `rally_runtime/system.open` creates the observability schema: `messages` for message flow and `jobs` for durable background work. `system.log_to_client`, `system.log_to_server`, and `system.log_broadcast` insert rows into `messages`.
 
-`rally_runtime/jobs.run_once` claims ready pending jobs with `UPDATE ... RETURNING`, invokes the handler, marks successes completed, schedules failures with quadratic backoff, and dead-letters after the max attempt count.
+`rally_runtime/jobs.run_once` claims ready pending jobs and reclaims due running jobs with `UPDATE ... RETURNING`, invokes the handler, marks successes completed, schedules failures with quadratic backoff, and dead-letters after the max attempt count.
 
 `rally_runtime/migrate.run` validates every `.sql` filename before deciding what is pending. Invalid filenames return `FilenameParseFailed`; failed SQL rolls back the current migration and leaves `schema_migrations.last_migration` at the last successful version.
 

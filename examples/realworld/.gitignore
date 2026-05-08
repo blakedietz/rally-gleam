@@ -1,4 +1,6 @@
 build/
 manifest.toml
 .generated_client/
+src/generated/
+src/generated@*.erl
 app.db

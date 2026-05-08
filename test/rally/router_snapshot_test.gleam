@@ -519,14 +519,7 @@ pub fn transport_gleam_snapshot_test() {
   let contracts = basic_contracts()
   let config = test_scan_config()
   let files =
-    client.generate_package(
-      routes,
-      contracts,
-      config,
-      dict.new(),
-      "",
-      False,
-    )
+    client.generate_package(routes, contracts, config, dict.new(), "", False)
   let transport =
     list.find(files, fn(f: client.GeneratedFile) {
       string.ends_with(f.path, "transport.gleam")
@@ -570,6 +563,37 @@ pub fn transport_gleam_exposes_safe_decode_test() {
   |> should.equal(True)
 }
 
+pub fn app_gleam_sends_page_init_for_static_routes_test() {
+  let files =
+    client.generate_package(
+      basic_routes(),
+      basic_contracts(),
+      test_scan_config(),
+      dict.new(),
+      "",
+      False,
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+
+  file.content
+  |> count_occurrences("transport.send_page_init(\"Home\", Nil)")
+  |> should.equal(2)
+
+  file.content
+  |> count_occurrences("transport.send_page_init(\"About\", Nil)")
+  |> should.equal(2)
+}
+
+fn count_occurrences(haystack: String, needle: String) -> Int {
+  haystack
+  |> string.split(needle)
+  |> list.length
+  |> fn(parts) { parts - 1 }
+}
+
 pub fn transport_gleam_exposes_rpc_error_handler_test() {
   let files =
     client.generate_package(
@@ -607,14 +631,7 @@ pub fn app_gleam_snapshot_test() {
   let contracts = basic_contracts()
   let config = test_scan_config()
   let files =
-    client.generate_package(
-      routes,
-      contracts,
-      config,
-      dict.new(),
-      "",
-      False,
-    )
+    client.generate_package(routes, contracts, config, dict.new(), "", False)
   let app =
     list.find(files, fn(f: client.GeneratedFile) {
       string.ends_with(f.path, "app.gleam")
@@ -724,13 +741,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       init_source: "",
       update_source: "",
     )
-  let files =
-    codec.generate(
-      [#(route, contract)],
-      [],
-      [],
-      [],
-    )
+  let files = codec.generate([#(route, contract)], [], [], [])
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.contains(f.content, "send_to_server(Increment)")
@@ -747,8 +758,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
 pub fn types_gleam_snapshot_test() {
   let contracts = basic_contracts()
-  let files =
-    codec.generate(contracts, [], [], [])
+  let files = codec.generate(contracts, [], [], [])
   let types =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "types.gleam")
@@ -768,8 +778,7 @@ pub fn types_gleam_does_not_import_modules_used_only_by_responses_test() {
       mutates_context: False,
       msg_type_name: None,
     )
-  let files =
-    codec.generate([], [], [endpoint], [])
+  let files = codec.generate([], [], [endpoint], [])
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "types.gleam")
@@ -782,8 +791,7 @@ pub fn types_gleam_does_not_import_modules_used_only_by_responses_test() {
 
 pub fn codec_gleam_snapshot_test() {
   let contracts = basic_contracts()
-  let files =
-    codec.generate(contracts, [], [], [])
+  let files = codec.generate(contracts, [], [], [])
   let codec_file =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "codec.gleam")

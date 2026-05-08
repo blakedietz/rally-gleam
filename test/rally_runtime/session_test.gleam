@@ -24,6 +24,16 @@ pub fn extract_session_empty_test() {
   |> should.equal(Error(Nil))
 }
 
+pub fn extract_session_rejects_empty_cookie_value_test() {
+  session.extract_session_id("rally_session=; other=value")
+  |> should.equal(Error(Nil))
+}
+
+pub fn extract_session_rejects_whitespace_cookie_value_test() {
+  session.extract_session_id("rally_session=   ; other=value")
+  |> should.equal(Error(Nil))
+}
+
 pub fn set_cookie_header_secure_test() {
   session.set_cookie_header(session_id: "abc123", secure: True)
   |> should.equal(

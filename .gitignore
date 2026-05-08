@@ -1,5 +1,7 @@
 build/
 tmp/
+examples/*/src/generated/
+examples/*/src/generated@*.erl
 erl_crash.dump
 *.bak
 .DS_Store

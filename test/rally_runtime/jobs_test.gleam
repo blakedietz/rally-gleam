@@ -31,6 +31,30 @@ pub fn run_once_retries_failed_jobs_with_backoff_test() {
   should.equal(row.run_at > 0, True)
 }
 
+pub fn run_once_reclaims_running_jobs_test() {
+  let assert Ok(conn) = system.open(":memory:")
+  let assert Ok(_) =
+    sqlight.query(
+      "INSERT INTO jobs (name, payload, run_at, attempts, status) VALUES (?1, ?2, ?3, 0, 'running')",
+      on: conn,
+      with: [
+        sqlight.text("orphan"),
+        sqlight.blob(<<"payload":utf8>>),
+        sqlight.int(0),
+      ],
+      expecting: decode.success(Nil),
+    )
+
+  jobs.run_once(conn, fn(name, payload) {
+    name |> should.equal("orphan")
+    payload |> should.equal(<<"payload":utf8>>)
+    Ok(Nil)
+  })
+
+  job_statuses(conn)
+  |> should.equal(["completed"])
+}
+
 type JobAttempt {
   JobAttempt(status: String, attempts: Int, run_at: Int, last_error: String)
 }
