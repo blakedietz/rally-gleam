@@ -6,7 +6,7 @@ import gleam/option
 import gleam/result
 import gleam/string
 import libero
-import libero/gen_error as gen_error
+import libero/gen_error
 import libero/scanner as libero_scanner
 import rally/dependency_resolver
 import rally/format
@@ -79,17 +79,23 @@ fn read_configs() -> Result(List(ScanConfig), RallyError) {
         list.try_map(clients, fn(client) {
           case client {
             tom.Table(cfg) | tom.InlineTable(cfg) ->
-              read_client_config(client_config: cfg, server_deps:, rally_package_path:)
-            _ ->
-              Error(
-                RallyError("Each [[tools.rally.clients]] entry must be a table"),
+              read_client_config(
+                client_config: cfg,
+                server_deps:,
+                rally_package_path:,
               )
+            _ ->
+              Error(RallyError(
+                "Each [[tools.rally.clients]] entry must be a table",
+              ))
           }
         }),
       )
       case configs {
         [] ->
-          Ok([read_legacy_config(rally_config:, server_deps:, rally_package_path:)])
+          Ok([
+            read_legacy_config(rally_config:, server_deps:, rally_package_path:),
+          ])
         _ -> Ok(configs)
       }
     }
@@ -333,16 +339,17 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     )
 
   // Write generated files, aborting on first failure
-  let result = do_write_files(
-    config:,
-    route_source:,
-    dispatch_source:,
-    sd_source:,
-    ssr_source:,
-    contracts:,
-    handler_endpoints:,
-    rpc_dispatch_module:,
-  )
+  let result =
+    do_write_files(
+      config:,
+      route_source:,
+      dispatch_source:,
+      sd_source:,
+      ssr_source:,
+      contracts:,
+      handler_endpoints:,
+      rpc_dispatch_module:,
+    )
   use _ <- result.try(result)
 
   let transport_ffi_path =
@@ -354,7 +361,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         "Cannot read transport_ffi.mjs from rally package at "
         <> transport_ffi_path
         <> ": "
-        <> simplifile.describe_error(e)
+        <> simplifile.describe_error(e),
       )
     }),
   )
@@ -381,8 +388,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         False -> Error(Nil)
       }
     })
-  let seeds =
-    list.flatten([handler_seeds, cc_seeds, page_model_seeds])
+  let seeds = list.flatten([handler_seeds, cc_seeds, page_model_seeds])
   let discovered = case libero.walk(seeds) {
     Ok(types) -> types
     Error(errors) -> {
@@ -392,13 +398,20 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
   }
 
   let atoms_erl =
-    libero.generate_atoms(handler_endpoints, discovered, config.atoms_module)
+    libero.generate_atoms(
+      handler_endpoints,
+      discovered,
+      config.atoms_module,
+      option.Some(config.wire_module),
+    )
   use _ <- result.try(
     write_file(config.output_server_atoms, atoms_erl)
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
   )
 
-  let wire_erl = case libero.generate_wire_erl(discovered:, wire_module: config.wire_module) {
+  let wire_erl = case
+    libero.generate_wire_erl(discovered:, wire_module: config.wire_module)
+  {
     Ok(src) -> src
     Error(err) -> {
       gen_error.print_error(err)
@@ -447,7 +460,10 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
           let ffi_files = case simplifile.read(ffi_path) {
             Ok(ffi_content) -> [
               client.GeneratedFile(
-                config.client_root <> "/src/" <> client_context_module <> "_ffi.mjs",
+                config.client_root
+                  <> "/src/"
+                  <> client_context_module
+                  <> "_ffi.mjs",
                 ffi_content,
               ),
             ]
@@ -478,8 +494,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
           && string.contains(f.path, "/pages/")
         })
         |> list.map(fn(f: codec.CodecFile) {
-          let module_path =
-            f.path |> string.drop_start(4) |> string.drop_end(6)
+          let module_path = f.path |> string.drop_start(4) |> string.drop_end(6)
           #(module_path, f.content)
         }),
       layout_files
@@ -551,7 +566,8 @@ fn do_write_files(
   handler_endpoints handler_endpoints: List(libero_scanner.HandlerEndpoint),
   rpc_dispatch_module rpc_dispatch_module: String,
 ) -> Result(Nil, RallyError) {
-  let ws_source = ws_handler.generate(contracts, config.atoms_module, rpc_dispatch_module)
+  let ws_source =
+    ws_handler.generate(contracts, config.atoms_module, rpc_dispatch_module)
   use _ <- result.try(
     write_file(config.output_route, route_source)
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
@@ -575,7 +591,8 @@ fn do_write_files(
   use _ <- result.try(case handler_endpoints {
     [] -> Ok(Nil)
     _ -> {
-      let http_source = http_handler.generate(handler_endpoints, rpc_dispatch_module)
+      let http_source =
+        http_handler.generate(handler_endpoints, rpc_dispatch_module)
       write_file(config.output_http, http_source)
       |> result.map_error(fn(msg) { RallyError("write error: " <> msg) })
     }
@@ -744,6 +761,11 @@ fn tom_get_error_to_string(e: tom.GetError) -> String {
   case e {
     tom.NotFound(key:) -> "key not found: " <> string.join(key, ".")
     tom.WrongType(key:, expected:, got:) ->
-      "expected " <> expected <> ", got " <> got <> " at " <> string.join(key, ".")
+      "expected "
+      <> expected
+      <> ", got "
+      <> got
+      <> " at "
+      <> string.join(key, ".")
   }
 }
