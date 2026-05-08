@@ -15,7 +15,8 @@ import { MalformedRequest, UnknownFunction, InternalError } from "../../libero/l
 
 function debugEnabled() {
   if (typeof window === "undefined") return false;
-  return window.__RALLY_DEBUG__ === true;
+  return window.__RALLY_DEBUG__ === true
+      || window.__APP_ENV__ === "dev";
 }
 
 function formatRaw(value, depth = 0) {
