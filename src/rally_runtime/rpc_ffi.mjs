@@ -1009,6 +1009,22 @@ export function decode_safe(buffer) {
 }
 
 /**
+ * Raw variant of `decode_safe`: atoms stay as strings and tagged
+ * tuples stay as plain JS arrays. Safe wrapper that returns Result.
+ * @param {DecoderInput} buffer
+ * @returns {any} Ok(raw_value) or Error(WireDecodeError)
+ */
+export function decode_safe_raw(buffer) {
+  try {
+    const raw = new ETFDecoder(buffer, true).decode();
+    return new Ok(raw);
+  } catch (e) {
+    const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);
+    return new ResultError(new WireDecodeError(msg));
+  }
+}
+
+/**
  * Two-pass decode: raw ETF → typed decoder lookup.
  * Used by wire.decode_typed for SSR flags and other non-RPC paths.
  * @param {DecoderInput} buffer

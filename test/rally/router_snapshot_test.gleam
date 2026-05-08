@@ -572,6 +572,11 @@ pub fn transport_gleam_exposes_safe_decode_test() {
     "pub fn decode_safe(data: BitArray) -> Result(a, DecodeError)",
   )
   |> should.equal(True)
+  file.content
+  |> string.contains(
+    "@external(javascript, \"./rpc_ffi.mjs\", \"decode_safe_raw\")",
+  )
+  |> should.equal(True)
 }
 
 pub fn transport_gleam_exposes_rpc_error_handler_test() {

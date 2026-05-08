@@ -17,7 +17,7 @@ pub fn decode_flags(flags: String) -> Result(a, String) {
     _ ->
       case bit_array.base64_decode(flags) {
         Ok(bits) ->
-          case transport.decode_safe(bits) {
+          case transport.decode_safe_raw(bits) {
             Ok(value) -> Ok(value)
             Error(err) -> Error("Failed to ETF-decode flags: " <> err.message)
           }

@@ -62,6 +62,11 @@ pub fn decode(data: BitArray) -> a
 @external(javascript, "./rpc_ffi.mjs", "decode_safe")
 pub fn decode_safe(data: BitArray) -> Result(a, DecodeError)
 
+/// Raw ETF decode (atoms as strings, tuples as arrays) returning Result.
+/// Used before applying typed decoders, which expect raw shapes.
+@external(javascript, "./rpc_ffi.mjs", "decode_safe_raw")
+pub fn decode_safe_raw(data: BitArray) -> Result(a, DecodeError)
+
 /// Apply a typed decoder to a raw ETF-decoded value.
 /// The decoder_name is the function name in codec_ffi.mjs
 /// (e.g. "decode_client_context_client_context").
