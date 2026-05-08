@@ -18,7 +18,7 @@ import libero/codegen_decoders
 import libero/field_type.{type FieldType, UserType}
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{
-  type DiscoveredType, DiscoveredType, DiscoveredVariant,
+  type DiscoveredType,
 }
 import rally/tree_shaker
 import rally/types.{type PageContract, type ScannedRoute}
@@ -31,27 +31,13 @@ pub type CodecFile {
 pub fn generate(
   contracts: List(#(ScannedRoute, PageContract)),
   discovered: List(DiscoveredType),
-  client_context_source: option.Option(String),
-  client_context_module: String,
   endpoints: List(HandlerEndpoint),
   server_symbols: List(String),
 ) -> List(CodecFile) {
-  let existing_type_names =
-    list.map(discovered, fn(t) { t.type_name })
-    |> set.from_list
-  let all_discovered = case client_context_source {
-    option.Some(source) -> {
-      let cc_types =
-        discover_client_context(source, client_context_module)
-        |> list.filter(fn(t) { !set.contains(existing_type_names, t.type_name) })
-      list.append(discovered, cc_types)
-    }
-    option.None -> discovered
-  }
   let codec_files = [
     CodecFile(
       "src/generated/codec_ffi.mjs",
-      emit_codec_ffi_with_endpoints(all_discovered, endpoints),
+      emit_codec_ffi_with_endpoints(discovered, endpoints),
     ),
     CodecFile(
       "src/generated/types.gleam",
@@ -175,30 +161,18 @@ fn drop_unused_effect_import(source: String, aliases: List(String)) -> String {
   }
 }
 
-fn discover_client_context(
+/// Extract (module_path, type_name) seeds from a client_context.gleam
+/// source so the walker can discover ClientContext types with proper
+/// field type resolution, instead of the old hardcoded-StringField path.
+pub fn client_context_seeds(
   source: String,
   module_path: String,
-) -> List(DiscoveredType) {
+) -> List(#(String, String)) {
   case glance.module(source) {
     Error(_) -> []
     Ok(ast) ->
-      ast.custom_types
-      |> list.map(fn(def) {
-        let ct = def.definition
-        DiscoveredType(
-          module_path: module_path,
-          type_name: ct.name,
-          type_params: [],
-          variants: list.map(ct.variants, fn(v) {
-            DiscoveredVariant(
-              module_path: module_path,
-              variant_name: v.name,
-              atom_name: walker.to_snake_case(v.name),
-              float_field_indices: [],
-              fields: list.map(v.fields, fn(_f) { field_type.StringField }),
-            )
-          }),
-        )
+      list.map(ast.custom_types, fn(def) {
+        #(module_path, def.definition.name)
       })
   }
 }

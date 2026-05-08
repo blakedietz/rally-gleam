@@ -349,8 +349,23 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
   )
 
   // 8. Walk type graph for codec generation.
-  // Seeds come from handler endpoint params/return types discovered by libero.
-  let seeds = libero.collect_seeds(handler_endpoints)
+  // Seeds come from handler endpoint params/return types AND
+  // ClientContext types so the walker resolves field types properly.
+  let client_context_source = case has_client_context {
+    True ->
+      case simplifile.read(client_context_path) {
+        Ok(source) -> option.Some(source)
+        Error(_) -> option.None
+      }
+    False -> option.None
+  }
+  let handler_seeds = libero.collect_seeds(handler_endpoints)
+  let cc_seeds = case client_context_source {
+    option.Some(source) ->
+      codec.client_context_seeds(source, client_context_module)
+    option.None -> []
+  }
+  let seeds = list.append(handler_seeds, cc_seeds)
   let discovered = case libero.walk(seeds) {
     Ok(types) -> types
     Error(errors) -> {
@@ -369,14 +384,6 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
   let server_symbols = collect_server_symbols(handler_endpoints)
 
   // 10. Generate codec files and per-page client modules
-  let client_context_source = case has_client_context {
-    True ->
-      case simplifile.read(client_context_path) {
-        Ok(source) -> option.Some(source)
-        Error(_) -> option.None
-      }
-    False -> option.None
-  }
   use client_context_contract <- result.try(case client_context_source {
     option.Some(source) ->
       parser.parse_client_context(source)
@@ -390,8 +397,6 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, String) {
     codec.generate(
       contracts,
       discovered,
-      client_context_source,
-      client_context_module,
       handler_endpoints,
       server_symbols,
     )

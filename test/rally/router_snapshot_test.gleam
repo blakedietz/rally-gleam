@@ -735,8 +735,6 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     codec.generate(
       [#(route, contract)],
       [],
-      option.None,
-      "client_context",
       [],
       [],
     )
@@ -757,7 +755,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 pub fn types_gleam_snapshot_test() {
   let contracts = basic_contracts()
   let files =
-    codec.generate(contracts, [], option.None, "client_context", [], [])
+    codec.generate(contracts, [], [], [])
   let types =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "types.gleam")
@@ -778,7 +776,7 @@ pub fn types_gleam_does_not_import_modules_used_only_by_responses_test() {
       msg_type_name: None,
     )
   let files =
-    codec.generate([], [], option.None, "client_context", [endpoint], [])
+    codec.generate([], [], [endpoint], [])
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "types.gleam")
@@ -792,7 +790,7 @@ pub fn types_gleam_does_not_import_modules_used_only_by_responses_test() {
 pub fn codec_gleam_snapshot_test() {
   let contracts = basic_contracts()
   let files =
-    codec.generate(contracts, [], option.None, "client_context", [], [])
+    codec.generate(contracts, [], [], [])
   let codec_file =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "codec.gleam")
@@ -802,7 +800,7 @@ pub fn codec_gleam_snapshot_test() {
 }
 
 pub fn codec_gleam_omits_unused_dynamic_type_import_test() {
-  let files = codec.generate([], [], option.None, "client_context", [], [])
+  let files = codec.generate([], [], [], [])
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "codec.gleam")
