@@ -77,14 +77,7 @@ fn resolve_loop(
                     acc: list.append([file, ..ffi_files], acc),
                   )
                 }
-                _ ->
-                  resolve_loop(
-                    frontier: rest,
-                    visited:,
-                    src_root:,
-                    client_root:,
-                    acc:,
-                  )
+                Error(msg) -> Error(msg)
               }
             }
             _ ->
