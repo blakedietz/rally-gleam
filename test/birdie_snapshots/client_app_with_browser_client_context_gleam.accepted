@@ -101,7 +101,7 @@ fn init_transport() -> Effect(Msg) {
   })
 }
 
-fn init_page(route: router.Route, client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {
+fn init_page(route route: router.Route, client_context client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {
   case route {
     router.Home -> {
       transport.send_page_init("Home", Nil)
@@ -149,7 +149,7 @@ fn reinit_server(route: router.Route) -> Effect(Msg) {
   }
 }
 
-fn update_page(page_model: PageModel, page_msg: PageMsg, client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg), Option(client_context.ClientContextMsg)) {
+fn update_page(page_model page_model: PageModel, page_msg page_msg: PageMsg, client_context client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg), Option(client_context.ClientContextMsg)) {
   case page_model, page_msg {
     HomePageModel(m), HomePageMsg(msg) -> {
       let #(new_m, e) = pages_home_.update(client_context, m, msg)

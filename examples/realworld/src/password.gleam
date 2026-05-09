@@ -1,10 +1,10 @@
 import argus
 
 pub fn hash(password password: String) -> String {
-  case argus.hasher() |> argus.hash(password, argus.gen_salt()) {
-    Ok(hashes) -> hashes.encoded_hash
-    Error(_error) -> ""
-  }
+  let assert Ok(hashes) =
+    argus.hasher()
+    |> argus.hash(password, argus.gen_salt())
+  hashes.encoded_hash
 }
 
 pub fn verify(password password: String, stored stored: String) -> Bool {

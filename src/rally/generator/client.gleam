@@ -904,8 +904,8 @@ fn generate_init_page(
 
   let sig = case has_client_context {
     True ->
-      "fn init_page(route: router.Route, client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {"
-    False -> "fn init_page(route: router.Route) -> #(PageModel, Effect(Msg)) {"
+      "fn init_page(route route: router.Route, client_context client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {"
+    False -> "fn init_page(route route: router.Route) -> #(PageModel, Effect(Msg)) {"
   }
 
   sig <> "\n  case route {\n" <> arms <> "\n" <> not_found_arm <> "\n  }\n}"
@@ -1124,7 +1124,7 @@ fn generate_update_page(
     True -> {
       let catch_all = "    _, _ -> #(page_model, effect.none(), None)"
       let sig =
-        "fn update_page(page_model: PageModel, page_msg: PageMsg, client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg), Option(client_context.ClientContextMsg)) {"
+        "fn update_page(page_model page_model: PageModel, page_msg page_msg: PageMsg, client_context client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg), Option(client_context.ClientContextMsg)) {"
       sig
       <> "\n  case page_model, page_msg {\n"
       <> arms
@@ -1135,7 +1135,7 @@ fn generate_update_page(
     False -> {
       let catch_all = "    _, _ -> #(page_model, effect.none())"
       let sig =
-        "fn update_page(page_model: PageModel, page_msg: PageMsg) -> #(PageModel, Effect(Msg)) {"
+        "fn update_page(page_model page_model: PageModel, page_msg page_msg: PageMsg) -> #(PageModel, Effect(Msg)) {"
       sig
       <> "\n  case page_model, page_msg {\n"
       <> arms
