@@ -30,6 +30,11 @@ stats = true
 warnings_as_errors = false
 exclude = ["tmp/**", "examples/**"]
 
+[documentation]
+pages = [
+  { title = "llms.txt", path = "llms.txt", source = "./llms.txt" },
+]
+
 [tools.glinter.ignore]
 "src/rally_runtime/*.gleam" = ["unused_exports"]
 "src/**/*.gleam" = ["deep_nesting", "stringly_typed_error"]
