@@ -6,19 +6,18 @@ pub type RpcError {
 }
 
 pub fn call(base_url base_url: String, msg msg: a) -> Result(b, RpcError) {
-  let body = wire.encode(#("rpc", 1, msg))
+  let body = wire.encode_request(module: "rpc", request_id: 1, msg:)
   case http_post(base_url <> "/rpc", body) {
     Ok(response_bytes) -> {
-      // Response is tag_response format: <<0x00, request_id:32, payload_etf>>
-      case response_bytes {
-        <<0, _request_id:32, payload:bits>> -> {
-          let decoded: Result(b, c) = wire.decode(payload)
+      case wire.decode_response_frame(response_bytes) {
+        Ok(wire.Response(request_id: _, value:)) -> {
+          let decoded: Result(b, c) = wire.coerce(value)
           case decoded {
             Ok(value) -> Ok(value)
             Error(_err) -> Error(ServerError("Server returned an error"))
           }
         }
-        _ -> Error(ServerError("Unexpected response format"))
+        Error(_) -> Error(ServerError("Unexpected response format"))
       }
     }
     Error(reason) -> Error(HttpError(reason))

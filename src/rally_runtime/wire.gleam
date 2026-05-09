@@ -28,6 +28,14 @@ pub fn encode_call(
   libero_wire.encode_call(module:, request_id:, msg:)
 }
 
+pub fn encode_request(
+  module module: String,
+  request_id request_id: Int,
+  msg msg: a,
+) -> BitArray {
+  libero_wire.encode_request(module:, request_id:, msg:)
+}
+
 pub fn tag_response(
   request_id request_id: Int,
   data data: BitArray,

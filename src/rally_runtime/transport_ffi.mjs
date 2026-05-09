@@ -8,7 +8,7 @@
 // SSR flags, and debug logging.
 
 import { Ok, Error as ResultError, CustomType, Empty, NonEmpty, BitArray } from "../../gleam_stdlib/gleam.mjs";
-import { encode_call, decode_server_frame } from "../../libero/libero/rpc_ffi.mjs";
+import { encode_request, decode_server_frame } from "../../libero/libero/rpc_ffi.mjs";
 import { MalformedRequest, UnknownFunction, InternalError } from "../../libero/libero/error.mjs";
 
 // ---------- Debug logging ----------
@@ -389,7 +389,7 @@ export function registerOnDisconnect(callback) {
 export function send(url, module, msg, callback) {
   ensureSocket(url);
   const requestId = nextRequestId++;
-  const payload = encode_call(module, requestId, msg);
+  const payload = encode_request(module, requestId, msg);
   if (debugEnabled()) requestTimestamps.set(requestId, performance.now());
   logRpc("->", `rpc #${requestId}`, msg, { module });
 
@@ -423,7 +423,7 @@ export function send(url, module, msg, callback) {
  */
 export function send_page_init(url, module, params) {
   ensureSocket(url);
-  const payload = encode_call(module, 0, params);
+  const payload = encode_request(module, 0, params);
   logRpc("->", `page_init ${module}`, params);
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(payload);

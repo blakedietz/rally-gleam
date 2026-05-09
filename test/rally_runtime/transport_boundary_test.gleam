@@ -1,8 +1,9 @@
 //// Guard: Rally's transport_ffi.mjs must not contain byte-level frame
-//// awareness. Libero owns the frame boundary. If this test fails,
-//// someone reintroduced tag-byte inspection or raw decode imports.
+//// awareness or raw codec imports. Libero owns the frame and request
+//// boundaries. If this test fails, someone reintroduced tag-byte
+//// inspection, raw decode imports, or encode_call usage.
 ////
-//// Step 2 of the contract boundary spec.
+//// Steps 2, 3, and 4 of the contract boundary spec.
 
 import gleam/string
 import simplifile
@@ -16,10 +17,9 @@ pub fn transport_ffi_has_no_byte_level_frame_awareness_test() {
   let assert False = string.contains(content, "0x00")
   let assert False = string.contains(content, "0x01")
 
-  // Must NOT import raw decode functions
-  let assert False = string.contains(content, "import { encode_call, decode_value }")
-  let assert False = string.contains(content, "import { decode_value")
+  // Must NOT import raw decode or low-level encode functions
   let assert False = string.contains(content, "decode_value(")
+  let assert False = string.contains(content, "encode_call")
 
   // Must NOT slice frame headers manually
   let assert False = string.contains(content, "DataView")
@@ -27,4 +27,5 @@ pub fn transport_ffi_has_no_byte_level_frame_awareness_test() {
 
   // Must USE the boundary API
   let assert True = string.contains(content, "decode_server_frame")
+  let assert True = string.contains(content, "encode_request")
 }
