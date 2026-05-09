@@ -153,7 +153,9 @@ Running `gleam run -m rally` produces:
 | `generator/http_handler.gleam` | HTTP RPC handler generation |
 | `format.gleam` | `gleam format` runner for generated code |
 
-Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generates dispatch source), walker (BFS type graph), codegen_decoders (JS type registration), field_type (type representation), wire (ETF codec), trace (panic catching).
+Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generates dispatch source), walker (BFS type graph), codegen_decoders (JS type registration), field_type (type representation), wire (ETF codec), trace (panic catching). Rally delegates JS typed decoder generation to Libero so response decoders and constructor registrations stay in sync with Libero's wire boundary.
+
+Generated client layout wrapping is route-specific: each page uses the nearest layout assigned by the scanner. SSR client context is built once per request and reused for rendering and embedded hydration flags. Background jobs use a `claimed_at` lease so running jobs are reclaimed only after the lease expires.
 
 ### Runtime library (`src/rally_runtime/`)
 
