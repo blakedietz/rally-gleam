@@ -1,7 +1,10 @@
 name = "rally"
 version = "0.1.0"
 target = "erlang"
-repository = "https://github.com/pairshaped/rally"
+repository = { type = "github", user = "pairshaped", repo = "rally" }
+links = [
+  { title = "llms.txt", href = "https://raw.githubusercontent.com/pairshaped/rally/refs/heads/master/llms.txt" },
+]
 
 [dependencies]
 gleam_stdlib = ">= 0.60.0 and < 2.0.0"
@@ -30,10 +33,6 @@ glinter = ">= 2.17.0 and < 3.0.0"
 stats = true
 warnings_as_errors = false
 exclude = ["tmp/**", "examples/**"]
-
-links = [
-  { title = "llms.txt", href = "https://raw.githubusercontent.com/pairshaped/rally/refs/heads/master/llms.txt" },
-]
 
 [tools.glinter.ignore]
 "src/rally_runtime/*.gleam" = ["unused_exports"]
