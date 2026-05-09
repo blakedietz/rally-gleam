@@ -97,7 +97,7 @@ pub fn update(
         rally_effect.navigate("/"),
       ]),
     )
-    GotLogout(Error(_)) -> #(model, effect.none())
+    GotLogout(Error(_error)) -> #(model, effect.none())
   }
 }
 
@@ -220,14 +220,14 @@ pub fn server_update_settings(
                 )
               {
                 Ok(_) -> Ok(#(msg.username, msg.image))
-                Error(_) -> Error(["Username or email already taken"])
+                Error(_error) -> Error(["Username or email already taken"])
               }
             }
             False -> {
               case string.length(msg.password) < 8 {
                 True -> Error(["Password must be at least 8 characters"])
                 False -> {
-                  let hash = password.hash(msg.password)
+                  let hash = password.hash(password: msg.password)
                   case
                     auth_sql.update_user_with_password(
                       db: server_context.db,
@@ -241,7 +241,7 @@ pub fn server_update_settings(
                     )
                   {
                     Ok(_) -> Ok(#(msg.username, msg.image))
-                    Error(_) -> Error(["Username or email already taken"])
+                    Error(_error) -> Error(["Username or email already taken"])
                   }
                 }
               }
@@ -271,9 +271,8 @@ fn validate_settings(username: String, email: String) -> List(String) {
     True -> ["Username can't be blank", ..errors]
     False -> errors
   }
-  let errors = case string.is_empty(string.trim(email)) {
+  case string.is_empty(string.trim(email)) {
     True -> ["Email can't be blank", ..errors]
     False -> errors
   }
-  errors
 }

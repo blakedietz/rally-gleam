@@ -129,7 +129,7 @@ pub fn server_login(
         auth_sql.find_user_by_email(db: server_context.db, email: msg.email)
       {
         Ok([user]) -> {
-          case password.verify(msg.password, user.password_hash) {
+          case password.verify(password: msg.password, stored: user.password_hash) {
             True -> {
               let session_id = rally_effect.get_ws_session()
               let now = datetime.now_unix()
@@ -159,9 +159,8 @@ fn validate_login(email: String, password_text: String) -> List(String) {
     True -> ["Email can't be blank", ..errors]
     False -> errors
   }
-  let errors = case string.is_empty(string.trim(password_text)) {
+  case string.is_empty(string.trim(password_text)) {
     True -> ["Password can't be blank", ..errors]
     False -> errors
   }
-  errors
 }

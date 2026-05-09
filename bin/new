@@ -204,16 +204,43 @@ pub fn main() {
         mist.websocket(
           req,
           ws_handler.handler,
-          fn(conn) { ws_handler.on_init(conn, server_context, session_id) },
+          fn(conn) { ws_handler.on_init(conn: conn, server_context: server_context, session_id: session_id) },
           ws_handler.on_close,
         )
       }
       "/rpc" -> {
         case method {
           Post -> {
+            let session_id = case request.get_header(req, "cookie") {
+              Ok(cookie) ->
+                case session.extract_session_id(cookie) {
+                  Ok(id) -> id
+                  Error(_) -> session.generate_id()
+                }
+              Error(_) -> session.generate_id()
+            }
             case mist.read_body(req, max_body_limit: 16_000_000) {
-              Ok(Request(body: body, ..)) ->
-                http_handler.handle(body, server_context)
+              Ok(Request(body: body, ..)) -> {
+                let resp = http_handler.handle(body: body, server_context: server_context, session_id: session_id)
+                case request.get_header(req, "cookie") {
+                  Ok(cookie) ->
+                    case session.extract_session_id(cookie) {
+                      Ok(_) -> resp
+                      Error(_) ->
+                        response.set_header(
+                          resp,
+                          "set-cookie",
+                          session.set_cookie_header(session_id:, secure: env.secure_cookies()),
+                        )
+                    }
+                  Error(_) ->
+                    response.set_header(
+                      resp,
+                      "set-cookie",
+                      session.set_cookie_header(session_id:, secure: env.secure_cookies()),
+                    )
+                }
+              }
               Error(_) ->
                 response.new(413)
                 |> response.set_body(

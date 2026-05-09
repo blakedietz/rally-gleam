@@ -67,7 +67,7 @@ pub fn start_runner(
   })
   |> actor.on_message(fn(state, msg) {
     let Poll = msg
-    process_pending_jobs_at(state.db, state.handler, unix_seconds())
+    process_pending_jobs_at(db: state.db, handler: state.handler, now: unix_seconds())
     let _timer = process.send_after(state.self, poll_interval_ms, Poll)
     actor.continue(state)
   })
@@ -77,7 +77,7 @@ pub fn start_runner(
 const running_lease_seconds = 60
 
 pub fn run_once(db db: sqlight.Connection, handler handler: JobHandler) -> Nil {
-  process_pending_jobs_at(db, handler, unix_seconds())
+  process_pending_jobs_at(db: db, handler: handler, now: unix_seconds())
 }
 
 pub fn run_once_at(
@@ -85,13 +85,13 @@ pub fn run_once_at(
   now now: Int,
   handler handler: JobHandler,
 ) -> Nil {
-  process_pending_jobs_at(db, handler, now)
+  process_pending_jobs_at(db: db, handler: handler, now: now)
 }
 
 fn process_pending_jobs_at(
-  db: sqlight.Connection,
-  handler: JobHandler,
-  now: Int,
+  db db: sqlight.Connection,
+  handler handler: JobHandler,
+  now now: Int,
 ) -> Nil {
   case fetch_ready_jobs(db, now) {
     [] -> Nil

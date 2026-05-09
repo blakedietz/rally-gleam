@@ -22,7 +22,18 @@ import sqlight
 
 const client_build_root = ".generated_client/public/build/dev/javascript"
 
-pub fn main() {
+fn session_id(req: Request(Connection)) -> String {
+  request.get_header(req, "cookie")
+  |> result.map(fn(cookie) {
+    result.lazy_unwrap(
+      session.extract_session_id(cookie),
+      or: fn() { session.generate_id() },
+    )
+  })
+  |> result.lazy_unwrap(or: fn() { session.generate_id() })
+}
+
+pub fn main() -> Nil {
   let db = start_db()
   system.start("system.db")
   let server_context = ServerContext(db:)
@@ -31,28 +42,41 @@ pub fn main() {
     let Request(path: path, method: method, ..) = req
     case path {
       "/ws" -> {
-        let session_id = case request.get_header(req, "cookie") {
-          Ok(cookie) ->
-            case session.extract_session_id(cookie) {
-              Ok(id) -> id
-              Error(_) -> session.generate_id()
-            }
-          Error(_) -> session.generate_id()
-        }
+        let session_id = session_id(req)
         mist.websocket(
           req,
           ws_handler.handler,
-          fn(conn) { ws_handler.on_init(conn, server_context, session_id) },
+          fn(conn) { ws_handler.on_init(conn: conn, server_context: server_context, session_id: session_id) },
           ws_handler.on_close,
         )
       }
       "/rpc" -> {
         case method {
           Post -> {
+            let session_id = session_id(req)
             case mist.read_body(req, max_body_limit: 16_000_000) {
-              Ok(Request(body: body, ..)) ->
-                http_handler.handle(body, server_context)
-              Error(_) ->
+              Ok(Request(body: body, ..)) -> {
+                let resp = http_handler.handle(body: body, server_context: server_context, session_id: session_id)
+                case request.get_header(req, "cookie") {
+                  Ok(cookie) ->
+                    case session.extract_session_id(cookie) {
+                      Ok(_) -> resp
+                      Error(_error) ->
+                        response.set_header(
+                          resp,
+                          "set-cookie",
+                          session.set_cookie_header(session_id:, secure: env.secure_cookies()),
+                        )
+                    }
+                  Error(_error) ->
+                    response.set_header(
+                      resp,
+                      "set-cookie",
+                      session.set_cookie_header(session_id:, secure: env.secure_cookies()),
+                    )
+                }
+              }
+              Error(_error) ->
                 response.new(413)
                 |> response.set_body(
                   mist.Bytes(bytes_tree.from_string("Request body too large")),
@@ -72,29 +96,22 @@ pub fn main() {
           False ->
             case method {
               Get -> {
-                let session_id = case request.get_header(req, "cookie") {
-                  Ok(cookie) ->
-                    case session.extract_session_id(cookie) {
-                      Ok(id) -> id
-                      Error(_) -> session.generate_id()
-                    }
-                  Error(_) -> session.generate_id()
-                }
+                let session_id = session_id(req)
                 let route = router.parse_route(request.to_uri(req))
                 let hostname =
                   request.get_header(req, "host") |> result.unwrap("")
                 let resp =
                   ssr_handler.handle_request(
-                    route,
-                    server_context,
-                    session_id,
-                    hostname,
+                    route: route,
+                    server_context: server_context,
+                    session_id: session_id,
+                    hostname: hostname,
                   )
                 case request.get_header(req, "cookie") {
                   Ok(cookie) ->
                     case session.extract_session_id(cookie) {
                       Ok(_) -> resp
-                      Error(_) ->
+                      Error(_error) ->
                         response.set_header(
                           resp,
                           "set-cookie",
@@ -104,7 +121,7 @@ pub fn main() {
                           ),
                         )
                     }
-                  Error(_) ->
+                  Error(_error) ->
                     response.set_header(
                       resp,
                       "set-cookie",
@@ -157,7 +174,7 @@ fn serve_static(path: String) -> Response(ResponseData) {
           |> response.set_header("content-type", content_type)
           |> response.set_body(mist.Bytes(bytes_tree.from_string(content)))
         }
-        Error(_) ->
+        Error(_error) ->
           response.new(404)
           |> response.set_body(mist.Bytes(bytes_tree.from_string("Not found")))
       }

@@ -343,7 +343,7 @@ pub fn client_app_syncs_browser_client_context_fields_test() {
   |> should.equal(True)
 
   file.content
-  |> string.contains("init_page(route, new_client_context)")
+  |> string.contains("init_page(route: route, client_context: new_client_context)")
   |> should.equal(True)
 
   file.content
@@ -582,7 +582,7 @@ pub fn ssr_layout_with_client_context_uses_v3_session_contract_test() {
 
   output
   |> string.contains(
-    "server_context.from_session(server_context, session_id, hostname)",
+    "server_context.from_session(server_context: server_context, session_id: session_id, hostname: hostname)",
   )
   |> should.equal(True)
 

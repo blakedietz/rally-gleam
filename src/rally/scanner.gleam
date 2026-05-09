@@ -36,11 +36,23 @@ fn parse_segment(stem: String) -> UrlSegment {
   }
 }
 
+/// Check for duplicate elements in a list.
+fn has_duplicates(names: List(String)) -> Bool {
+  case names {
+    [] -> False
+    [name, ..rest] ->
+      case list.contains(rest, name) {
+        True -> True
+        False -> has_duplicates(rest)
+      }
+  }
+}
+
 /// Build a ScannedRoute from a list of UrlSegments and a module path.
 fn build_route(
   segments: List(UrlSegment),
   module_path: String,
-) -> ScannedRoute {
+) -> Result(ScannedRoute, String) {
   let variant_name =
     segments
     |> list.map(fn(seg) {
@@ -60,13 +72,24 @@ fn build_route(
       }
     })
 
-  ScannedRoute(
-    segments: segments,
-    variant_name: variant_name,
-    params: params,
-    module_path: module_path,
-    layout_module: None,
-  )
+  let param_names = list.map(params, fn(p) { p.0 })
+  case has_duplicates(param_names) {
+    True ->
+      Error(
+        "Duplicate dynamic parameter names in route "
+        <> module_path
+        <> ". Use distinct names (e.g. user_id_, post_id_) instead of: "
+        <> string.join(param_names, ", "),
+      )
+    False ->
+      Ok(ScannedRoute(
+        segments:,
+        variant_name:,
+        params:,
+        module_path:,
+        layout_module: None,
+      ))
+  }
 }
 
 /// Internal accumulator for the scan.
@@ -141,37 +164,40 @@ fn scan_dir(
             // index.gleam is the route for its parent directory.
             // Uses the parent's segments, not adding "index" as a segment.
             "index" -> {
-              let route = case list.is_empty(prefix_segments) {
+              use route <- result.try(case list.is_empty(prefix_segments) {
                 True ->
-                  ScannedRoute(
+                  Ok(ScannedRoute(
                     segments: [],
                     variant_name: "Home",
                     params: [],
                     module_path:,
                     layout_module: None,
-                  )
+                  ))
                 False -> build_route(prefix_segments, module_path)
-              }
+              })
               Ok(ScanAcc(..acc, routes: [route, ..acc.routes]))
             }
             _ -> {
-              let route = case
-                stem == "home_" && list.is_empty(prefix_segments)
-              {
+              let route = case stem == "home_" {
                 True ->
-                  ScannedRoute(
-                    segments: [],
-                    variant_name: "Home",
-                    params: [],
-                    module_path:,
-                    layout_module: None,
-                  )
+                  case list.is_empty(prefix_segments) {
+                    True ->
+                      Ok(ScannedRoute(
+                        segments: [],
+                        variant_name: "Home",
+                        params: [],
+                        module_path:,
+                        layout_module: None,
+                      ))
+                    False -> build_route(prefix_segments, module_path)
+                  }
                 False -> {
                   let segments =
                     list.append(prefix_segments, [parse_segment(stem)])
                   build_route(segments, module_path)
                 }
               }
+              use route <- result.try(route)
               Ok(ScanAcc(..acc, routes: [route, ..acc.routes]))
             }
           }

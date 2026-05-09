@@ -302,9 +302,8 @@ pub fn server_update(
   msg: ToServer,
   server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
-  case msg {
-    UpdateArticle(title, description, body, tags) -> {
-      case model {
+  let UpdateArticle(title, description, body, tags) = msg
+  case model {
         ServerModelEmpty -> #(
           ServerModelEmpty,
           rally_effect.send_to_client(EditorErrors(["No article loaded"])),
@@ -341,9 +340,7 @@ pub fn server_update(
             _ -> #(model, rally_effect.send_to_client(EditorErrors(errors)))
           }
         }
-      }
     }
-  }
 }
 
 fn validate_article(title: String, body: String) -> List(String) {
@@ -352,11 +349,10 @@ fn validate_article(title: String, body: String) -> List(String) {
     True -> ["Title can't be blank", ..errors]
     False -> errors
   }
-  let errors = case string.is_empty(string.trim(body)) {
+  case string.is_empty(string.trim(body)) {
     True -> ["Body can't be blank", ..errors]
     False -> errors
   }
-  errors
 }
 
 fn save_tags(

@@ -243,11 +243,10 @@ fn validate_article(title: String, body: String) -> List(String) {
     True -> ["Title can't be blank", ..errors]
     False -> errors
   }
-  let errors = case string.is_empty(string.trim(body)) {
+  case string.is_empty(string.trim(body)) {
     True -> ["Body can't be blank", ..errors]
     False -> errors
   }
-  errors
 }
 
 fn save_tags(

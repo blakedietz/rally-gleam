@@ -11,12 +11,15 @@ import gleam/bytes_tree
 import gleam/http/response.{type Response}
 import mist.{type ResponseData}
 import " <> rpc_dispatch_module <> " as rpc_dispatch
-" <> "import server_context.{type ServerContext}
+" <> "import rally_runtime/effect
+import server_context.{type ServerContext}
 
 pub fn handle(
-  body: BitArray,
-  server_context: ServerContext,
+  body body: BitArray,
+  server_context server_context: ServerContext,
+  session_id session_id: String,
 ) -> Response(ResponseData) {
+  let Nil = effect.put_ws_session(session_id)
   let #(response_data, _new_ctx) = rpc_dispatch.handle(server_context:, data: body)
   response.new(200)
   |> response.set_header(\"content-type\", \"application/octet-stream\")

@@ -84,10 +84,10 @@ pub fn generate(
     True ->
       "
 pub fn handle_request(
-  route: router.Route,
-  server_context: ServerContext,
-  session_id: String,
-  hostname: String,
+  route route: router.Route,
+  server_context server_context: ServerContext,
+  session_id session_id: String,
+  hostname hostname: String,
 ) -> response.Response(ResponseData) {"
     False ->
       "
@@ -114,7 +114,7 @@ fn context_script(client_context: client_context.ClientContext) -> String {
   }
 
   let shell_call = case use_session {
-    True -> "serve_html_shell(server_context, session_id, hostname)"
+    True -> "serve_html_shell(server_context: server_context, session_id: session_id, hostname: hostname)"
     False -> "serve_html_shell()"
   }
 
@@ -146,8 +146,8 @@ fn context_script(client_context: client_context.ClientContext) -> String {
 
   let shell_fn = case use_session {
     True -> "
-fn serve_html_shell(server_context: ServerContext, session_id: String, hostname: String) -> response.Response(ResponseData) {
-  let #(client_context, _) = " <> from_session_ref <> ".from_session(server_context, session_id, hostname)
+fn serve_html_shell(server_context server_context: ServerContext, session_id session_id: String, hostname hostname: String) -> response.Response(ResponseData) {
+  let #(client_context, _) = " <> from_session_ref <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname)
   let html = \"" <> escaped_shell <> "\" <> env.browser_env_script() <> context_script(client_context)
   response.new(200)
   |> response.set_header(\"content-type\", \"text/html\")
@@ -188,7 +188,7 @@ fn marker_helper(has_load_pages: Bool) -> String {
         "fn insert_rendered(shell: String, rendered: String) -> String {",
         "  case find_app_marker(shell) {",
         "    Ok(marker) -> string.replace(shell, marker, marker <> rendered)",
-        "    Error(_) -> shell",
+        "    Error(Nil) -> shell",
         "  }",
         "}",
         "",
@@ -317,7 +317,7 @@ fn generate_load_arms(
           True ->
             "      let #(client_context, server_context) = "
             <> from_session_module
-            <> ".from_session(server_context, session_id, hostname)\n"
+            <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname)\n"
           False ->
             case has_client_context {
               True -> "      let #(client_context, _) = client_context.init()\n"
@@ -502,13 +502,13 @@ fn qualified_wire_name(module_path: String, type_name: String) -> String {
 
 fn to_snake_case(name: String) -> String {
   let graphemes = string.to_graphemes(name)
-  do_snake_case(graphemes, "", False)
+  do_snake_case(remaining: graphemes, acc: "", prev_lower: False)
 }
 
 fn do_snake_case(
-  remaining: List(String),
-  acc: String,
-  prev_lower: Bool,
+  remaining remaining: List(String),
+  acc acc: String,
+  prev_lower prev_lower: Bool,
 ) -> String {
   case remaining {
     [] -> acc
@@ -520,9 +520,9 @@ fn do_snake_case(
             True -> "_"
             False -> ""
           }
-          do_snake_case(rest, acc <> sep <> lower, False)
+          do_snake_case(remaining: rest, acc: acc <> sep <> lower, prev_lower: False)
         }
-        False -> do_snake_case(rest, acc <> g, True)
+        False -> do_snake_case(remaining: rest, acc: acc <> g, prev_lower: True)
       }
     }
   }

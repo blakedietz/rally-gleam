@@ -142,7 +142,7 @@ pub fn scaffold_routes_http_rpc_test() {
   |> should.equal(True)
 
   script
-  |> string.contains("http_handler.handle(body, server_context)")
+  |> string.contains("http_handler.handle(body: body, server_context: server_context, session_id: session_id)")
   |> should.equal(True)
 }
 
@@ -163,7 +163,7 @@ pub fn realworld_routes_http_rpc_test() {
   |> should.equal(True)
 
   source
-  |> string.contains("http_handler.handle(body, server_context)")
+  |> string.contains("http_handler.handle(body: body, server_context: server_context, session_id: session_id)")
   |> should.equal(True)
 }
 
@@ -335,7 +335,7 @@ pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
     )
 
   output
-  |> string.contains("Error(_) -> shell")
+  |> string.contains("Error(Nil) -> shell")
   |> should.equal(True)
 }
 

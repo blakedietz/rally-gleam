@@ -307,7 +307,7 @@ pub fn server_update(
                 }
               }
             }
-            Error(_) -> #(model, effect.none())
+            Error(_error) -> #(model, effect.none())
           }
         }
       }
@@ -334,7 +334,7 @@ fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
   let now = datetime.now_unix()
   case auth_sql.find_user_by_session(db:, session_id: Some(session_id), now:) {
     Ok([row]) -> {
-      let _ =
+      let _result =
         auth_sql.extend_session(
           db:,
           expires_at: now + datetime.session_ttl_seconds,
@@ -357,7 +357,7 @@ fn get_follow_status(
         follows_sql.is_following(db:, follower_id: user_id, followed_id:)
       row.count > 0
     }
-    Error(_) -> False
+    Error(_error) -> False
   }
 }
 

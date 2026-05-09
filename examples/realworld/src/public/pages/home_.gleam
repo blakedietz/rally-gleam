@@ -105,7 +105,7 @@ pub fn update(
       Model(..model, articles:, total:),
       effect.none(),
     )
-    GotArticles(Error(_)) -> #(model, effect.none())
+    GotArticles(Error(_error)) -> #(model, effect.none())
   }
 }
 
@@ -345,7 +345,7 @@ fn fetch_tab_articles(
             count_row.count,
           )
         }
-        Error(_) -> #([], 0)
+        Error(_error) -> #([], 0)
       }
     }
     "tag" -> {
@@ -392,7 +392,7 @@ fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
   let now = datetime.now_unix()
   case auth_sql.find_user_by_session(db:, session_id: Some(session_id), now:) {
     Ok([user]) -> {
-      let _ =
+      let _result =
         auth_sql.extend_session(
           db:,
           expires_at: now + datetime.session_ttl_seconds,

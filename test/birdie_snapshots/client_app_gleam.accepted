@@ -65,7 +65,7 @@ fn init(_flags: Nil) -> #(Model, Effect(Msg)) {
   let flags = transport.read_flags()
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(data) -> hydrate_page(route, data)
-    Error(_) -> init_page(route)
+    Error(_) -> init_page(route: route)
   }
   #(Model(route:, page_model:, connection: Disconnected),
     effect.batch([init_transport(), modem.init(fn(uri) { UrlChanged(router.parse_route(uri)) }), page_effects]))
@@ -171,7 +171,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       }
     }
     PageMsg(page_msg) -> {
-      let #(page_model, page_effects) = update_page(model.page_model, page_msg)
+      let #(page_model, page_effects) = update_page(page_model: model.page_model, page_msg: page_msg)
       #(Model(..model, page_model:), page_effects)
     }
     TransportConnected ->

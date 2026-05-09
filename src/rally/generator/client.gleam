@@ -466,14 +466,14 @@ fn app_gleam(
   }
 " <> init_context_overlay <> "  let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(data) -> hydrate_page(route, data, client_context)
-    Error(_) -> init_page(route, client_context)
+    Error(_) -> init_page(route: route, client_context: client_context)
   }
   #(Model(route:, page_model:, connection: Disconnected, client_context:, current_path:),
     effect.batch([init_transport(), " <> modem_init <> ", effect.map(ctx_effects, ClientContextUpdate), page_effects]))"
     False -> "  let flags = transport.read_flags()
   let #(page_model, page_effects) = case codec.decode_flags(flags) {
     Ok(data) -> hydrate_page(route, data)
-    Error(_) -> init_page(route)
+    Error(_) -> init_page(route: route)
   }
   #(Model(route:, page_model:, connection: Disconnected),
     effect.batch([init_transport(), " <> modem_init <> ", page_effects]))"
@@ -499,7 +499,7 @@ fn app_gleam(
           let current_path = router.route_to_path(route)
           let new_client_context =
             client_context.ClientContext(..model.client_context, current_path:)
-          let #(page_model, page_effects) = init_page(route, new_client_context)
+          let #(page_model, page_effects) = init_page(route: route, client_context: new_client_context)
           #(Model(..model, route:, page_model:, client_context: new_client_context, current_path:), page_effects)
         }
       }"
@@ -508,7 +508,7 @@ fn app_gleam(
         True -> #(model, effect.none())
         False -> {
           let current_path = router.route_to_path(route)
-          let #(page_model, page_effects) = init_page(route, model.client_context)
+          let #(page_model, page_effects) = init_page(route: route, client_context: model.client_context)
           #(Model(..model, route:, page_model:, current_path:), page_effects)
         }
       }"
@@ -525,7 +525,7 @@ fn app_gleam(
 
   let page_msg_body = case has_client_context {
     True ->
-      "      let #(page_model, page_effects, ctx_msg) = update_page(model.page_model, page_msg, model.client_context)
+      "      let #(page_model, page_effects, ctx_msg) = update_page(page_model: model.page_model, page_msg: page_msg, client_context: model.client_context)
       let #(new_client_context, ctx_effects) = case ctx_msg {
         Some(cm) -> {
           let #(cc, ce) = client_context.update(model.client_context, cm)
@@ -535,7 +535,7 @@ fn app_gleam(
       }
       #(Model(..model, page_model:, client_context: new_client_context), effect.batch([page_effects, ctx_effects]))"
     False ->
-      "      let #(page_model, page_effects) = update_page(model.page_model, page_msg)
+      "      let #(page_model, page_effects) = update_page(page_model: model.page_model, page_msg: page_msg)
       #(Model(..model, page_model:), page_effects)"
   }
 

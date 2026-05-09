@@ -132,7 +132,7 @@ pub fn server_register(
     [] -> {
       let session_id = rally_effect.get_ws_session()
       let now = datetime.now_unix()
-      let hash = password.hash(msg.password)
+      let hash = password.hash(password: msg.password)
       case
         auth_sql.register_user(
           db: server_context.db,
@@ -177,9 +177,8 @@ fn validate_register(
     True -> ["Email can't be blank", ..errors]
     False -> errors
   }
-  let errors = case string.length(password_text) < 8 {
+  case string.length(password_text) < 8 {
     True -> ["Password must be at least 8 characters", ..errors]
     False -> errors
   }
-  errors
 }

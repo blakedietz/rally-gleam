@@ -514,7 +514,7 @@ pub fn server_update(
                 }
               }
             }
-            Error(_) -> #(
+            Error(_error) -> #(
               model,
               rally_effect.send_to_client(ArticleError("You must be logged in")),
             )
@@ -572,7 +572,7 @@ pub fn server_update(
             )
           }
         }
-        Error(_) -> #(
+        Error(_error) -> #(
           model,
           rally_effect.send_to_client(ArticleError("You must be logged in")),
         )
@@ -628,7 +628,7 @@ pub fn server_update(
                     )
                   }
                 }
-                Error(_) -> #(
+                Error(_error) -> #(
                   model,
                   rally_effect.send_to_client(ArticleError(
                     "You must be logged in",
@@ -658,7 +658,7 @@ pub fn server_update(
             _ -> #(model, effect.none())
           }
         }
-        Error(_) -> #(
+        Error(_error) -> #(
           model,
           rally_effect.send_to_client(ArticleError("You must be logged in")),
         )
@@ -691,7 +691,7 @@ pub fn server_update(
                 )
               }
             }
-            Error(_) -> #(
+            Error(_error) -> #(
               model,
               rally_effect.send_to_client(ArticleError("You must be logged in")),
             )
@@ -708,7 +708,7 @@ fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
   let now = datetime.now_unix()
   case auth_sql.find_user_by_session(db:, session_id: Some(session_id), now:) {
     Ok([row]) -> {
-      let _ =
+      let _result =
         auth_sql.extend_session(
           db:,
           expires_at: now + datetime.session_ttl_seconds,
@@ -732,7 +732,7 @@ fn get_favorite_info(
         favorites_sql.is_favorited(db:, user_id:, article_id:)
       row.count > 0
     }
-    Error(_) -> False
+    Error(_error) -> False
   }
   #(is_favorited, count)
 }
@@ -753,6 +753,6 @@ fn get_follow_status(
         follows_sql.is_following(db:, follower_id: user_id, followed_id:)
       row.count > 0
     }
-    Error(_) -> False
+    Error(_error) -> False
   }
 }

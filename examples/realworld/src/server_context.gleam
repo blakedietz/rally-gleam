@@ -9,8 +9,8 @@ pub type ServerContext {
 }
 
 pub fn from_session(
-  server_context: ServerContext,
-  session_id: String,
+  server_context server_context: ServerContext,
+  session_id session_id: String,
 ) -> ClientContext {
   case
     auth_sql.find_user_by_session(

@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/dynamic/decode
 import gleam/int
 import gleam/regexp
@@ -71,15 +72,11 @@ fn strip_char(s: String, char: String) -> String {
 }
 
 fn strip_leading(s: String, prefix: String) -> String {
-  case string.starts_with(s, prefix) {
-    True -> strip_leading(string.drop_start(s, string.length(prefix)), prefix)
-    False -> s
-  }
+  use <- bool.guard(when: !string.starts_with(s, prefix), return: s)
+  strip_leading(string.drop_start(s, string.length(prefix)), prefix)
 }
 
 fn strip_trailing(s: String, suffix: String) -> String {
-  case string.ends_with(s, suffix) {
-    True -> strip_trailing(string.drop_end(s, string.length(suffix)), suffix)
-    False -> s
-  }
+  use <- bool.guard(when: !string.ends_with(s, suffix), return: s)
+  strip_trailing(string.drop_end(s, string.length(suffix)), suffix)
 }
