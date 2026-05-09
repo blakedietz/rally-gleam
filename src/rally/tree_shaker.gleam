@@ -39,7 +39,11 @@ pub fn shake(
         })
 
       let reachable_private =
-        collect_reachable_private_fns(ast: ast, client_fns: client_pub_fns, server_fns: server_fns)
+        collect_reachable_private_fns(
+          ast: ast,
+          client_fns: client_pub_fns,
+          server_fns: server_fns,
+        )
 
       let all_client_fn_names =
         list.map(client_pub_fns, fn(def) { def.definition.name })
@@ -48,16 +52,38 @@ pub fn shake(
 
       // Collect all symbols referenced by client code (for import filtering)
       let client_refs =
-        collect_all_client_refs(ast: ast, client_fn_names: all_client_fn_names, server_symbols: server_set)
+        collect_all_client_refs(
+          ast: ast,
+          client_fn_names: all_client_fn_names,
+          server_symbols: server_set,
+        )
 
       // Reconstruct source with only client-safe parts
-      let client_imports = filter_imports(imports: ast.imports, server_symbols: server_set, client_refs: client_refs)
-      let client_types = filter_types(types: ast.custom_types, server_symbols: server_set, client_refs: client_refs)
+      let client_imports =
+        filter_imports(
+          imports: ast.imports,
+          server_symbols: server_set,
+          client_refs: client_refs,
+        )
+      let client_types =
+        filter_types(
+          types: ast.custom_types,
+          server_symbols: server_set,
+          client_refs: client_refs,
+        )
       let client_type_aliases =
-        filter_type_aliases(aliases: ast.type_aliases, server_symbols: server_set, client_refs: client_refs)
+        filter_type_aliases(
+          aliases: ast.type_aliases,
+          server_symbols: server_set,
+          client_refs: client_refs,
+        )
       let client_constants = filter_constants(ast.constants, client_refs)
       let client_functions =
-        extract_client_functions(ast: ast, client_fn_names: all_client_fn_names, source: source)
+        extract_client_functions(
+          ast: ast,
+          client_fn_names: all_client_fn_names,
+          source: source,
+        )
 
       let import_lines = list.map(client_imports, render_import)
       let type_lines =
@@ -151,7 +177,12 @@ fn collect_reachable_private_fns(
     |> set.from_list
     |> set.intersection(private_fn_names)
 
-  expand_reachable(frontier: initial, private_fns: private_fns, all_private: private_fn_names, visited: initial)
+  expand_reachable(
+    frontier: initial,
+    private_fns: private_fns,
+    all_private: private_fn_names,
+    visited: initial,
+  )
 }
 
 fn expand_reachable(

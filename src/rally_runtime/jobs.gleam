@@ -149,7 +149,13 @@ fn run_single_job(
           // requiring jitter since jobs are single-writer (one poller).
           let backoff_seconds = next_attempts * next_attempts * 5
           let retry_at = unix_seconds() + backoff_seconds
-          mark_retry(db: db, job_id: job.id, attempts: next_attempts, retry_at: retry_at, reason: reason)
+          mark_retry(
+            db: db,
+            job_id: job.id,
+            attempts: next_attempts,
+            retry_at: retry_at,
+            reason: reason,
+          )
         }
       }
     }
@@ -167,7 +173,11 @@ fn mark_completed(db: sqlight.Connection, job_id: Int) -> Nil {
   Nil
 }
 
-fn mark_dead(db db: sqlight.Connection, job_id job_id: Int, reason reason: String) -> Nil {
+fn mark_dead(
+  db db: sqlight.Connection,
+  job_id job_id: Int,
+  reason reason: String,
+) -> Nil {
   let _result =
     sqlight.query(
       "UPDATE jobs SET status = 'dead', last_error = ?2 WHERE id = ?1",

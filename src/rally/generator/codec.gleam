@@ -17,9 +17,7 @@ import libero/codegen
 import libero/codegen_decoders
 import libero/field_type.{type FieldType, UserType}
 import libero/scanner.{type HandlerEndpoint}
-import libero/walker.{
-  type DiscoveredType,
-}
+import libero/walker.{type DiscoveredType}
 import rally/tree_shaker
 import rally/types.{type PageContract, type ScannedRoute}
 
@@ -173,9 +171,7 @@ pub fn client_context_seeds(
     Error(glance.UnexpectedEndOfInput) -> []
     Error(glance.UnexpectedToken(..)) -> []
     Ok(ast) ->
-      list.map(ast.custom_types, fn(def) {
-        #(module_path, def.definition.name)
-      })
+      list.map(ast.custom_types, fn(def) { #(module_path, def.definition.name) })
   }
 }
 

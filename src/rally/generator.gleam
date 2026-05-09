@@ -142,7 +142,11 @@ fn parse_route_arm(route: ScannedRoute) -> String {
       let #(name, _) = single
       let val_name = name <> "_val"
       let constructor =
-        build_constructor_with_vals(variant_name: variant_name, params: params, val_pairs: [#(name, val_name)])
+        build_constructor_with_vals(
+          variant_name: variant_name,
+          params: params,
+          val_pairs: [#(name, val_name)],
+        )
       "    "
       <> pattern
       <> " ->\n      case int.parse("
@@ -172,7 +176,11 @@ fn parse_route_arm(route: ScannedRoute) -> String {
           #(name, name <> "_val")
         })
       let constructor =
-        build_constructor_with_vals(variant_name: variant_name, params: params, val_pairs: val_pairs)
+        build_constructor_with_vals(
+          variant_name: variant_name,
+          params: params,
+          val_pairs: val_pairs,
+        )
       "    "
       <> pattern
       <> " ->\n      case "
@@ -281,7 +289,11 @@ fn route_to_path_arm(route: ScannedRoute) -> String {
 fn build_path_expr(segments: List(UrlSegment)) -> String {
   case segments {
     [] -> "\"/\""
-    _ -> string.join(merge_static_segments(segments: segments, buf: "", acc: []), " <> ")
+    _ ->
+      string.join(
+        merge_static_segments(segments: segments, buf: "", acc: []),
+        " <> ",
+      )
   }
 }
 

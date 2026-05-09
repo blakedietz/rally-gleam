@@ -6,7 +6,12 @@ import sqlight
 
 pub fn run_once_completes_ready_jobs_test() {
   let assert Ok(conn) = system.open(":memory:")
-  jobs.enqueue(db: conn, name: "welcome", payload: <<"payload":utf8>>, run_at: 0)
+  jobs.enqueue(
+    db: conn,
+    name: "welcome",
+    payload: <<"payload":utf8>>,
+    run_at: 0,
+  )
 
   jobs.run_once(db: conn, handler: fn(name, payload) {
     name |> should.equal("welcome")

@@ -151,7 +151,12 @@ fn run_pending(
         }),
       )
 
-      use _ <- result.try(run_migration_sql(conn: conn, num: num, file: file, sql: sql))
+      use _ <- result.try(run_migration_sql(
+        conn: conn,
+        num: num,
+        file: file,
+        sql: sql,
+      ))
       run_pending(conn: conn, dir: dir, files: rest)
     }
   }

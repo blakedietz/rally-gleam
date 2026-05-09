@@ -5,8 +5,8 @@
 
 import glance
 import gleam/dict.{type Dict}
-import gleam/io
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
@@ -62,9 +62,24 @@ pub fn parse_page(
 
   let param_names = extract_init_params_from_ast(functions_list)
 
-  let view_source = extract_function_source(source: source, functions: functions_list, name: "view")
-  let init_source = extract_function_source(source: source, functions: functions_list, name: "init")
-  let update_source = extract_function_source(source: source, functions: functions_list, name: "update")
+  let view_source =
+    extract_function_source(
+      source: source,
+      functions: functions_list,
+      name: "view",
+    )
+  let init_source =
+    extract_function_source(
+      source: source,
+      functions: functions_list,
+      name: "init",
+    )
+  let update_source =
+    extract_function_source(
+      source: source,
+      functions: functions_list,
+      name: "update",
+    )
   let updates_client_context =
     string.contains(update_source, "ClientContextMsg")
 

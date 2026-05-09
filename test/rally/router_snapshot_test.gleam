@@ -135,6 +135,8 @@ pub fn ssr_handler_snapshot_test() {
       "generated/router",
       shell,
       "generated/public/rpc_atoms",
+      option.None,
+      option.None,
     )
   birdie.snap(output, "ssr_handler_gleam")
 }
@@ -152,6 +154,8 @@ pub fn ssr_handler_sets_content_type_for_load_pages_test() {
       "generated/router",
       shell,
       "generated/public/rpc_atoms",
+      option.None,
+      option.None,
     )
   let content_type_count =
     output
@@ -175,6 +179,8 @@ pub fn ssr_handler_with_client_context_snapshot_test() {
       "generated/router",
       shell,
       "generated/public/rpc_atoms",
+      option.None,
+      option.None,
     )
   birdie.snap(output, "ssr_handler_with_client_context_gleam")
 }
@@ -499,6 +505,8 @@ pub fn ssr_layout_with_client_context_uses_v3_session_contract_test() {
       "generated/router",
       shell,
       "generated/public/rpc_atoms",
+      option.None,
+      option.None,
     )
 
   output

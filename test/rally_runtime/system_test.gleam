@@ -13,7 +13,14 @@ pub fn open_creates_observability_tables_test() {
 pub fn log_to_client_persists_message_test() {
   let assert Ok(conn) = system.open(":memory:")
 
-  system.log_to_client(db: conn, session_id: "session-1", user_id: Ok(42), page: "/home", variant: "GotThing", elapsed_ms: 12)
+  system.log_to_client(
+    db: conn,
+    session_id: "session-1",
+    user_id: Ok(42),
+    page: "/home",
+    variant: "GotThing",
+    elapsed_ms: 12,
+  )
 
   messages(conn)
   |> should.equal([#("session-1", 42, "/home", "to_client", "GotThing", 12)])

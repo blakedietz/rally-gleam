@@ -72,16 +72,12 @@ pub fn transaction(
   use _ <- result.try(sqlight.exec("SAVEPOINT " <> savepoint <> ";", on: conn))
   case body() {
     Ok(val) -> {
-      use _ <- result.try(
-        sqlight.exec("RELEASE " <> savepoint <> ";", on: conn),
-      )
+      use _ <- result.try(sqlight.exec("RELEASE " <> savepoint <> ";", on: conn))
       Ok(val)
     }
     Error(err) -> {
       let _rollback = sqlight.exec("ROLLBACK TO " <> savepoint <> ";", on: conn)
-      use _ <- result.try(
-        sqlight.exec("RELEASE " <> savepoint <> ";", on: conn),
-      )
+      use _ <- result.try(sqlight.exec("RELEASE " <> savepoint <> ";", on: conn))
       Error(err)
     }
   }
@@ -100,7 +96,11 @@ pub fn init_timing() -> Nil {
 
 // --- Internal ---
 
-fn log_query(sql sql: String, param_count param_count: Int, elapsed_ms elapsed_ms: Int) -> Nil {
+fn log_query(
+  sql sql: String,
+  param_count param_count: Int,
+  elapsed_ms elapsed_ms: Int,
+) -> Nil {
   let msg =
     collapse_whitespace(sql)
     <> " | params: "

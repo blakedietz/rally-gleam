@@ -140,7 +140,9 @@ fn client_gleam_toml(
     |> list.filter(fn(pair) { pair.0 != "rally" && pair.0 != "marmot" })
     |> list.filter(fn(pair) { !is_server_runtime_dep(pair.0) })
     |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
-    |> list.map(fn(pair) { format_dep(name: pair.0, value: pair.1, prefix: prefix) })
+    |> list.map(fn(pair) {
+      format_dep(name: pair.0, value: pair.1, prefix: prefix)
+    })
     |> string.join("")
 
   header <> extra_deps
@@ -163,7 +165,11 @@ fn is_server_runtime_dep(name: String) -> Bool {
   )
 }
 
-fn format_dep(name name: String, value value: tom.Toml, prefix prefix: String) -> String {
+fn format_dep(
+  name name: String,
+  value value: tom.Toml,
+  prefix prefix: String,
+) -> String {
   case value {
     tom.String(version) -> name <> " = \"" <> version <> "\"\n"
     tom.InlineTable(table) | tom.Table(table) -> {

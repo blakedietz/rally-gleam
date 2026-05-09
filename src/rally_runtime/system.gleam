@@ -168,7 +168,10 @@ fn store_system_conn(_conn: sqlight.Connection) -> Nil {
 }
 
 /// Start the system DB with a background job runner.
-pub fn start_with_jobs(path path: String, handler handler: jobs.JobHandler) -> Nil {
+pub fn start_with_jobs(
+  path path: String,
+  handler handler: jobs.JobHandler,
+) -> Nil {
   start(path)
   case get_conn() {
     Ok(conn) -> {
@@ -182,17 +185,32 @@ pub fn start_with_jobs(path path: String, handler handler: jobs.JobHandler) -> N
 }
 
 /// Enqueue a job to run at a specific time.
-pub fn enqueue(name name: String, payload payload: BitArray, run_at run_at: Int) -> Nil {
+pub fn enqueue(
+  name name: String,
+  payload payload: BitArray,
+  run_at run_at: Int,
+) -> Nil {
   case get_conn() {
-    Ok(conn) -> jobs.enqueue(db: conn, name: name, payload: payload, run_at: run_at)
+    Ok(conn) ->
+      jobs.enqueue(db: conn, name: name, payload: payload, run_at: run_at)
     _ -> Nil
   }
 }
 
 /// Enqueue a job to run after a delay.
-pub fn enqueue_in(name name: String, payload payload: BitArray, delay_seconds delay_seconds: Int) -> Nil {
+pub fn enqueue_in(
+  name name: String,
+  payload payload: BitArray,
+  delay_seconds delay_seconds: Int,
+) -> Nil {
   case get_conn() {
-    Ok(conn) -> jobs.enqueue_in(db: conn, name: name, payload: payload, delay_seconds: delay_seconds)
+    Ok(conn) ->
+      jobs.enqueue_in(
+        db: conn,
+        name: name,
+        payload: payload,
+        delay_seconds: delay_seconds,
+      )
     _ -> Nil
   }
 }

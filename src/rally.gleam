@@ -300,6 +300,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       libero.generate_dispatch(
         handler_endpoints,
         option.Some(config.atoms_module),
+        option.Some(config.wire_module),
       )
   }
   let sd_source =
@@ -321,6 +322,11 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       router_module,
       shell_html,
       config.atoms_module,
+      option.Some(config.wire_module),
+      case has_client_context {
+        True -> option.Some(client_context_module)
+        False -> option.None
+      },
     )
 
   // Write generated files, aborting on first failure
@@ -395,7 +401,11 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
   )
 
   let wire_erl = case
-    libero.generate_wire_erl(discovered:, wire_module: config.wire_module)
+    libero.generate_wire_erl(
+      discovered:,
+      wire_module: config.wire_module,
+      endpoints: handler_endpoints,
+    )
   {
     Ok(src) -> src
     Error(err) -> {

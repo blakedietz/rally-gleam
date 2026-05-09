@@ -275,6 +275,8 @@ pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
       "generated/router",
       "<html><head></head><body><div id=\"app\"></div></body></html>",
       "generated/public/rpc_atoms",
+      option.None,
+      option.None,
     )
 
   output
@@ -328,6 +330,8 @@ pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
       "generated/router",
       "<html><head></head><body><main></main></body></html>",
       "generated/public/rpc_atoms",
+      option.None,
+      option.None,
     )
 
   output
@@ -369,6 +373,8 @@ pub fn ssr_app_marker_preserves_tag_order_test() {
       "generated/router",
       "<html><head></head><body><main class=\"root\" id = \"app\"></main></body></html>",
       "generated/public/rpc_atoms",
+      option.None,
+      option.None,
     )
 
   output

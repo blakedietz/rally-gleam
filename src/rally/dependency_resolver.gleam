@@ -48,15 +48,27 @@ fn resolve_loop(
           let visited = set.insert(visited, module_path)
           case simplifile.read(file_path) {
             Ok(content) -> {
-              case check_erlang_external(content: content, module_path: module_path, chain: chain) {
+              case
+                check_erlang_external(
+                  content: content,
+                  module_path: module_path,
+                  chain: chain,
+                )
+              {
                 Ok(_) -> {
                   let dest = client_root <> "/src/" <> module_path <> ".gleam"
                   let file = client.GeneratedFile(dest, content)
                   let ffi_files =
-                    collect_ffi_files(src_root: src_root, client_root: client_root, module_path: module_path)
+                    collect_ffi_files(
+                      src_root: src_root,
+                      client_root: client_root,
+                      module_path: module_path,
+                    )
                   let new_chain = list.append(chain, [module_path])
                   let new_imports =
-                    list.map(extract_imports(content), fn(imp) { #(imp, new_chain) })
+                    list.map(extract_imports(content), fn(imp) {
+                      #(imp, new_chain)
+                    })
                   resolve_loop(
                     frontier: list.append(rest, new_imports),
                     visited:,
@@ -128,9 +140,7 @@ fn check_erlang_external(
     let line = find_line_number(content, "@external(erlang,")
     let chain_str =
       string.join(
-        list.map(list.append(chain, [module_path]), fn(c) {
-          c <> ".gleam"
-        }),
+        list.map(list.append(chain, [module_path]), fn(c) { c <> ".gleam" }),
         " -> ",
       )
     module_path
@@ -143,7 +153,10 @@ fn check_erlang_external(
     <> "  Server-only code belongs in page modules as server_* functions (which rally\n"
     <> "  strips from the client), or in separate modules that client code doesn't import."
   }
-  use <- bool.guard(when: has_erlang && !has_javascript, return: Error(error_msg))
+  use <- bool.guard(
+    when: has_erlang && !has_javascript,
+    return: Error(error_msg),
+  )
   Ok(Nil)
 }
 
@@ -153,7 +166,11 @@ fn find_line_number(content: String, needle: String) -> Int {
   |> do_find_line(needle: needle, n: 1)
 }
 
-fn do_find_line(lines lines: List(String), needle needle: String, n n: Int) -> Int {
+fn do_find_line(
+  lines lines: List(String),
+  needle needle: String,
+  n n: Int,
+) -> Int {
   case lines {
     [] -> n
     [line, ..rest] ->

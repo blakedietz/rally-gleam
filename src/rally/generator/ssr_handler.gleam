@@ -1,5 +1,5 @@
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import rally/types.{type PageContract, type ScannedRoute}
 
@@ -11,6 +11,8 @@ pub fn generate(
   router_module router_module: String,
   shell_html shell_html: String,
   atoms_module atoms_module: String,
+  wire_module wire_module: Option(String),
+  client_context_module client_context_module: Option(String),
 ) -> String {
   let use_session = has_client_context && has_from_session
   let from_session_ref = last_segment(from_session_module)
@@ -21,6 +23,7 @@ pub fn generate(
       has_client_context: has_client_context,
       use_session: use_session,
       from_session_module: from_session_ref,
+      wire_module: wire_module,
     )
   let has_load_pages = load_arms != ""
 
@@ -55,6 +58,14 @@ pub fn generate(
     False -> ""
   }
 
+  let wire_externals =
+    generate_wire_externals(
+      wire_module:,
+      client_context_module:,
+      has_client_context:,
+      page_contracts:,
+    )
+
   let header =
     base_imports
     <> server_imports
@@ -62,6 +73,7 @@ pub fn generate(
     <> load_page_imports
     <> layout_imports
     <> page_imports
+    <> wire_externals
 
   let fn_params = case needs_server_context {
     True ->
@@ -79,11 +91,18 @@ pub fn handle_request(
 ) -> response.Response(ResponseData) {"
   }
 
+  let cc_encode_line = case wire_module, client_context_module {
+    Some(_), Some(cc_mod) -> {
+      let qual = qualified_wire_name(cc_mod, "ClientContext")
+      "  let client_context = wire_encode_" <> qual <> "(client_context)\n"
+    }
+    _, _ -> ""
+  }
   let ctx_script = case use_session {
     True -> "
 fn context_script(server_context: ServerContext, session_id: String, hostname: String) -> String {
   let #(client_context, _) = " <> from_session_ref <> ".from_session(server_context, session_id, hostname)
-  let encoded = codec.encode_flags(client_context)
+" <> cc_encode_line <> "  let encoded = codec.encode_flags(client_context)
   \"<script>window.__RALLY_CLIENT_CONTEXT__='\" <> encoded <> \"'</script>\"
 }
 "
@@ -270,6 +289,7 @@ fn generate_load_arms(
   has_client_context has_client_context: Bool,
   use_session use_session: Bool,
   from_session_module from_session_module: String,
+  wire_module wire_module: Option(String),
 ) -> String {
   page_contracts
   |> list.filter_map(fn(pair) {
@@ -333,8 +353,22 @@ fn generate_load_arms(
           True -> "data"
           False -> "model"
         }
+        let wire_encode_flags = case wire_module {
+          Some(_) -> {
+            let qual = qualified_wire_name(route.module_path, "Model")
+            "      let "
+            <> flags_target
+            <> " = wire_encode_"
+            <> qual
+            <> "("
+            <> flags_target
+            <> ")\n"
+          }
+          None -> ""
+        }
         let flags_line =
-          "      let flags = codec.encode_flags("
+          wire_encode_flags
+          <> "      let flags = codec.encode_flags("
           <> flags_target
           <> ")\n"
           <> "      let flags_tag = \"<script>window.__RALLY_FLAGS__='\" <> flags <> \"'</script>\"\n"
@@ -403,6 +437,87 @@ fn route_pattern_for_load(route: ScannedRoute) -> String {
     params -> {
       let names = list.map(params, fn(p) { p.0 })
       "(" <> string.join(names, ", ") <> ")"
+    }
+  }
+}
+
+fn generate_wire_externals(
+  wire_module wire_module: Option(String),
+  client_context_module client_context_module: Option(String),
+  has_client_context has_client_context: Bool,
+  page_contracts page_contracts: List(#(ScannedRoute, PageContract)),
+) -> String {
+  case wire_module {
+    None -> ""
+    Some(mod) -> {
+      let cc_ext = case has_client_context, client_context_module {
+        True, Some(cc_mod) -> {
+          let qual = qualified_wire_name(cc_mod, "ClientContext")
+          "\n@external(erlang, \""
+          <> mod
+          <> "\", \"encode_"
+          <> qual
+          <> "\")\nfn wire_encode_"
+          <> qual
+          <> "(value: a) -> b\n"
+        }
+        _, _ -> ""
+      }
+      let model_exts =
+        page_contracts
+        |> list.filter_map(fn(pair) {
+          let #(route, contract) = pair
+          case contract.has_load && contract.has_model {
+            True -> {
+              let qual = qualified_wire_name(route.module_path, "Model")
+              Ok(
+                "@external(erlang, \""
+                <> mod
+                <> "\", \"encode_"
+                <> qual
+                <> "\")\nfn wire_encode_"
+                <> qual
+                <> "(value: a) -> b\n",
+              )
+            }
+            False -> Error(Nil)
+          }
+        })
+        |> list.unique
+        |> string.join("\n")
+      cc_ext <> "\n" <> model_exts
+    }
+  }
+}
+
+fn qualified_wire_name(module_path: String, type_name: String) -> String {
+  string.replace(module_path, "/", "_") <> "__" <> to_snake_case(type_name)
+}
+
+fn to_snake_case(name: String) -> String {
+  let graphemes = string.to_graphemes(name)
+  do_snake_case(graphemes, "", False)
+}
+
+fn do_snake_case(
+  remaining: List(String),
+  acc: String,
+  prev_lower: Bool,
+) -> String {
+  case remaining {
+    [] -> acc
+    [g, ..rest] -> {
+      let lower = string.lowercase(g)
+      case lower != g {
+        True -> {
+          let sep = case prev_lower {
+            True -> "_"
+            False -> ""
+          }
+          do_snake_case(rest, acc <> sep <> lower, False)
+        }
+        False -> do_snake_case(rest, acc <> g, True)
+      }
     }
   }
 }

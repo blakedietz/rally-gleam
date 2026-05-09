@@ -48,13 +48,11 @@ pub fn pipeline_with_dynamic_route_test() {
   let pages = dir <> "/pages"
   let page_path = pages <> "/articles/slug_.gleam"
 
-  let assert Ok(Nil) =
-    simplifile.create_directory_all(pages <> "/articles")
+  let assert Ok(Nil) = simplifile.create_directory_all(pages <> "/articles")
   let assert Ok(Nil) =
     simplifile.write(
       to: page_path,
-      contents:
-        "import lustre/effect.{type Effect}
+      contents: "import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 
@@ -96,9 +94,11 @@ pub fn view(model: Model) -> Element(Msg) {
   route.module_path |> should.equal("pages/articles/slug_")
 
   // 2. Parser extracts page contract
-  let file_path = pages <> "/" <> last_module_segment(route.module_path) <> ".gleam"
+  let file_path =
+    pages <> "/" <> last_module_segment(route.module_path) <> ".gleam"
   let assert Ok(source) = simplifile.read(file_path)
-  let assert Ok(contract) = parser.parse_page(source, module_path: route.module_path)
+  let assert Ok(contract) =
+    parser.parse_page(source, module_path: route.module_path)
   contract.has_model |> should.be_true()
   contract.has_init |> should.be_true()
   contract.param_names |> should.equal(["slug"])
