@@ -122,6 +122,77 @@ pub fn dispatch_output_snapshot_test() {
   birdie.snap(output, "page_dispatch_gleam")
 }
 
+pub fn app_gleam_uses_nearest_layout_per_page_test() {
+  let home =
+    ScannedRoute(
+      segments: [],
+      variant_name: "Home",
+      params: [],
+      layout_module: Some("pages/layout"),
+      module_path: "pages/home_",
+    )
+  let settings =
+    ScannedRoute(
+      segments: [StaticSegment("settings"), StaticSegment("profile")],
+      variant_name: "SettingsProfile",
+      params: [],
+      layout_module: Some("pages/settings/layout"),
+      module_path: "pages/settings/profile",
+    )
+  let routes = [home, settings]
+  let contracts =
+    list.map(routes, fn(route) {
+      #(
+        route,
+        PageContract(
+          model_variants: [
+            VariantInfo("Model", [VariantField("count", IntField)]),
+          ],
+          msg_variants: [],
+          has_load: True,
+          has_init: True,
+          has_init_loaded: False,
+          has_model: True,
+          updates_client_context: False,
+          param_names: [],
+          source: "",
+          view_source: "",
+          init_source: "",
+          update_source: "",
+        ),
+      )
+    })
+  let files =
+    client.generate_package(
+      routes,
+      contracts,
+      test_scan_config(),
+      dict.new(),
+      "",
+      True,
+    )
+  let assert Ok(file) =
+    list.find(files, fn(f: client.GeneratedFile) {
+      string.ends_with(f.path, "app.gleam")
+    })
+
+  file.content
+  |> string.contains("import pages/layout as pages_layout")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("import pages/settings/layout as pages_settings_layout")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("HomePageModel(_) ->\n      pages_layout.layout")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("SettingsProfilePageModel(_) ->\n      pages_settings_layout.layout")
+  |> should.equal(True)
+}
+
 pub fn ssr_handler_snapshot_test() {
   let contracts = basic_contracts()
   let shell =
@@ -462,7 +533,7 @@ pub fn app_gleam_layout_with_client_context_uses_context_msg_mapper_test() {
     })
 
   file.content
-  |> string.contains("layout.layout(model.client_context, ClientContextUpdate")
+  |> string.contains("pages_layout.layout(model.client_context, ClientContextUpdate, content)")
   |> should.equal(True)
 
   file.content

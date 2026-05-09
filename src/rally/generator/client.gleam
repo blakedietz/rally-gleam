@@ -408,15 +408,16 @@ fn app_gleam(
   let render_page_fn =
     generate_render_page(routes:, contract_map:, has_client_context:)
 
-  // Detect layout module from routes (use the first one found)
-  let layout_module =
+  // Collect all layout modules from routes
+  let layout_modules =
     routes
-    |> list.find_map(fn(route) {
+    |> list.filter_map(fn(route) {
       case route.layout_module {
         Some(layout) -> Ok(layout)
         _ -> Error(Nil)
       }
     })
+    |> list.unique
 
   let ctx_import = case has_client_context {
     True -> "\n" <> import_as(client_context_module, "client_context")
@@ -428,9 +429,13 @@ fn app_gleam(
     False -> "\n"
   }
 
-  let layout_import = case layout_module {
-    Ok(layout) -> "\nimport " <> layout
-    Error(Nil) -> ""
+  let layout_imports = case layout_modules {
+    [] -> ""
+    mods ->
+      list.map(mods, fn(mod) {
+        "\nimport " <> mod <> " as " <> module_alias(mod)
+      })
+      |> string.join("")
   }
 
   let ctx_field = case has_client_context {
@@ -545,33 +550,60 @@ fn app_gleam(
     False -> "render_page(model.page_model)"
   }
 
-  let view_body = case layout_module, has_client_context {
-    Ok(layout), True -> {
-      let layout_alias = last_segment(layout)
-      "  "
-      <> layout_alias
-      <> ".layout(model.client_context, ClientContextUpdate,
-    html.div([attr.class(\"rally-app\")], [
-      "
-      <> render_page_call
-      <> ",
-      connection_banner(model.connection),
-    ])
-  )"
-    }
-    Ok(layout), False -> {
-      let layout_alias = last_segment(layout)
-      "  " <> layout_alias <> ".layout(
+  let layout_arms = case layout_modules {
+    [] -> ""
+    _ ->
+      list.map(routes, fn(route) {
+        case route.layout_module {
+          Some(layout) -> {
+            let variant = route.variant_name <> "PageModel"
+            let alias = module_alias(layout)
+            case has_client_context {
+              True ->
+                "    "
+                <> variant
+                <> "(_) ->\n      "
+                <> alias
+                <> ".layout(model.client_context, ClientContextUpdate, content)\n"
+              False ->
+                "    "
+                <> variant
+                <> "(_) ->\n      "
+                <> alias
+                <> ".layout(content)\n"
+            }
+          }
+          None -> ""
+        }
+      })
+      |> string.join("")
+      |> fn(arms) {
+        case arms {
+          "" -> ""
+          _ -> arms <> "    _ -> content\n"
+        }
+      }
+  }
+
+  let wrap_layout = case layout_arms {
+    "" -> ""
+    arms ->
+      "\nfn wrap_layout(model: Model, content: Element(Msg)) -> Element(Msg) {\n  case model.page_model {\n"
+      <> arms
+      <> "  }\n}\n"
+  }
+
+  let view_body = case layout_arms {
+    "" -> "  html.div([attr.class(\"rally-app\")], [
+    " <> render_page_call <> ",
+    connection_banner(model.connection),
+  ])"
+    _ -> "  let content =
     html.div([attr.class(\"rally-app\")], [
       " <> render_page_call <> ",
       connection_banner(model.connection),
     ])
-  )"
-    }
-    Error(Nil), _ -> "  html.div([attr.class(\"rally-app\")], [
-    " <> render_page_call <> ",
-    connection_banner(model.connection),
-  ])"
+  wrap_layout(model, content)"
   }
 
   let page_imports = generate_page_imports(routes, contract_map)
@@ -589,7 +621,7 @@ import generated/router
 import generated/transport
 " <> rally_effect_import <> "@external(javascript, \"../generated/codec_ffi.mjs\", \"ensure_decoders\")
 fn ensure_decoders() -> Nil
-" <> page_imports <> ctx_import <> layout_import <> "
+" <> page_imports <> ctx_import <> layout_imports <> "
 
 " <> page_model_type <> "
 
@@ -662,6 +694,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   }
 }
 
+" <> wrap_layout <> "
 fn view(model: Model) -> Element(Msg) {
 " <> view_body <> "
 }
@@ -1180,6 +1213,10 @@ fn last_segment(module_path: String) -> String {
     Ok(seg) -> seg
     Error(Nil) -> module_path
   }
+}
+
+fn module_alias(module_path: String) -> String {
+  string.replace(module_path, "/", "_")
 }
 
 fn generate_page_imports(

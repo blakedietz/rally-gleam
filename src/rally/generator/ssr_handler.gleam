@@ -275,7 +275,8 @@ fn generate_layout_imports(
   |> list.filter_map(fn(pair) {
     let #(route, contract) = pair
     case contract.has_load && contract.has_model, route.layout_module {
-      True, Some(layout) -> Ok("import " <> layout)
+      True, Some(layout) ->
+        Ok("import " <> layout <> " as " <> module_to_alias(layout))
       _, _ -> Error(Nil)
     }
   })
@@ -329,7 +330,7 @@ fn generate_load_arms(
         }
         let view_expr = case route.layout_module, has_client_context {
           Some(layout), True -> {
-            let layout_alias = last_segment(layout)
+            let layout_alias = module_to_alias(layout)
             "    let page_view = element.map("
             <> view_call
             <> ", fn(_) { Nil })\n"
@@ -338,7 +339,7 @@ fn generate_load_arms(
             <> ".layout(client_context, fn(_) { Nil }, page_view))\n"
           }
           Some(layout), False -> {
-            let layout_alias = last_segment(layout)
+            let layout_alias = module_to_alias(layout)
             "    let page_view = element.map("
             <> view_call
             <> ", fn(_) { Nil })\n"
