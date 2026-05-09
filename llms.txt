@@ -77,7 +77,7 @@ pub fn update(model, msg) {
 - If `ClientContext` has convention fields named `current_path`, `dark_mode`, or `lang`, the generated client app syncs them from browser state at SPA boot. `current_path` is also refreshed on client-side navigation before page init runs.
 - `layout` wraps all pages if `src/<namespace>/pages/layout.gleam` exports `pub fn layout(client_context, on_context_msg, content)`
 - Each Rally codegen run resets `client_root/src` before writing the generated client package, so stale copied dependencies and old generated modules do not stay in the JS build.
-- Each client writes to `.generated_client/<namespace>`, an ignored standalone Gleam package for generated SPA code.
+- Each client writes to `.generated_clients/<namespace>`, an ignored standalone Gleam package for generated SPA code.
 - Generated code is expected to compile quietly. Rally avoids predictable unused imports, unused RPC dispatch bindings, fieldless record update warnings, and dead `rally_runtime/effect` imports after client page rewriting.
 - Rally owns client `ClientMsg` generation for RPC calls. The generated codec registers constructor field type hints so whole-number floats nested in lists, dicts, options, results, and tuples encode as ETF floats when the Gleam type says `Float`.
 
@@ -107,7 +107,7 @@ my_app/
 │   │   └── pages/              # route = filesystem
 │   ├── sql/                # marmot .sql files
 │   └── generated/          # Rally codegen output (never edit)
-├── .generated_client/      # JS clients (fully generated, ignored)
+├── .generated_clients/      # JS clients (fully generated, ignored)
 ├── gleam.toml
 └── bin/dev
 ```
@@ -124,14 +124,14 @@ Running `gleam run -m rally` produces:
 | `src/generated/<namespace>/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, inserts it at `<div id="app">`, embeds model as flags, returns HTML with `content-type: text/html` |
 | `src/generated/<namespace>/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery, inbound message logging |
 | `src/generated/<namespace>/http_handler.gleam` | HTTP RPC handler: POST /rpc with ETF body, calls rpc_dispatch, returns ETF response |
-| `.generated_client/<namespace>/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing, page push handler registration |
-| `.generated_client/<namespace>/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, RPC framework-error handler registration, ETF encode/decode, and safe ETF decode |
-| `.generated_client/<namespace>/src/<namespace>/pages/*.gleam` | Per-page client modules: tree-shaken page source with types, init/update/view, and private helpers |
-| `.generated_client/<namespace>/src/rally_runtime/effect.gleam` | Client-side effect shim: rpc, navigate, send_to_client_context backed by transport |
-| `.generated_client/<namespace>/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
-| `.generated_client/<namespace>/src/generated/codec.gleam` | decode_flags utility for SSR hydration; absent or malformed flags return an Error so shell-only routes and corrupt SSR payloads can fall back to client init |
-| `.generated_client/<namespace>/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
-| `.generated_client/<namespace>/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime); unwraps wire Ok before per-call RPC callbacks and routes framework errors through the registered RPC error handler |
+| `.generated_clients/<namespace>/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing, page push handler registration |
+| `.generated_clients/<namespace>/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, RPC framework-error handler registration, ETF encode/decode, and safe ETF decode |
+| `.generated_clients/<namespace>/src/<namespace>/pages/*.gleam` | Per-page client modules: tree-shaken page source with types, init/update/view, and private helpers |
+| `.generated_clients/<namespace>/src/rally_runtime/effect.gleam` | Client-side effect shim: rpc, navigate, send_to_client_context backed by transport |
+| `.generated_clients/<namespace>/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
+| `.generated_clients/<namespace>/src/generated/codec.gleam` | decode_flags utility for SSR hydration; absent or malformed flags return an Error so shell-only routes and corrupt SSR payloads can fall back to client init |
+| `.generated_clients/<namespace>/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
+| `.generated_clients/<namespace>/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime); unwraps wire Ok before per-call RPC callbacks and routes framework errors through the registered RPC error handler |
 
 ## Architecture
 
@@ -239,15 +239,31 @@ RPC responses show round-trip latency (e.g. `rpc #3 (12.4ms)`). Connection lifec
 - `tom`: TOML config parser
 - `simplifile`: Filesystem operations
 
+## Context Architecture
+
+Rally threads two opaque context types through the request lifecycle. The app defines both; rally just passes them through.
+
+**ServerContext** (`server_context.gleam`): server-side infrastructure and per-request state. Rally generates `load(server_context)` calls, so anything a page's `load` function needs for data access (DB connections, tenant ID, config) belongs here. Rally treats it as opaque and never inspects its fields.
+
+**ClientContext** (`<namespace>/client_context.gleam`): the view context, shared by SSR and the browser SPA. Holds everything view functions need to render: org details, account info, translations, UI state. The "client" in ClientContext means "consumer of view functions," not "browser." The SSR server is also a client of the view layer, calling the same `view(client_context, model)` functions the browser does.
+
+**`from_session`** bridges the two. When `<namespace>/client_context_server.gleam` exports `pub fn from_session(server_context:, session_id:, hostname:)`, rally's SSR and HTTP handlers call it to build a `#(ClientContext, ServerContext)`. The returned ServerContext can differ from the input (e.g., a multi-tenant app resolves the tenant from the hostname and sets it on the returned ServerContext so subsequent `load` calls can scope queries). This is the intended pattern: `from_session` enriches ServerContext with per-request state derived from the session.
+
+**Why org/tenant state lives on ServerContext, not ClientContext:** `load` functions need tenant scope for database queries, and they only receive ServerContext. ClientContext is for rendering, not data access. A multi-tenant app will set its tenant ID on ServerContext inside `from_session`, and page `load` functions read it alongside the DB connection.
+
+**SSR as a client:** the SSR handler calls the same page `view` functions the browser SPA does, rendering to an HTML string instead of a DOM. This is why `from_session` builds the full ClientContext server-side: SSR needs org name, translations, theme, and role to render the page before the browser ever loads.
+
 ## SSR Hydration
 
 Pages with a `load` function get server-side rendered on first request:
 
-1. The SSR handler calls `load(server_context)` to get the page `Model`
-2. If `client_context_server.gleam` or `server_context.gleam` exports `pub fn from_session(server_context, session_id, hostname)`, it's called to build `#(ClientContext, ServerContext)`
-3. The page's `view(client_context, model)` renders HTML, wrapped in layout if present
-4. The model is base64-ETF encoded and embedded as flags
-5. On the client, `init()` reads the flags for instant hydration
+1. `from_session(server_context:, session_id:, hostname:)` builds the `ClientContext` and enriches `ServerContext` with session-derived state
+2. `load(server_context)` fetches page data using the enriched context
+3. `init_loaded(client_context, data)` produces the initial `Model`
+4. `view(client_context, model)` renders HTML server-side, wrapped in layout if present
+5. The model is base64-ETF encoded and embedded as `window.__RALLY_FLAGS__`
+6. The client context is embedded as `window.__RALLY_CLIENT_CONTEXT__`
+7. On the client, `init()` reads both for instant hydration (no loading state, no RPC round-trip)
 
 The shell must contain an app marker with `id="app"` or `id='app'`; whitespace around `=` is allowed. If Rally cannot find a valid marker, it returns the shell unchanged instead of inserting partial SSR output into the wrong place.
 
@@ -263,7 +279,7 @@ route_root = "/"
 
 ## Examples
 
-- `examples/realworld/`: RealWorld (Conduit) clone: full CRUD with auth, articles, tags. Uses handler-as-contract pattern for all server interactions and writes its generated client package to ignored `.generated_client/public`.
+- `examples/realworld/`: RealWorld (Conduit) clone: full CRUD with auth, articles, tags. Uses handler-as-contract pattern for all server interactions and writes its generated client package to ignored `.generated_clients/public`.
 
 ## Prior art
 

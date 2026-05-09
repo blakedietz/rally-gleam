@@ -20,7 +20,7 @@ import server_context.{ServerContext}
 import simplifile
 import sqlight
 
-const client_build_root = ".generated_client/public/build/dev/javascript"
+const client_build_root = ".generated_clients/public/build/dev/javascript"
 
 fn session_id(req: Request(Connection)) -> String {
   request.get_header(req, "cookie")

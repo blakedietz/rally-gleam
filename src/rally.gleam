@@ -135,7 +135,7 @@ fn read_client_config(
     output_ssr: "src/generated/" <> namespace <> "/ssr_handler.gleam",
     output_ws: "src/generated/" <> namespace <> "/ws_handler.gleam",
     output_http: "src/generated/" <> namespace <> "/http_handler.gleam",
-    client_root: ".generated_client/" <> namespace,
+    client_root: ".generated_clients/" <> namespace,
     route_root:,
     rally_package_path:,
     shell_file: "src/" <> namespace <> "/shell.html",
@@ -176,7 +176,7 @@ fn read_legacy_config(
     |> result.unwrap("src/generated/http_handler.gleam")
   let client_root =
     tom.get_string(rally_config, ["client_root"])
-    |> result.unwrap(".generated_client")
+    |> result.unwrap(".generated_clients")
   let route_root =
     tom.get_string(rally_config, ["route_root"])
     |> result.unwrap("/")
