@@ -279,3 +279,10 @@ gleam test                       # 192 tests: scanner, generator, parser, wire, 
 gleam run -m birdie accept       # accept all new snapshots
 gleam run -m birdie              # review snapshot changes interactively
 ```
+
+## Links
+
+- [Rally on GitHub](https://github.com/pairshaped/rally)
+- [Gleam](https://gleam.run)
+- [Lustre](https://hexdocs.pm/lustre)
+- [Libero](https://github.com/pairshaped/libero)

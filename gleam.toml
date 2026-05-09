@@ -1,6 +1,7 @@
 name = "rally"
 version = "0.1.0"
 target = "erlang"
+repository = "https://github.com/pairshaped/rally"
 
 [dependencies]
 gleam_stdlib = ">= 0.60.0 and < 2.0.0"
