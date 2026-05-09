@@ -81,7 +81,7 @@ pub fn parse_page(
       name: "update",
     )
   let updates_client_context =
-    string.contains(update_source, "ClientContextMsg")
+    update_returns_client_context_msg(functions_list)
 
   Ok(PageContract(
     model_variants:,
@@ -427,5 +427,37 @@ fn glance_to_string(err: glance.Error) -> String {
     glance.UnexpectedEndOfInput -> "unexpected end of input"
     glance.UnexpectedToken(token: _, position:) ->
       "unexpected token at byte offset " <> int.to_string(position.byte_offset)
+  }
+}
+
+fn update_returns_client_context_msg(
+  functions: List(glance.Definition(glance.Function)),
+) -> Bool {
+  case
+    list.find(functions, fn(def) {
+      def.definition.name == "update" && def.definition.publicity == glance.Public
+    })
+  {
+    Ok(def) ->
+      case def.definition.return {
+        Some(glance.TupleType(elements: [_, _, third], ..)) ->
+          type_contains_name(third, "ClientContextMsg")
+        _ -> False
+      }
+    Error(Nil) -> False
+  }
+}
+
+fn type_contains_name(t: glance.Type, name: String) -> Bool {
+  case t {
+    glance.NamedType(name: n, parameters:, ..) ->
+      n == name || list.any(parameters, fn(p) { type_contains_name(p, name) })
+    glance.TupleType(elements:, ..) ->
+      list.any(elements, fn(e) { type_contains_name(e, name) })
+    glance.FunctionType(parameters:, return:, ..) ->
+      list.any(parameters, fn(p) { type_contains_name(p, name) })
+      || type_contains_name(return, name)
+    glance.VariableType(..) -> False
+    glance.HoleType(..) -> False
   }
 }

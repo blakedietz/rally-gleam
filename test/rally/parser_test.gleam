@@ -104,6 +104,39 @@ pub fn init() -> #(Model, Effect(Msg)) { todo }
   |> should.equal("Unsupported function type in test/page.Model.handler")
 }
 
+pub fn update_comment_does_not_count_as_client_context_update_test() {
+  let source = "
+import lustre/effect.{type Effect}
+pub type Model { Model }
+pub type Msg { NoOp }
+pub fn init() -> #(Model, Effect(Msg)) { todo }
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  // ClientContextMsg appears in a comment.
+  #(model, effect.none())
+}
+pub fn view(model: Model) { todo }
+"
+  let assert Ok(contract) = parser.parse_page(source, module_path: "test/page")
+  contract.updates_client_context |> should.equal(False)
+}
+
+pub fn update_three_tuple_return_counts_as_client_context_update_test() {
+  let source = "
+import gleam/option.{type Option}
+import lustre/effect.{type Effect}
+import public/client_context.{type ClientContext, type ClientContextMsg}
+pub type Model { Model }
+pub type Msg { NoOp }
+pub fn init(ctx: ClientContext) -> #(Model, Effect(Msg)) { todo }
+pub fn update(ctx: ClientContext, model: Model, msg: Msg) -> #(Model, Effect(Msg), Option(ClientContextMsg)) {
+  todo
+}
+pub fn view(ctx: ClientContext, model: Model) { todo }
+"
+  let assert Ok(contract) = parser.parse_page(source, module_path: "test/page")
+  contract.updates_client_context |> should.equal(True)
+}
+
 pub fn parse_page_rejects_hole_typed_fields_test() {
   let source =
     "
