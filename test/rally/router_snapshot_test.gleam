@@ -801,6 +801,28 @@ pub fn types_gleam_does_not_import_modules_used_only_by_responses_test() {
   |> should.equal(False)
 }
 
+pub fn codec_ffi_includes_libero_response_decoders_test() {
+  let endpoint =
+    scanner.HandlerEndpoint(
+      module_path: "pages/home_",
+      fn_name: "load_home",
+      return_ok: UserType("pages/home_", "Model", []),
+      return_err: IntField,
+      params: [],
+      mutates_context: False,
+      msg_type: None,
+    )
+  let files = codec.generate([], [], [endpoint], [])
+  let assert Ok(file) =
+    list.find(files, fn(f: codec.CodecFile) {
+      string.ends_with(f.path, "codec_ffi.mjs")
+    })
+
+  file.content
+  |> string.contains("decode_response_load_home")
+  |> should.equal(True)
+}
+
 pub fn codec_gleam_snapshot_test() {
   let contracts = basic_contracts()
   let files = codec.generate(contracts, [], [], [])
