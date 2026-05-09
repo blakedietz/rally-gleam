@@ -49,6 +49,10 @@ pub fn generate(
       }
     False -> ""
   }
+  let client_context_imports = case has_client_context, client_context_module {
+    True, Some(mod) -> import_as(mod, "client_context") <> "\n"
+    _, _ -> ""
+  }
   let codec_imports = case needs_codec {
     True -> "import rally_runtime/codec\n"
     False -> ""
@@ -69,6 +73,7 @@ pub fn generate(
   let header =
     base_imports
     <> server_imports
+    <> client_context_imports
     <> codec_imports
     <> load_page_imports
     <> layout_imports
@@ -100,8 +105,7 @@ pub fn handle_request(
   }
   let ctx_script = case use_session {
     True -> "
-fn context_script(server_context: ServerContext, session_id: String, hostname: String) -> String {
-  let #(client_context, _) = " <> from_session_ref <> ".from_session(server_context, session_id, hostname)
+fn context_script(client_context: client_context.ClientContext) -> String {
 " <> cc_encode_line <> "  let encoded = codec.encode_flags(client_context)
   \"<script>window.__RALLY_CLIENT_CONTEXT__='\" <> encoded <> \"'</script>\"
 }
@@ -143,7 +147,8 @@ fn context_script(server_context: ServerContext, session_id: String, hostname: S
   let shell_fn = case use_session {
     True -> "
 fn serve_html_shell(server_context: ServerContext, session_id: String, hostname: String) -> response.Response(ResponseData) {
-  let html = \"" <> escaped_shell <> "\" <> env.browser_env_script() <> context_script(server_context, session_id, hostname)
+  let #(client_context, _) = " <> from_session_ref <> ".from_session(server_context, session_id, hostname)
+  let html = \"" <> escaped_shell <> "\" <> env.browser_env_script() <> context_script(client_context)
   response.new(200)
   |> response.set_header(\"content-type\", \"text/html\")
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
@@ -346,7 +351,7 @@ fn generate_load_arms(
         }
         let ctx_script = case use_session {
           True ->
-            "      let ctx_tag = context_script(server_context, session_id, hostname)\n"
+            "      let ctx_tag = context_script(client_context)\n"
           False -> ""
         }
         let flags_target = case contract.has_init_loaded {

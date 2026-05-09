@@ -506,7 +506,7 @@ pub fn ssr_layout_with_client_context_uses_v3_session_contract_test() {
       shell,
       "generated/public/rpc_atoms",
       option.None,
-      option.None,
+      Some("public/client_context"),
     )
 
   output
@@ -523,6 +523,64 @@ pub fn ssr_layout_with_client_context_uses_v3_session_contract_test() {
 
   output
   |> string.contains("hostname: String")
+  |> should.equal(True)
+
+  output
+  |> string.contains(
+    "fn context_script(client_context: client_context.ClientContext) -> String",
+  )
+  |> should.equal(True)
+
+  output
+  |> string.contains("context_script(server_context, session_id, hostname)")
+  |> should.equal(False)
+}
+
+pub fn ssr_client_context_without_from_session_imports_client_context_test() {
+  let route =
+    ScannedRoute(
+      segments: [],
+      variant_name: "Home",
+      params: [],
+      layout_module: None,
+      module_path: "pages/home_",
+    )
+  let contract =
+    PageContract(
+      model_variants: [VariantInfo("Model", [VariantField("count", IntField)])],
+      msg_variants: [],
+      has_load: True,
+      has_init: True,
+      has_init_loaded: False,
+      has_model: True,
+      updates_client_context: False,
+      param_names: [],
+      source: "",
+      view_source: "",
+      init_source: "",
+      update_source: "",
+    )
+  let shell =
+    "<!DOCTYPE html>\n<html><head></head><body><div id='app'></div></body></html>"
+  let output =
+    ssr_handler.generate(
+      [#(route, contract)],
+      True,
+      False,
+      "server_context",
+      "generated/router",
+      shell,
+      "generated/public/rpc_atoms",
+      option.None,
+      Some("public/client_context"),
+    )
+
+  output
+  |> string.contains("import public/client_context")
+  |> should.equal(True)
+
+  output
+  |> string.contains("client_context.init()")
   |> should.equal(True)
 }
 
