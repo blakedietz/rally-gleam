@@ -8,7 +8,7 @@
 // SSR flags, and debug logging.
 
 import { Ok, Error as ResultError, CustomType, Empty, NonEmpty, BitArray } from "../../gleam_stdlib/gleam.mjs";
-import { encode_call, decode_value } from "../../libero/libero/rpc_ffi.mjs";
+import { encode_call, decode_server_frame } from "../../libero/libero/rpc_ffi.mjs";
 import { MalformedRequest, UnknownFunction, InternalError } from "../../libero/libero/error.mjs";
 
 // ---------- Debug logging ----------
@@ -120,9 +120,10 @@ if (typeof window !== "undefined") {
 // rpc_config module, so it doesn't change across calls. Sends issued
 // before the socket's open event are queued and flushed once it opens.
 //
-// Server→client frames are tagged with a 1-byte prefix:
-//   0x00 = response: <<tag, request_id:32-big, etf_bytes>>
-//   0x01 = push: <<tag, etf_bytes>>
+// Server→client frames are decoded through Libero's boundary API.
+// decode_server_frame returns { kind: "response", requestId, value }
+// or { kind: "push", module, value }. Rally never inspects tag bytes
+// or slices frame headers — Libero owns that boundary.
 //
 // Responses are matched by request ID (monotonic counter assigned by
 // the client). This allows safe timeout handling without closing the
@@ -284,91 +285,41 @@ export function ensureSocket(url) {
   });
 
   ws.addEventListener("message", (event) => {
-    const bytes = new Uint8Array(event.data);
-    if (bytes.byteLength < 1) {
-      if (debugEnabled()) console.warn("libero: dropped empty WebSocket frame");
+    const result = decode_server_frame(event.data);
+    if (result instanceof ResultError) {
+      if (debugEnabled()) console.warn("rally: failed to decode server frame", result[0]);
       return;
     }
-    const tag = bytes[0];
-    const payload = bytes.slice(1);
+    const frame = result[0];
 
-    if (tag === 0x01) {
-      // Push frame: payload is ETF-encoded {module, value}. Decode
-      // through the typed pipeline so Gleam callbacks receive proper
-      // constructor instances (Ok, Error, custom types) rather than
-      // raw arrays with string atoms.
-      let decoded;
-      try {
-        decoded = decode_value(payload);
-      } catch (e) {
-        if (debugEnabled()) console.warn("rally: failed to decode push frame", e);
-        return;
-      }
-      if (Array.isArray(decoded) && typeof decoded[0] === "string"
-          && decoded[1] !== undefined) {
-        logRpc("<<", `push ${decoded[0]}`, decoded[1]);
-        const handler = pushHandlers.get(decoded[0]);
-        if (handler) handler(decoded[1]);
-      }
+    if (frame.kind === "push") {
+      logRpc("<<", `push ${frame.module}`, frame.value);
+      const handler = pushHandlers.get(frame.module);
+      if (handler) handler(frame.value);
       return;
     }
 
-    // Response frame (tag 0x00): extract request ID and match by ID.
-    // Frame format: <<0x00, request_id:32-big, etf_bytes>>
-    if (bytes.byteLength < 5) {
-      if (debugEnabled()) {
-        console.warn(`libero: dropped malformed response frame (${bytes.byteLength} bytes, need >= 5)`);
-      }
-      return;
-    }
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const requestId = view.getUint32(1);
-    const responsePayload = bytes.slice(5);
-
-    // Decode through the typed pipeline so Gleam callbacks receive
-    // proper constructor instances (Ok, Error, custom types) rather
-    // than raw arrays with string atoms. formatRaw already handles
-    // CustomType instances for the inspector.
-    let decoded;
-    try {
-      decoded = decode_value(responsePayload);
-    } catch (e) {
-      if (debugEnabled()) console.warn(`rally: failed to decode response #${requestId}`, e);
-      const entry = responseCallbacks.get(requestId);
-      if (entry) {
-        responseCallbacks.delete(requestId);
-        if (entry.timer) clearTimeout(entry.timer);
-        requestTimestamps.delete(requestId);
-        invokeRpcErrorHandler(makeConnectionError("Failed to decode response"), `RPC #${requestId} decode failed`);
-      }
-      return;
-    }
-
-    const entry = responseCallbacks.get(requestId);
+    // Response frame
+    const entry = responseCallbacks.get(frame.requestId);
     if (entry) {
-      responseCallbacks.delete(requestId);
+      responseCallbacks.delete(frame.requestId);
       if (entry.timer) clearTimeout(entry.timer);
-      const sentAt = requestTimestamps.get(requestId);
+      const sentAt = requestTimestamps.get(frame.requestId);
       if (sentAt !== undefined) {
-        requestTimestamps.delete(requestId);
+        requestTimestamps.delete(frame.requestId);
         const ms = (performance.now() - sentAt).toFixed(1);
-        logRpc("<-", `rpc #${requestId} (${ms}ms)`, decoded);
+        logRpc("<-", `rpc #${frame.requestId} (${ms}ms)`, frame.value);
       } else {
-        logRpc("<-", `rpc #${requestId}`, decoded);
+        logRpc("<-", `rpc #${frame.requestId}`, frame.value);
       }
+      const decoded = frame.value;
       if (decoded instanceof Ok) {
-        // Wire-level success: the payload is the handler's return value.
-        // This value may itself be a domain Result, and user callbacks
-        // receive it unchanged.
         entry.callback(decoded[0]);
       } else if (decoded instanceof ResultError) {
-        // Wire-level failure: dispatch errors, malformed requests, and
-        // internal framework failures are routed outside the per-call
-        // callback so user Msg types only model handler return values.
         const frameworkError = decoded[0];
-        invokeRpcErrorHandler(frameworkError, `RPC #${requestId} failed`);
+        invokeRpcErrorHandler(frameworkError, `RPC #${frame.requestId} failed`);
       } else {
-        if (debugEnabled()) console.warn("rally: unexpected response shape #" + requestId, decoded);
+        if (debugEnabled()) console.warn("rally: unexpected response shape #" + frame.requestId, decoded);
       }
     }
   });
