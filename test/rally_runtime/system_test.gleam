@@ -98,3 +98,26 @@ fn broadcast_messages(
     )
   rows
 }
+
+pub fn open_creates_jobs_claimed_at_column_test() {
+  let assert Ok(conn) = system.open(":memory:")
+
+  column_exists(conn, "jobs", "claimed_at") |> should.equal(True)
+}
+
+fn column_exists(conn: sqlight.Connection, table: String, column: String) -> Bool {
+  let assert Ok(rows) =
+    sqlight.query(
+      "SELECT name FROM pragma_table_info(?1) WHERE name = ?2",
+      on: conn,
+      with: [sqlight.text(table), sqlight.text(column)],
+      expecting: {
+        use name <- decode.field(0, decode.string)
+        decode.success(name)
+      },
+    )
+  case rows {
+    [_] -> True
+    _ -> False
+  }
+}

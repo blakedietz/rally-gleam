@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   attempts INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'pending',
   last_error TEXT,
-  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  claimed_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id);
@@ -45,7 +46,36 @@ CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_jobs_status_run_at ON jobs(status, run_at);",
     on: conn,
   ))
+  use _ <- result.try(ensure_column(
+    conn: conn,
+    table: "jobs",
+    column: "claimed_at",
+    ddl: "ALTER TABLE jobs ADD COLUMN claimed_at INTEGER;",
+  ))
   Ok(conn)
+}
+
+fn ensure_column(
+  conn conn: sqlight.Connection,
+  table table: String,
+  column column: String,
+  ddl ddl: String,
+) -> Result(Nil, sqlight.Error) {
+  case
+    sqlight.query(
+      "SELECT name FROM pragma_table_info(?1) WHERE name = ?2",
+      on: conn,
+      with: [sqlight.text(table), sqlight.text(column)],
+      expecting: {
+        use name <- decode.field(0, decode.string)
+        decode.success(name)
+      },
+    )
+  {
+    Ok([_]) -> Ok(Nil)
+    Ok(_) -> sqlight.exec(ddl, on: conn)
+    Error(e) -> Error(e)
+  }
 }
 
 pub fn log_to_server(

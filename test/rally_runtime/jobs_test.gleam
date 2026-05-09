@@ -78,6 +78,54 @@ fn job_statuses(conn: sqlight.Connection) -> List(String) {
   rows
 }
 
+pub fn run_once_does_not_reclaim_fresh_running_job_test() {
+  let assert Ok(conn) = system.open(":memory:")
+  let now = 1_700_000_000
+  let assert Ok(_) =
+    sqlight.query(
+      "INSERT INTO jobs (name, payload, run_at, attempts, status, claimed_at) VALUES (?1, ?2, ?3, 0, 'running', ?4)",
+      on: conn,
+      with: [
+        sqlight.text("fresh"),
+        sqlight.blob(<<"payload":utf8>>),
+        sqlight.int(0),
+        sqlight.int(now),
+      ],
+      expecting: decode.success(Nil),
+    )
+
+  jobs.run_once_at(db: conn, now: now + 10, handler: fn(_, _) {
+    should.fail()
+    Ok(Nil)
+  })
+
+  job_statuses(conn) |> should.equal(["running"])
+}
+
+pub fn run_once_reclaims_stale_running_job_test() {
+  let assert Ok(conn) = system.open(":memory:")
+  let now = 1_700_000_000
+  let assert Ok(_) =
+    sqlight.query(
+      "INSERT INTO jobs (name, payload, run_at, attempts, status, claimed_at) VALUES (?1, ?2, ?3, 0, 'running', ?4)",
+      on: conn,
+      with: [
+        sqlight.text("stale"),
+        sqlight.blob(<<"payload":utf8>>),
+        sqlight.int(0),
+        sqlight.int(now - 120),
+      ],
+      expecting: decode.success(Nil),
+    )
+
+  jobs.run_once_at(db: conn, now: now, handler: fn(name, _) {
+    name |> should.equal("stale")
+    Ok(Nil)
+  })
+
+  job_statuses(conn) |> should.equal(["completed"])
+}
+
 fn job_attempts(conn: sqlight.Connection) -> List(JobAttempt) {
   let assert Ok(rows) =
     sqlight.query(

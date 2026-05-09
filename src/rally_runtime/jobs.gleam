@@ -67,19 +67,32 @@ pub fn start_runner(
   })
   |> actor.on_message(fn(state, msg) {
     let Poll = msg
-    process_pending_jobs(state.db, state.handler)
+    process_pending_jobs_at(state.db, state.handler, unix_seconds())
     let _timer = process.send_after(state.self, poll_interval_ms, Poll)
     actor.continue(state)
   })
   |> actor.start
 }
 
+const running_lease_seconds = 60
+
 pub fn run_once(db db: sqlight.Connection, handler handler: JobHandler) -> Nil {
-  process_pending_jobs(db, handler)
+  process_pending_jobs_at(db, handler, unix_seconds())
 }
 
-fn process_pending_jobs(db: sqlight.Connection, handler: JobHandler) -> Nil {
-  let now = unix_seconds()
+pub fn run_once_at(
+  db db: sqlight.Connection,
+  now now: Int,
+  handler handler: JobHandler,
+) -> Nil {
+  process_pending_jobs_at(db, handler, now)
+}
+
+fn process_pending_jobs_at(
+  db: sqlight.Connection,
+  handler: JobHandler,
+  now: Int,
+) -> Nil {
   case fetch_ready_jobs(db, now) {
     [] -> Nil
     jobs -> run_jobs(db: db, handler: handler, jobs: jobs)
@@ -87,13 +100,24 @@ fn process_pending_jobs(db: sqlight.Connection, handler: JobHandler) -> Nil {
 }
 
 fn fetch_ready_jobs(db: sqlight.Connection, now: Int) -> List(Job) {
+  let stale_before = now - running_lease_seconds
   case
     sqlight.query(
-      "UPDATE jobs SET status = 'running'
-       WHERE id IN (SELECT id FROM jobs WHERE status IN ('pending', 'running') AND run_at <= ?1 ORDER BY run_at LIMIT 10)
+      "UPDATE jobs
+       SET status = 'running', claimed_at = ?1
+       WHERE id IN (
+         SELECT id FROM jobs
+         WHERE run_at <= ?1
+         AND (
+           status = 'pending'
+           OR (status = 'running' AND (claimed_at IS NULL OR claimed_at <= ?2))
+         )
+         ORDER BY run_at
+         LIMIT 10
+       )
        RETURNING id, name, payload, attempts",
       on: db,
-      with: [sqlight.int(now)],
+      with: [sqlight.int(now), sqlight.int(stale_before)],
       expecting: {
         use id <- decode.field(0, decode.int)
         use name <- decode.field(1, decode.string)
@@ -197,7 +221,7 @@ fn mark_retry(
 ) -> Nil {
   let _result =
     sqlight.query(
-      "UPDATE jobs SET status = 'pending', attempts = ?2, run_at = ?3, last_error = ?4 WHERE id = ?1",
+      "UPDATE jobs SET status = 'pending', attempts = ?2, run_at = ?3, last_error = ?4, claimed_at = NULL WHERE id = ?1",
       on: db,
       with: [
         sqlight.int(job_id),
