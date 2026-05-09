@@ -31,9 +31,8 @@ stats = true
 warnings_as_errors = false
 exclude = ["tmp/**", "examples/**"]
 
-[documentation]
-pages = [
-  { title = "llms.txt", path = "llms.txt", source = "./llms.txt" },
+links = [
+  { title = "llms.txt", href = "https://raw.githubusercontent.com/pairshaped/rally/refs/heads/master/llms.txt" },
 ]
 
 [tools.glinter.ignore]
