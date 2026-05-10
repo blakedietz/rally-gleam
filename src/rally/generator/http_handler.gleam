@@ -274,14 +274,6 @@ fn generate_auth_flow(
                         |> response.set_header(\"content-type\", \"application/octet-stream\")
                         |> response.set_body(mist.Bytes(bytes_tree.from_bit_array(response_data)))"
 
-  let close_authorize =
-    "
-                      }"
-
-  let close_is_auth =
-    "
-                    }"
-
   let close_page_info =
     "
                 }
@@ -303,7 +295,10 @@ fn generate_auth_flow(
                   {"
   }
   let auth_close = case has_any_required {
-    True -> close_is_auth
+    True ->
+      "
+                    }
+                  }"
     False ->
       "
                   }"
@@ -315,7 +310,10 @@ fn generate_auth_flow(
                       {"
   }
   let authorize_close = case has_any_authorize {
-    True -> close_authorize
+    True ->
+      "
+                      }
+                    }"
     False ->
       "
                       }"

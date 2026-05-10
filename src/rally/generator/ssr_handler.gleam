@@ -524,7 +524,58 @@ fn generate_load_arms(
               False -> ""
             }
 
-            // The load+render block, wrapped in LoadResult case
+            // The load+render block, wrapped in LoadResult case.
+            // When has_init_loaded is False, "data" from the LoadResult
+            // pattern IS the model — no init_loaded call to produce "model".
+            let model_var = case contract.has_init_loaded {
+              True -> "model"
+              False -> "data"
+            }
+            let view_call_auth = case has_client_context {
+              True -> alias <> ".view(client_context, " <> model_var <> ")"
+              False -> alias <> ".view(" <> model_var <> ")"
+            }
+            let view_expr_auth = case route.layout_module, has_client_context {
+              Some(layout), True -> {
+                let layout_alias = module_to_alias(layout)
+                "    let page_view = element.map("
+                <> view_call_auth
+                <> ", fn(_) { Nil })\n"
+                <> "    let rendered = element.to_string("
+                <> layout_alias
+                <> ".layout(client_context, fn(_) { Nil }, page_view))\n"
+              }
+              Some(layout), False -> {
+                let layout_alias = module_to_alias(layout)
+                "    let page_view = element.map("
+                <> view_call_auth
+                <> ", fn(_) { Nil })\n"
+                <> "    let rendered = element.to_string("
+                <> layout_alias
+                <> ".layout(page_view))\n"
+              }
+              None, _ ->
+                "    let rendered = element.to_string(" <> view_call_auth <> ")\n"
+            }
+            let wire_encode_flags_auth = case wire_module {
+              Some(_) -> {
+                let qual = qualified_wire_name(route.module_path, "Model")
+                "      let "
+                <> model_var
+                <> " = wire_encode_"
+                <> qual
+                <> "("
+                <> model_var
+                <> ")\n"
+              }
+              None -> ""
+            }
+            let flags_line_auth =
+              wire_encode_flags_auth
+              <> "      let flags = libero_wire.encode_flags("
+              <> model_var
+              <> ")\n"
+              <> "      let flags_tag = \"<script>window.__RALLY_FLAGS__='\" <> flags <> \"'</script>\"\n"
             let load_result_block =
               ctx_init
               <> "                  case "
@@ -546,9 +597,9 @@ fn generate_load_arms(
                 False, _ -> ""
               }
               <> "                      "
-              <> view_expr
+              <> view_expr_auth
               <> ctx_script
-              <> flags_line
+              <> flags_line_auth
               <> full_html_line
               <> "                      apply_cookies(\n"
               <> "                        response.new(200)\n"

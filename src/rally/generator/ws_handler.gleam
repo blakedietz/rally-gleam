@@ -119,7 +119,8 @@ fn generate_init_with_auth(
       let Nil = effect.put_ws_state(conn, enriched_sc, \"\")
       let Nil = effect.put_ws_identity(identity)
       let Nil = effect.put_ws_hostname(hostname)
-      let now = timestamp.unix(timestamp.system_time())
+      let epoch = timestamp.from_unix_seconds(0)
+      let now = duration.to_milliseconds(timestamp.difference(epoch, timestamp.system_time()))
       let Nil = effect.put_ws_auth_timestamp(now)
       topics.join(\"app\")
       topics.join(\"session:\" <> session_id)
@@ -232,9 +233,10 @@ fn generate_frame_handler_with_auth(
     mist.Binary(data) -> {
       debug_log(\"[rally:ws] Binary frame: \" <> int.to_string(bit_array.byte_size(data)) <> \" bytes\")
       // Reauth: re-resolve identity if the last auth check is stale.
-      let now = timestamp.unix(timestamp.system_time())
+      let epoch = timestamp.from_unix_seconds(0)
+      let now = duration.to_milliseconds(timestamp.difference(epoch, timestamp.system_time()))
       let last_auth = effect.get_ws_auth_timestamp()
-      case now - last_auth > 1800 {
+      case now - last_auth > 1800000 {
         True -> {
           let session_id = effect.get_ws_session()
           let hostname = effect.get_ws_hostname()

@@ -61,6 +61,7 @@ pub fn handle(
                         |> response.set_body(mist.Bytes(bytes_tree.from_bit_array(response_data)))
                       }
                     }
+                  }
                 }
               }
             Error(_) ->

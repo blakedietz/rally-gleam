@@ -533,9 +533,9 @@ pub fn ws_auth_checks_reauth_timestamp_test() {
   // Must read auth timestamp (in reauth block, not just on_init)
   let assert True =
     string.contains(output, "effect.get_ws_auth_timestamp()")
-  // Must check staleness against reauth interval (30 min in seconds)
+  // Must check staleness against reauth interval (30 min in ms)
   let assert True =
-    string.contains(output, "1800")
+    string.contains(output, "1800000")
   // Must read hostname from stored state, not just on_init parameter
   let assert True =
     string.contains(output, "effect.get_ws_hostname()")
