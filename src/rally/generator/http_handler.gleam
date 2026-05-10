@@ -41,7 +41,7 @@ fn generate_no_auth(rpc_dispatch_module: String) -> String {
 import gleam/bytes_tree
 import gleam/http/response.{type Response}
 import mist.{type ResponseData}
-import " <> rpc_dispatch_module <> " as rpc_dispatch
+import " <> rpc_dispatch_module <> " as " <> "rpc_dispatch
 import rally_runtime/effect
 import server_context.{type ServerContext}
 
@@ -96,7 +96,7 @@ fn generate_with_auth(
 import gleam/bytes_tree
 import gleam/http/response.{type Response}
 import mist.{type ResponseData}
-import " <> rpc_dispatch_module <> " as rpc_dispatch
+import " <> rpc_dispatch_module <> " as " <> "rpc_dispatch
 import rally_runtime/effect
 import server_context.{type ServerContext}
 " <> auth_import <> "

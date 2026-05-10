@@ -9,7 +9,7 @@ test_name: http_handler_no_auth_snapshot_test
 import gleam/bytes_tree
 import gleam/http/response.{type Response}
 import mist.{type ResponseData}
-import generated/admin/rpc_dispatchas rpc_dispatch
+import generated/admin/rpc_dispatch as rpc_dispatch
 import rally_runtime/effect
 import server_context.{type ServerContext}
 
