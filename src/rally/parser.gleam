@@ -80,8 +80,10 @@ pub fn parse_page(
       functions: functions_list,
       name: "update",
     )
-  let updates_client_context =
-    update_returns_client_context_msg(functions_list)
+  let updates_client_context = update_returns_client_context_msg(functions_list)
+
+  let #(has_page_auth, page_auth_required) = detect_page_auth(ast.constants)
+  let has_authorize = has_function(functions_list, "authorize")
 
   Ok(PageContract(
     model_variants:,
@@ -96,9 +98,9 @@ pub fn parse_page(
     view_source:,
     init_source:,
     update_source:,
-    has_page_auth: False,
-    page_auth_required: False,
-    has_authorize: False,
+    has_page_auth:,
+    page_auth_required:,
+    has_authorize:,
   ))
 }
 
@@ -400,6 +402,27 @@ fn has_type_alias(
   list.any(type_aliases, fn(def) { def.definition.name == name })
 }
 
+/// Detect presence and variant of `pub const page_auth = auth.Required/Optional`.
+/// Returns #(has_page_auth, page_auth_required).
+fn detect_page_auth(
+  constants: List(glance.Definition(glance.Constant)),
+) -> #(Bool, Bool) {
+  list.find_map(constants, fn(def) {
+    let glance.Definition(_, constant) = def
+    case constant.name {
+      "page_auth" -> {
+        let is_required = case constant.value {
+          glance.FieldAccess(_, glance.Variable(_, _), "Required") -> True
+          _ -> False
+        }
+        Ok(#(True, is_required))
+      }
+      _ -> Error(Nil)
+    }
+  })
+  |> result.unwrap(#(False, False))
+}
+
 /// Extract parameter names from the `init` function AST.
 fn extract_init_params_from_ast(
   functions: List(glance.Definition(glance.Function)),
@@ -438,7 +461,8 @@ fn update_returns_client_context_msg(
 ) -> Bool {
   case
     list.find(functions, fn(def) {
-      def.definition.name == "update" && def.definition.publicity == glance.Public
+      def.definition.name == "update"
+      && def.definition.publicity == glance.Public
     })
   {
     Ok(def) ->
