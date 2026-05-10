@@ -8,7 +8,11 @@
 -export([put_ws_state/3, get_ws_conn/0, get_ws_page/0, get_stored_server_context/0,
          push_outgoing_frame/1, drain_outgoing_frames/0,
          put_ws_session/1, get_ws_session/0, decode_rally_push/1,
-         store_system_conn/1, get_system_conn/0, encode_push_payload/2]).
+         store_system_conn/1, get_system_conn/0, encode_push_payload/2,
+         put_ws_identity/1, get_ws_identity/0,
+         put_ws_hostname/1, get_ws_hostname/0,
+         put_ws_auth_timestamp/1, get_ws_auth_timestamp/0,
+         clear_ws_auth_state/0]).
 
 put_ws_state(Conn, Ctx, Page) ->
     put(rally_ws_conn, Conn),
@@ -75,3 +79,42 @@ get_system_conn() ->
 encode_push_payload(Page, Msg) ->
     Mod = persistent_term:get({libero, wire_module}),
     Mod:encode_push(Page, Msg).
+
+%% --- WS auth state ---
+
+put_ws_identity(Identity) ->
+    put(rally_ws_identity, Identity),
+    nil.
+
+get_ws_identity() ->
+    case get(rally_ws_identity) of
+        undefined -> {error, nil};
+        Val -> {ok, Val}
+    end.
+
+put_ws_hostname(Hostname) ->
+    put(rally_ws_hostname, Hostname),
+    nil.
+
+get_ws_hostname() ->
+    case get(rally_ws_hostname) of
+        undefined -> <<>>;
+        Val -> Val
+    end.
+
+put_ws_auth_timestamp(Ts) ->
+    put(rally_ws_auth_ts, Ts),
+    nil.
+
+get_ws_auth_timestamp() ->
+    case get(rally_ws_auth_ts) of
+        undefined -> 0;
+        Val -> Val
+    end.
+
+%% Clear all auth state keys (used in tests and reauth).
+clear_ws_auth_state() ->
+    erase(rally_ws_identity),
+    erase(rally_ws_hostname),
+    erase(rally_ws_auth_ts),
+    nil.

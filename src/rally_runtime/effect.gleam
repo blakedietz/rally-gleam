@@ -176,3 +176,50 @@ pub fn decode_rally_push(_msg: a) -> Result(BitArray, Nil) {
 fn encode_push_payload(_page: String, msg: a) -> a {
   msg
 }
+
+// --- WS auth state ---
+
+/// Store the resolved identity on the WebSocket connection process.
+/// The identity type is opaque to Rally; it's stored as an Erlang term.
+@external(erlang, "rally_runtime_ffi", "put_ws_identity")
+pub fn put_ws_identity(_identity: a) -> Nil {
+  Nil
+}
+
+/// Retrieve the stored identity. Returns Error(Nil) when no identity
+/// has been stored (fresh process or pre-auth connection).
+@external(erlang, "rally_runtime_ffi", "get_ws_identity")
+pub fn get_ws_identity() -> Result(a, Nil) {
+  Error(Nil)
+}
+
+/// Store the hostname extracted during WebSocket upgrade.
+@external(erlang, "rally_runtime_ffi", "put_ws_hostname")
+pub fn put_ws_hostname(_hostname: String) -> Nil {
+  Nil
+}
+
+/// Retrieve the stored hostname. Returns "" when not set.
+@external(erlang, "rally_runtime_ffi", "get_ws_hostname")
+pub fn get_ws_hostname() -> String {
+  ""
+}
+
+/// Store the Unix timestamp of the last successful auth check.
+@external(erlang, "rally_runtime_ffi", "put_ws_auth_timestamp")
+pub fn put_ws_auth_timestamp(_ts: Int) -> Nil {
+  Nil
+}
+
+/// Retrieve the auth timestamp. Returns 0 when not set (0 = never authed,
+/// triggers immediate reauth on first RPC).
+@external(erlang, "rally_runtime_ffi", "get_ws_auth_timestamp")
+pub fn get_ws_auth_timestamp() -> Int {
+  0
+}
+
+/// Clear all WS auth state keys. Used during reauth and in tests.
+@external(erlang, "rally_runtime_ffi", "clear_ws_auth_state")
+pub fn clear_ws_auth_state() -> Nil {
+  Nil
+}
