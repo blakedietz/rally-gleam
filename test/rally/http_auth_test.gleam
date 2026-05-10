@@ -434,37 +434,9 @@ pub fn http_auth_malformed_body_returns_400_test() {
   let assert True = string.contains(output, "Error(_)")
 }
 
-pub fn http_auth_missing_contract_fails_closed_test() {
-  // Endpoint for a page that has no matching contract
-  let endpoints = [
-    make_endpoint("admin/pages/dashboard", "load_data"),
-    make_endpoint("admin/pages/ghost", "missing_handler"),
-  ]
-  // Only provide contract for dashboard, not ghost
-  let contracts = [
-    #(
-      make_route("admin/pages/dashboard"),
-      make_contract(
-        has_page_auth: True,
-        page_auth_required: True,
-        has_authorize: False,
-      ),
-    ),
-  ]
-  let output =
-    http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
-      from_session_module: "admin/client_context_server",
-    )
-
-  // The ghost handler should NOT appear in handler_page_info
-  let assert False = string.contains(output, "\"server_missing_handler\"")
-  // The dashboard handler should still appear
-  let assert True = string.contains(output, "\"server_load_data\"")
-}
+// Missing-contract case is not tested here because it panics at codegen
+// time. An endpoint with no matching PageContract is an invariant violation
+// between Libero's scan and Rally's parser — it should never happen.
 
 pub fn http_auth_imports_rally_runtime_wire_test() {
   let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]

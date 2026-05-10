@@ -1,4 +1,3 @@
-import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
@@ -153,16 +152,8 @@ fn build_page_auth_map(
           has_authorize: contract.has_authorize,
           wire_tag: wire_tag,
         ))
-      Error(Nil) -> {
-        io.println_error(
-          "rally: handler "
-          <> endpoint.fn_name
-          <> " in "
-          <> endpoint.module_path
-          <> " has no matching page contract — RPCs to this handler will be rejected",
-        )
-        Error(Nil)
-      }
+      Error(Nil) ->
+        panic as "rally codegen: handler has no matching page contract"
     }
   })
 }
