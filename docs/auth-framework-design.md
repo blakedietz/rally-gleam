@@ -39,7 +39,7 @@ Rally already has `client_context_server.from_session(server_context:, session_i
 **Ordering:** `resolve` runs first, then `is_authenticated` check, then `from_session` (which enriches ServerContext with org_id), then `authorize` (which needs the enriched ServerContext for tenant-scoped queries):
 
 ```
-resolve(server_context, session_id) → Result(identity, auth_error)
+resolve(server_context, session_id) → Result(Identity, Nil)
   → Error: return 500
   → Ok(identity):
     → if Required and !is_authenticated(identity): redirect to redirect_url
@@ -166,28 +166,43 @@ If `resolve` returns `Error`, the upgrade is rejected with HTTP 500 (infrastruct
 
 **On page navigation (page-init frame):**
 
+Auth is checked against the candidate page *before* updating connection state. If auth fails, the current page remains unchanged, avoiding inconsistent state for subsequent RPC dispatch.
+
 ```
-page-init frame → update current page + route params on connection state
-  → if Required and !is_authenticated(identity): send auth-redirect frame
-  → if authorize exists on new page:
-    → authorize(enriched_sc, identity, current_route_params)
-    → False: send auth-failure frame (client handles redirect)
+page-init frame → parse candidate page + route params (do NOT update connection state yet)
+  → if Required and !is_authenticated(identity): send auth-redirect frame, keep current page
+  → if authorize exists on candidate page:
+    → authorize(enriched_sc, identity, candidate_route_params)
+    → False: send auth-failure frame, keep current page
+  → auth passed: update current page + route params on connection state
 ```
 
 Page-level auth policy is enforced at navigation time, not upgrade time. This is where `Required` vs `Optional` matters for WebSocket connections.
 
 **On RPC message:**
 
+RPC auth uses the **owning page** (determined by the decoded message type at codegen time), not the current page from connection state. This prevents a client on an Optional page from calling handlers on a Required page.
+
 ```
 on_message:
   → if (now - last_auth_check) > reauth_interval:
     → re-resolve identity, update connection state
-    → if is_authenticated was true, now false on Required page: send auth-redirect frame
-  → determine owning page (current page from connection state)
-  → if authorize exists: authorize(enriched_sc, identity, current_route_params)
+    → re-run from_session to refresh enriched_sc and client_context
+      (role, org membership, theme may have changed)
+  → decode RPC message → determine owning page (codegen-known, from message type)
+  → verify owning page matches current page (reject if mismatch)
+  → if Required on owning page and !is_authenticated(identity): send auth-redirect frame
+  → if authorize exists on owning page:
+    → authorize(enriched_sc, identity, current_route_params)
     → False: send auth-failure frame
   → dispatch to server_* handler with enriched_sc and identity
 ```
+
+**Why owning page, not current page:** rally knows at codegen time which page module defines each `server_*` handler. The message type maps to exactly one page. Using the current page from connection state would be unsafe: a malicious client could navigate to an Optional page, then send RPC frames targeting handlers on Required pages. By checking the owning page, the auth policy of the handler's actual page always applies.
+
+**Why verify current page matches:** in rally's model, RPCs are contextual to the current page. A client should not send RPCs for a page they're not on. Mismatches indicate a bug or a malicious client and are rejected.
+
+**Reauth refresh:** when reauth triggers, both `resolve` and `from_session` re-run. This ensures the connection state reflects current reality: role changes, org membership changes, theme updates, etc. This is slightly more expensive than re-resolving identity alone, but only happens every 30 minutes.
 
 **Reauth interval:** default 30 minutes. No timers, no polling. One integer comparison per incoming message. Only re-resolves when the interval has elapsed.
 
@@ -195,7 +210,7 @@ on_message:
 
 `authorize` may need route params (e.g., item_id) to do row-level checks. How params are available depends on the transport:
 
-**WebSocket:** the connection tracks the current page and its route params from the latest page-init frame. RPC dispatch passes these to `authorize`. This works because WS RPCs are contextual to the current page.
+**WebSocket:** the connection tracks the current page and its route params from the latest page-init frame. RPC dispatch verifies the owning page matches the current page, then passes the current route params to `authorize`.
 
 **HTTP RPC:** there's no "current page" context. The RPC message itself carries resource identifiers (e.g., `DeleteOrder(order_id: 5)`). For authorize to work, the page module can export an optional function:
 
