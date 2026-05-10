@@ -73,11 +73,6 @@ get_system_conn() ->
     end.
 
 encode_push_payload(Page, Msg) ->
-    case persistent_term:get({libero, wire_module}, undefined) of
-        undefined -> Msg;
-        Mod ->
-            case erlang:function_exported(Mod, encode_push, 2) of
-                true -> Mod:encode_push(Page, Msg);
-                false -> Msg
-            end
-    end.
+    Mod = persistent_term:get({libero, wire_module}),
+    ok = code:ensure_loaded(Mod),
+    Mod:encode_push(Page, Msg).
