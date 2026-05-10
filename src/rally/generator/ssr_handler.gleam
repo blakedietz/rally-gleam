@@ -16,6 +16,7 @@ pub fn generate(
   wire_module wire_module: Option(String),
   client_context_module client_context_module: Option(String),
   auth_config auth_config: Option(AuthConfig),
+  wire_import_module wire_import_module: String,
 ) -> String {
   let use_session = has_client_context && has_from_session
   let from_session_ref = last_segment(from_session_module)
@@ -68,7 +69,7 @@ pub fn generate(
     _, _ -> ""
   }
   let codec_imports = case needs_codec {
-    True -> "import libero/wire as libero_wire\n"
+    True -> import_as(wire_import_module, "libero_wire") <> "\n"
     False -> ""
   }
   let load_page_imports = case has_load_pages {

@@ -201,6 +201,7 @@ pub fn ws_handler_logs_decoded_rpc_value_test() {
       option.None,
       from_session_module: "client_context_server",
       endpoints: [],
+      wire_import_module: "generated/protocol_wire",
     )
 
   output
@@ -313,6 +314,7 @@ pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
       option.None,
       option.None,
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
     )
 
   output
@@ -372,6 +374,7 @@ pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
       option.None,
       option.None,
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
     )
 
   output
@@ -419,6 +422,7 @@ pub fn ssr_app_marker_preserves_tag_order_test() {
       option.None,
       option.None,
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
     )
 
   output

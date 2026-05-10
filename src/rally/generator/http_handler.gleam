@@ -21,6 +21,7 @@ pub fn generate(
   auth_config: Option(AuthConfig),
   contracts: List(#(ScannedRoute, PageContract)),
   from_session_module from_session_module: String,
+  wire_import_module wire_import_module: String,
 ) -> String {
   case auth_config {
     Some(AuthConfig(auth_module:)) ->
@@ -30,6 +31,7 @@ pub fn generate(
         from_session_module,
         endpoints,
         contracts,
+        wire_import_module,
       )
     None -> generate_no_auth(rpc_dispatch_module)
   }
@@ -73,6 +75,7 @@ fn generate_with_auth(
   from_session_module: String,
   endpoints: List(HandlerEndpoint),
   contracts: List(#(ScannedRoute, PageContract)),
+  wire_import_module: String,
 ) -> String {
   let auth_ref = last_segment(auth_module)
   let from_session_ref = last_segment(from_session_module)
@@ -101,7 +104,7 @@ import " <> rpc_dispatch_module <> " as " <> "rpc_dispatch
 import rally_runtime/effect
 import server_context.{type ServerContext}
 " <> auth_import <> "
-import rally_runtime/wire as wire
+" <> import_as(wire_import_module, "wire") <> "
 " <> from_session_import <> "
 " <> authorize_imports <> "
 

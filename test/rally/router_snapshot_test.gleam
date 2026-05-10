@@ -217,6 +217,7 @@ pub fn ssr_handler_snapshot_test() {
       option.None,
       option.None,
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
     )
   birdie.snap(output, "ssr_handler_gleam")
 }
@@ -237,6 +238,7 @@ pub fn ssr_handler_sets_content_type_for_load_pages_test() {
       option.None,
       option.None,
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
     )
   let content_type_count =
     output
@@ -263,6 +265,7 @@ pub fn ssr_handler_with_client_context_snapshot_test() {
       option.None,
       option.None,
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
     )
   birdie.snap(output, "ssr_handler_with_client_context_gleam")
 }
@@ -607,6 +610,7 @@ pub fn ssr_layout_with_client_context_uses_v3_session_contract_test() {
       option.None,
       Some("public/client_context"),
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
     )
 
   output
@@ -677,6 +681,7 @@ pub fn ssr_client_context_without_from_session_imports_client_context_test() {
       option.None,
       Some("public/client_context"),
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
     )
 
   output

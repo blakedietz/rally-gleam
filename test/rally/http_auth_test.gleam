@@ -77,6 +77,7 @@ pub fn http_auth_imports_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True = string.contains(output, "import admin/auth")
@@ -101,6 +102,7 @@ pub fn http_auth_resolve_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True =
@@ -126,6 +128,7 @@ pub fn http_auth_500_on_error_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True = string.contains(output, "Error(Nil)")
@@ -151,6 +154,7 @@ pub fn http_auth_from_session_identity_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True = string.contains(output, "identity: identity")
@@ -175,6 +179,7 @@ pub fn http_auth_dispatch_gets_identity_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True =
@@ -203,6 +208,7 @@ pub fn http_auth_hostname_in_signature_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True = string.contains(output, "hostname hostname: String")
@@ -229,6 +235,7 @@ pub fn http_no_auth_unchanged_test() {
       None,
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert False = string.contains(output, "auth.resolve")
@@ -285,6 +292,7 @@ pub fn http_auth_generates_handler_page_info_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // Should contain handler_page_info mapping both endpoints
@@ -312,6 +320,7 @@ pub fn http_auth_required_page_returns_401_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // Required pages must check is_authenticated before dispatch
@@ -338,6 +347,7 @@ pub fn http_auth_optional_page_dispatches_test() {
       Some(AuthConfig(auth_module: "public/auth")),
       contracts,
       from_session_module: "public/client_context_server",
+      wire_import_module: "generated/public/protocol_wire",
     )
 
   // Optional pages should NOT check is_authenticated
@@ -366,6 +376,7 @@ pub fn http_auth_authorize_false_returns_403_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // Should generate check_page_authorize function
@@ -399,6 +410,7 @@ pub fn http_auth_unknown_variant_returns_400_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // handler_page_info returns Error(Nil) for unknown variants
@@ -428,6 +440,7 @@ pub fn http_auth_malformed_body_returns_400_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // decode_call failure should return 400
@@ -439,7 +452,7 @@ pub fn http_auth_malformed_body_returns_400_test() {
 // time. An endpoint with no matching PageContract is an invariant violation
 // between Libero's scan and Rally's parser — it should never happen.
 
-pub fn http_auth_imports_rally_runtime_wire_test() {
+pub fn http_auth_imports_protocol_wire_facade_test() {
   let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
   let contracts = [
     #(
@@ -458,10 +471,14 @@ pub fn http_auth_imports_rally_runtime_wire_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
-  // Must import rally_runtime/wire, not the Erlang module
-  let assert True = string.contains(output, "import rally_runtime/wire as wire")
+  // Must import the protocol_wire facade, not rally_runtime/wire
+  let assert True =
+    string.contains(output, "import generated/admin/protocol_wire as wire")
+  // Must NOT import rally_runtime/wire directly
+  let assert False = string.contains(output, "import rally_runtime/wire")
   // Must NOT import an Erlang module as wire
   let assert False = string.contains(output, "generated@")
 }
@@ -487,6 +504,7 @@ pub fn http_handler_no_auth_snapshot_test() {
       None,
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
   birdie.snap(output, "http_handler_no_auth")
 }
@@ -510,6 +528,7 @@ pub fn http_handler_with_auth_required_snapshot_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
   birdie.snap(output, "http_handler_with_auth_required")
 }
@@ -544,6 +563,7 @@ pub fn http_handler_with_auth_and_authorize_snapshot_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
   birdie.snap(output, "http_handler_with_auth_and_authorize")
 }

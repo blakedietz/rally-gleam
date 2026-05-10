@@ -54,6 +54,7 @@ fn generate_with_auth(contract: PageContract, route: ScannedRoute) -> String {
     None,
     Some("admin/client_context"),
     Some(AuthConfig(auth_module: "admin/auth")),
+    wire_import_module: "generated/admin/protocol_wire",
   )
 }
 
@@ -72,6 +73,7 @@ fn generate_without_auth(
     None,
     Some("admin/client_context"),
     None,
+    wire_import_module: "generated/admin/protocol_wire",
   )
 }
 
@@ -286,6 +288,7 @@ pub fn auth_from_session_without_client_context_test() {
       None,
       None,
       Some(AuthConfig(auth_module: "admin/auth")),
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // Must call from_session with identity, discarding ClientContext

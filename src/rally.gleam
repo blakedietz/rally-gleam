@@ -393,6 +393,14 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     _ ->
       "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/client.js'></script></body>\n</html>"
   }
+
+  let protocol_wire_output =
+    string.replace(config.output_ws, "ws_handler.gleam", "protocol_wire.gleam")
+  let protocol_wire_module =
+    protocol_wire_output
+    |> string.drop_start(4)
+    |> string.drop_end(6)
+
   let ssr_source =
     ssr_handler.generate(
       contracts,
@@ -408,6 +416,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         False -> option.None
       },
       auth_config,
+      wire_import_module: protocol_wire_module,
     )
 
   // Write generated files, aborting on first failure
@@ -423,6 +432,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       rpc_dispatch_module:,
       auth_config:,
       from_session_module:,
+      protocol_wire_module:,
     )
   use _ <- result.try(result)
 
@@ -693,6 +703,7 @@ fn do_write_files(
   rpc_dispatch_module rpc_dispatch_module: String,
   auth_config auth_config: option.Option(types.AuthConfig),
   from_session_module from_session_module: String,
+  protocol_wire_module protocol_wire_module: String,
 ) -> Result(Nil, RallyError) {
   let namespace_prefix =
     config.pages_root
@@ -710,6 +721,7 @@ fn do_write_files(
       auth_config,
       from_session_module:,
       endpoints: ns_endpoints,
+      wire_import_module: protocol_wire_module,
     )
   use _ <- result.try(
     write_file(config.output_route, route_source)
@@ -741,11 +753,36 @@ fn do_write_files(
           auth_config,
           contracts,
           from_session_module:,
+          wire_import_module: protocol_wire_module,
         )
       write_file(config.output_http, http_source)
       |> result.map_error(fn(msg) { RallyError("write error: " <> msg) })
     }
   })
+
+  // Write protocol_wire facade
+  let protocol_wire_output =
+    string.replace(config.output_ws, "ws_handler.gleam", "protocol_wire.gleam")
+  let namespace_path = case config.pages_root {
+    "src/pages" -> ""
+    _ -> {
+      config.pages_root
+      |> string.drop_start(4)
+      |> string.replace("/pages", "")
+    }
+  }
+  let protocol_wire_source =
+    generator.generate_protocol_wire(
+      config.protocol,
+      namespace_path,
+      config.atoms_module,
+      config.wire_module,
+    )
+  use _ <- result.try(
+    write_file(protocol_wire_output, protocol_wire_source)
+    |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
+  )
+
   Ok(Nil)
 }
 
