@@ -256,3 +256,63 @@ pub fn ws_page_init_no_auth_still_updates_state_test() {
   // No-auth page-init should still update state as before
   let assert True = string.contains(output, "effect.put_ws_state(conn, server_context, page)")
 }
+
+pub fn ws_auth_check_page_authorize_always_defined_test() {
+  // Auth namespace with NO pages exporting authorize — must still define
+  // check_page_authorize so the generated handler compiles.
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+    )
+
+  let assert True =
+    string.contains(output, "fn check_page_authorize(")
+}
+
+pub fn ws_auth_rpc_dispatches_with_identity_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+    )
+
+  // Auth RPC dispatch must pass identity
+  let assert True =
+    string.contains(
+      output,
+      "rpc_dispatch.handle(server_context:, data:, identity:)",
+    )
+  // Must read identity before dispatch
+  let assert True =
+    string.contains(output, "effect.get_ws_identity()")
+  // Missing identity must fail closed
+  let assert True =
+    string.contains(output, "Error(Nil) -> {")
+}

@@ -304,20 +304,30 @@ fn generate_frame_handler_with_auth(
           debug_log(\"[rally:ws] RPC: request_id=\" <> int.to_string(request_id))
           let assert Ok(server_context) = effect.get_stored_server_context()
           let current_page = effect.get_ws_page()
-          let start = timestamp.system_time()
-          let #(response_data, new_ctx) = rpc_dispatch.handle(server_context:, data:)
-          let elapsed_ms =
-            timestamp.difference(start, timestamp.system_time())
-            |> duration.to_milliseconds()
+          case effect.get_ws_identity() {
+            Error(Nil) -> {
+              let response_frame = wire.encode_response(request_id:, value: Error(\"auth:forbidden\"))
+              let _send_result = mist.send_binary_frame(conn, response_frame)
+              send_pending_frames(conn)
+              mist.continue(state)
+            }
+            Ok(identity) -> {
+              let start = timestamp.system_time()
+              let #(response_data, new_ctx) = rpc_dispatch.handle(server_context:, data:, identity:)
+              let elapsed_ms =
+                timestamp.difference(start, timestamp.system_time())
+                |> duration.to_milliseconds()
 
-          let session_id = effect.get_ws_session()
-          let assert Ok(db_conn) = system.get_conn()
-          system.log_to_server(db: db_conn, session_id: session_id, user_id: Error(Nil), page: current_page, value: raw, raw_payload: data, elapsed_ms: elapsed_ms)
+              let session_id = effect.get_ws_session()
+              let assert Ok(db_conn) = system.get_conn()
+              system.log_to_server(db: db_conn, session_id: session_id, user_id: Error(Nil), page: current_page, value: raw, raw_payload: data, elapsed_ms: elapsed_ms)
 
-          let Nil = effect.put_ws_state(conn, new_ctx, current_page)
-          let _send_result = mist.send_binary_frame(conn, response_data)
-          send_pending_frames(conn)
-          mist.continue(state)
+              let Nil = effect.put_ws_state(conn, new_ctx, current_page)
+              let _send_result = mist.send_binary_frame(conn, response_data)
+              send_pending_frames(conn)
+              mist.continue(state)
+            }
+          }
         }
         Error(_error) -> {
           debug_log(\"[rally:ws] decode_call FAILED\")
@@ -416,7 +426,7 @@ fn generate_ws_check_page_authorize(
       }
     })
   case with_auth {
-    [] -> ""
+    [] -> stub_check_page_authorize(auth_ref)
     _ -> {
       let arms =
         list.map(with_auth, fn(pair) {
@@ -449,6 +459,16 @@ fn generate_ws_check_page_authorize(
 }"
     }
   }
+}
+
+fn stub_check_page_authorize(auth_ref: String) -> String {
+  "fn check_page_authorize(page: String, server_context: ServerContext, identity: "
+  <> auth_ref
+  <> ".Identity) -> Bool {
+  case page {
+    _ -> False
+  }
+}"
 }
 
 // -- Generated helper functions (embedded in output) --
