@@ -392,6 +392,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       handler_endpoints:,
       rpc_dispatch_module:,
       auth_config:,
+      from_session_module:,
     )
   use _ <- result.try(result)
 
@@ -661,6 +662,7 @@ fn do_write_files(
   handler_endpoints handler_endpoints: List(libero_scanner.HandlerEndpoint),
   rpc_dispatch_module rpc_dispatch_module: String,
   auth_config auth_config: option.Option(types.AuthConfig),
+  from_session_module from_session_module: String,
 ) -> Result(Nil, RallyError) {
   let ws_source =
     ws_handler.generate(
@@ -697,6 +699,8 @@ fn do_write_files(
           handler_endpoints,
           rpc_dispatch_module,
           auth_config,
+          contracts,
+          from_session_module:,
         )
       write_file(config.output_http, http_source)
       |> result.map_error(fn(msg) { RallyError("write error: " <> msg) })
