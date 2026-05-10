@@ -28,16 +28,13 @@ pub fn empty_rpc_dispatch_handles_bad_variant_tags_test() {
 
 pub fn empty_rpc_dispatch_with_identity_extra_param_test() {
   let output =
-    generator.generate_empty_rpc_dispatch(
-      "generated@rpc_atoms",
-      [
-        codegen_dispatch.ExtraParam(
-          name: "identity",
-          type_ref: "auth.Identity",
-          import_line: "import admin/auth",
-        ),
-      ],
-    )
+    generator.generate_empty_rpc_dispatch("generated@rpc_atoms", [
+      codegen_dispatch.ExtraParam(
+        name: "identity",
+        type_ref: "auth.Identity",
+        import_line: "import admin/auth",
+      ),
+    ])
 
   // Must import the auth module
   output
@@ -166,7 +163,9 @@ pub fn scaffold_routes_http_rpc_test() {
   |> should.equal(True)
 
   script
-  |> string.contains("http_handler.handle(body: body, server_context: server_context, session_id: session_id)")
+  |> string.contains(
+    "http_handler.handle(body: body, server_context: server_context, session_id: session_id)",
+  )
   |> should.equal(True)
 }
 
@@ -187,7 +186,9 @@ pub fn realworld_routes_http_rpc_test() {
   |> should.equal(True)
 
   source
-  |> string.contains("http_handler.handle(body: body, server_context: server_context, session_id: session_id)")
+  |> string.contains(
+    "http_handler.handle(body: body, server_context: server_context, session_id: session_id)",
+  )
   |> should.equal(True)
 }
 
@@ -447,5 +448,6 @@ fn test_scan_config() -> ScanConfig {
     rally_package_path: "",
     shell_file: "",
     server_deps: dict.new(),
+    protocol: "etf",
   )
 }

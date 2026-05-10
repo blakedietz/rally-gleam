@@ -124,6 +124,21 @@ fn read_client_config(
   let route_root =
     tom.get_string(client_config, ["route_root"])
     |> result.unwrap("/" <> namespace)
+  let protocol =
+    tom.get_string(client_config, ["protocol"])
+    |> result.unwrap("etf")
+  let protocol = case protocol {
+    "etf" -> protocol
+    "json" -> protocol
+    other -> {
+      io.println_error(
+        "warning: unknown protocol \""
+        <> other
+        <> "\" in [[tools.rally.clients]], defaulting to \"etf\"",
+      )
+      "etf"
+    }
+  }
   Ok(ScanConfig(
     pages_root: "src/" <> namespace <> "/pages",
     output_route: "src/generated/" <> namespace <> "/router.gleam",
@@ -143,6 +158,7 @@ fn read_client_config(
     rally_package_path:,
     shell_file: "src/" <> namespace <> "/shell.html",
     server_deps:,
+    protocol:,
   ))
 }
 
@@ -186,6 +202,7 @@ fn read_legacy_config(
   let shell_file =
     tom.get_string(rally_config, ["shell_file"])
     |> result.unwrap("src/shell.html")
+  let protocol = "etf"
 
   ScanConfig(
     pages_root:,
@@ -204,6 +221,7 @@ fn read_legacy_config(
     rally_package_path:,
     shell_file:,
     server_deps:,
+    protocol:,
   )
 }
 
@@ -334,15 +352,20 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     }
     option.None -> []
   }
-  let namespace_prefix = config.pages_root |> string.drop_start(4) |> fn(p) {
-    string.replace(p, "/pages", "")
-  }
+  let namespace_prefix =
+    config.pages_root
+    |> string.drop_start(4)
+    |> fn(p) { string.replace(p, "/pages", "") }
   let ns_endpoints =
     list.filter(handler_endpoints, fn(ep) {
       string.starts_with(ep.module_path, namespace_prefix <> "/")
     })
   let sd_source = case ns_endpoints {
-    [] -> generator.generate_empty_rpc_dispatch(config.atoms_module, extra_dispatch_params)
+    [] ->
+      generator.generate_empty_rpc_dispatch(
+        config.atoms_module,
+        extra_dispatch_params,
+      )
     _ ->
       case extra_dispatch_params {
         [] ->
@@ -671,9 +694,10 @@ fn do_write_files(
   auth_config auth_config: option.Option(types.AuthConfig),
   from_session_module from_session_module: String,
 ) -> Result(Nil, RallyError) {
-  let namespace_prefix = config.pages_root |> string.drop_start(4) |> fn(p) {
-    string.replace(p, "/pages", "")
-  }
+  let namespace_prefix =
+    config.pages_root
+    |> string.drop_start(4)
+    |> fn(p) { string.replace(p, "/pages", "") }
   let ns_endpoints =
     list.filter(handler_endpoints, fn(ep) {
       string.starts_with(ep.module_path, namespace_prefix <> "/")

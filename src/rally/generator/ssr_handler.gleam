@@ -41,7 +41,8 @@ pub fn generate(
   let page_imports = generate_page_imports(page_contracts)
 
   let needs_server_context = use_session || has_load_pages
-  let needs_from_session_import = use_session || { has_auth && has_from_session }
+  let needs_from_session_import =
+    use_session || { has_auth && has_from_session }
   let needs_codec = use_session || has_load_pages
 
   let base_imports =
@@ -54,7 +55,9 @@ pub fn generate(
   let server_imports = case needs_server_context {
     True ->
       "import server_context.{type ServerContext}\n"
-      <> case needs_from_session_import && from_session_module != "server_context" {
+      <> case
+        needs_from_session_import && from_session_module != "server_context"
+      {
         True -> import_as(from_session_module, from_session_ref) <> "\n"
         False -> ""
       }
@@ -396,7 +399,8 @@ fn generate_load_arms(
         }
         // Auth requires from_session to enrich ServerContext before
         // authorize and load, regardless of whether ClientContext exists.
-        let needs_from_session = use_session || { has_auth && needs_fs_for_auth }
+        let needs_from_session =
+          use_session || { has_auth && needs_fs_for_auth }
         let ctx_init = case needs_from_session {
           True ->
             case has_client_context {
@@ -405,9 +409,7 @@ fn generate_load_arms(
                 <> from_session_call
                 <> "\n"
               False ->
-                "      let #(_, server_context) = "
-                <> from_session_call
-                <> "\n"
+                "      let #(_, server_context) = " <> from_session_call <> "\n"
             }
           False ->
             case has_client_context {
@@ -569,7 +571,9 @@ fn generate_load_arms(
                 <> ".layout(page_view))\n"
               }
               None, _ ->
-                "    let rendered = element.to_string(" <> view_call_auth <> ")\n"
+                "    let rendered = element.to_string("
+                <> view_call_auth
+                <> ")\n"
             }
             let wire_encode_flags_auth = case wire_module {
               Some(_) -> {

@@ -152,12 +152,7 @@ fn parse_route_arm(route: ScannedRoute) -> String {
         })
       let constructor = case string_params {
         [] -> build_constructor(variant_name, params)
-        _ ->
-          build_constructor_with_vals(
-            variant_name:,
-            params:,
-            val_pairs: [],
-          )
+        _ -> build_constructor_with_vals(variant_name:, params:, val_pairs: [])
       }
       "    " <> pattern <> " -> " <> constructor
     }
@@ -733,9 +728,7 @@ pub type ClientMsg {
 
 pub fn handle(
   server_context server_context: ServerContext,
-  data data: BitArray,"
-  <> extra_handle_params
-  <> "
+  data data: BitArray," <> extra_handle_params <> "
 ) -> #(BitArray, ServerContext) {
   ensure_atoms()
   case wire.decode_call(data) {

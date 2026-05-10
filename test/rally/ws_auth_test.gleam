@@ -87,8 +87,7 @@ pub fn ws_no_auth_on_init_has_hostname_test() {
       endpoints: endpoints_for(contracts),
     )
 
-  let assert True =
-    string.contains(output, "hostname _hostname: String")
+  let assert True = string.contains(output, "hostname _hostname: String")
 }
 
 pub fn ws_no_auth_does_not_call_resolve_test() {
@@ -164,8 +163,7 @@ pub fn ws_auth_on_init_calls_from_session_with_identity_test() {
       endpoints: endpoints_for(contracts),
     )
 
-  let assert True =
-    string.contains(output, "identity: identity")
+  let assert True = string.contains(output, "identity: identity")
 }
 
 pub fn ws_auth_on_init_stores_auth_state_test() {
@@ -246,17 +244,11 @@ pub fn ws_page_init_authorize_false_emits_forbidden_error_test() {
     )
 
   // Must include the error response
-  let assert True =
-    string.contains(output, "auth:forbidden")
+  let assert True = string.contains(output, "auth:forbidden")
   // page_has_authorize must map the authorized page to True
-  let assert True =
-    string.contains(
-      output,
-      "\"admin/pages/settings\" -> True",
-    )
+  let assert True = string.contains(output, "\"admin/pages/settings\" -> True")
   // check_page_authorize must be generated and call the page module
-  let assert True =
-    string.contains(output, "fn check_page_authorize(")
+  let assert True = string.contains(output, "fn check_page_authorize(")
   let assert True =
     string.contains(
       output,
@@ -286,7 +278,8 @@ pub fn ws_page_init_no_auth_still_updates_state_test() {
     )
 
   // No-auth page-init should still update state as before
-  let assert True = string.contains(output, "effect.put_ws_state(conn, server_context, page)")
+  let assert True =
+    string.contains(output, "effect.put_ws_state(conn, server_context, page)")
 }
 
 pub fn ws_auth_check_page_authorize_always_defined_test() {
@@ -312,8 +305,7 @@ pub fn ws_auth_check_page_authorize_always_defined_test() {
       endpoints: endpoints_for(contracts),
     )
 
-  let assert True =
-    string.contains(output, "fn check_page_authorize(")
+  let assert True = string.contains(output, "fn check_page_authorize(")
 }
 
 pub fn ws_auth_rpc_dispatches_with_identity_test() {
@@ -344,11 +336,9 @@ pub fn ws_auth_rpc_dispatches_with_identity_test() {
       "rpc_dispatch.handle(server_context:, data:, identity:)",
     )
   // Must read identity before dispatch
-  let assert True =
-    string.contains(output, "effect.get_ws_identity()")
+  let assert True = string.contains(output, "effect.get_ws_identity()")
   // Missing identity must fail closed
-  let assert True =
-    string.contains(output, "Error(Nil) -> {")
+  let assert True = string.contains(output, "Error(Nil) -> {")
 }
 
 // -- WS RPC owning-page enforcement --
@@ -376,10 +366,8 @@ pub fn ws_auth_rpc_generates_handler_page_info_test() {
 
   // Must generate handler_page_info mapping variant tags to page modules
   let assert True = string.contains(output, "fn handler_page_info(")
-  let assert True =
-    string.contains(output, "\"server_")
-  let assert True =
-    string.contains(output, "Error(Nil)")
+  let assert True = string.contains(output, "\"server_")
+  let assert True = string.contains(output, "Error(Nil)")
 }
 
 pub fn ws_auth_rpc_extracts_variant_tag_test() {
@@ -432,8 +420,7 @@ pub fn ws_auth_rpc_enforces_required_test() {
 
   // RPC branch must check is_authenticated for Required pages
   let assert True = string.contains(output, "required &&")
-  let assert True =
-    string.contains(output, "auth.is_authenticated(identity)")
+  let assert True = string.contains(output, "auth.is_authenticated(identity)")
   // On failure, emit auth:redirect
   let assert True =
     string.contains(output, "auth:redirect:\" <> auth.redirect_url")
@@ -462,10 +449,12 @@ pub fn ws_auth_rpc_enforces_authorize_test() {
 
   // RPC branch must check authorize on owning_page (not "page" from page-init)
   let assert True =
-    string.contains(output, "check_page_authorize(owning_page, server_context, identity)")
+    string.contains(
+      output,
+      "check_page_authorize(owning_page, server_context, identity)",
+    )
   // On failure, emit auth:forbidden
-  let assert True =
-    string.contains(output, "auth:forbidden")
+  let assert True = string.contains(output, "auth:forbidden")
   // Must still dispatch on success
   let assert True =
     string.contains(
@@ -497,14 +486,11 @@ pub fn ws_auth_rpc_unknown_variant_fails_closed_test() {
 
   // handler_page_info returns Error(Nil) for unknown variants
   // RPC branch must emit auth:unknown_rpc on unknown variant
-  let assert True =
-    string.contains(output, "auth:unknown_rpc")
+  let assert True = string.contains(output, "auth:unknown_rpc")
   // RPC branch must handle malformed tags
-  let assert True =
-    string.contains(output, "auth:malformed")
+  let assert True = string.contains(output, "auth:malformed")
   // RPC branch must check page mismatch
-  let assert True =
-    string.contains(output, "auth:page_mismatch")
+  let assert True = string.contains(output, "auth:page_mismatch")
 }
 
 // -- WS reauth --
@@ -531,17 +517,13 @@ pub fn ws_auth_checks_reauth_timestamp_test() {
     )
 
   // Must read auth timestamp (in reauth block, not just on_init)
-  let assert True =
-    string.contains(output, "effect.get_ws_auth_timestamp()")
+  let assert True = string.contains(output, "effect.get_ws_auth_timestamp()")
   // Must check staleness against reauth interval (30 min in ms)
-  let assert True =
-    string.contains(output, "1800000")
+  let assert True = string.contains(output, "1800000")
   // Must read hostname from stored state, not just on_init parameter
-  let assert True =
-    string.contains(output, "effect.get_ws_hostname()")
+  let assert True = string.contains(output, "effect.get_ws_hostname()")
   // Must read current page to preserve it during reauth
-  let assert True =
-    string.contains(output, "effect.get_ws_page()")
+  let assert True = string.contains(output, "effect.get_ws_page()")
 }
 
 pub fn ws_auth_reauth_reruns_resolve_test() {
@@ -593,13 +575,10 @@ pub fn ws_auth_reauth_stores_refreshed_state_test() {
     )
 
   // After successful reauth, must store refreshed identity and timestamp
-  let assert True =
-    string.contains(output, "effect.put_ws_identity(identity)")
-  let assert True =
-    string.contains(output, "effect.put_ws_auth_timestamp(now)")
+  let assert True = string.contains(output, "effect.put_ws_identity(identity)")
+  let assert True = string.contains(output, "effect.put_ws_auth_timestamp(now)")
   // Must call from_session with stored hostname (reauth-specific, not on_init)
-  let assert True =
-    string.contains(output, "hostname: hostname")
+  let assert True = string.contains(output, "hostname: hostname")
 }
 
 pub fn ws_auth_reauth_failure_fails_closed_test() {
@@ -624,8 +603,7 @@ pub fn ws_auth_reauth_failure_fails_closed_test() {
     )
 
   // On resolve failure during reauth, must clear auth state
-  let assert True =
-    string.contains(output, "effect.clear_ws_auth_state()")
+  let assert True = string.contains(output, "effect.clear_ws_auth_state()")
 }
 
 pub fn ws_auth_no_reauth_when_fresh_test() {
@@ -650,6 +628,5 @@ pub fn ws_auth_no_reauth_when_fresh_test() {
     )
 
   // When not stale, must skip re-resolve and use stored identity
-  let assert True =
-    string.contains(output, "effect.get_ws_identity()")
+  let assert True = string.contains(output, "effect.get_ws_identity()")
 }

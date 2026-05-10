@@ -289,21 +289,18 @@ pub fn auth_from_session_without_client_context_test() {
     )
 
   // Must call from_session with identity, discarding ClientContext
-  let assert True =
-    string.contains(output, "let #(_, server_context) = ")
+  let assert True = string.contains(output, "let #(_, server_context) = ")
   let assert True =
     string.contains(
       output,
       ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)",
     )
   // from_session must run BEFORE load (ordering is the point of this bug)
-  let assert True =
-    string.contains(output, ".load(server_context, identity)")
+  let assert True = string.contains(output, ".load(server_context, identity)")
   // Split at from_session; the after part must contain load
   let assert Ok(#(_, after_fs)) =
     string.split_once(output, ".from_session(server_context:")
-  let assert True =
-    string.contains(after_fs, ".load(server_context, identity)")
+  let assert True = string.contains(after_fs, ".load(server_context, identity)")
 }
 
 pub fn no_auth_cookie_helpers_absent_test() {

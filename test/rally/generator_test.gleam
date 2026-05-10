@@ -1,9 +1,10 @@
+import gleam/dict
 import gleam/option.{None}
 import gleam/string
 import rally/generator
 import rally/types.{
   type PageContract, type ScannedRoute, DynamicSegment, IntParam, PageContract,
-  ScannedRoute, StaticSegment, StringParam,
+  ScanConfig, ScannedRoute, StaticSegment, StringParam,
 }
 
 fn sample_routes() -> List(ScannedRoute) {
@@ -232,4 +233,54 @@ fn page_contract(has_model: Bool) -> PageContract {
     page_auth_required: False,
     has_authorize: False,
   )
+}
+
+pub fn scan_config_protocol_defaults_to_etf_test() {
+  let config =
+    ScanConfig(
+      pages_root: "src/pages",
+      output_route: "",
+      output_dispatch: "",
+      output_server_dispatch: "",
+      output_server_atoms: "",
+      atoms_module: "",
+      output_server_wire: "",
+      wire_module: "",
+      output_ssr: "",
+      output_ws: "",
+      output_http: "",
+      client_root: "",
+      route_root: "/",
+      rally_package_path: "",
+      shell_file: "",
+      server_deps: dict.new(),
+      protocol: "etf",
+    )
+  let ScanConfig(protocol:, ..) = config
+  let assert "etf" = protocol
+}
+
+pub fn scan_config_protocol_can_be_json_test() {
+  let config =
+    ScanConfig(
+      pages_root: "src/pages",
+      output_route: "",
+      output_dispatch: "",
+      output_server_dispatch: "",
+      output_server_atoms: "",
+      atoms_module: "",
+      output_server_wire: "",
+      wire_module: "",
+      output_ssr: "",
+      output_ws: "",
+      output_http: "",
+      client_root: "",
+      route_root: "/",
+      rally_package_path: "",
+      shell_file: "",
+      server_deps: dict.new(),
+      protocol: "json",
+    )
+  let ScanConfig(protocol:, ..) = config
+  let assert "json" = protocol
 }

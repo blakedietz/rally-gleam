@@ -41,6 +41,7 @@ pub type ScanConfig {
     rally_package_path: String,
     shell_file: String,
     server_deps: Dict(String, tom.Toml),
+    protocol: String,
   )
 }
 

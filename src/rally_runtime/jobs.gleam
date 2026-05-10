@@ -67,7 +67,11 @@ pub fn start_runner(
   })
   |> actor.on_message(fn(state, msg) {
     let Poll = msg
-    process_pending_jobs_at(db: state.db, handler: state.handler, now: unix_seconds())
+    process_pending_jobs_at(
+      db: state.db,
+      handler: state.handler,
+      now: unix_seconds(),
+    )
     let _timer = process.send_after(state.self, poll_interval_ms, Poll)
     actor.continue(state)
   })

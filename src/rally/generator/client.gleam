@@ -882,7 +882,8 @@ fn generate_init_page(
   let sig = case has_client_context {
     True ->
       "fn init_page(route route: router.Route, client_context client_context: client_context.ClientContext) -> #(PageModel, Effect(Msg)) {"
-    False -> "fn init_page(route route: router.Route) -> #(PageModel, Effect(Msg)) {"
+    False ->
+      "fn init_page(route route: router.Route) -> #(PageModel, Effect(Msg)) {"
   }
 
   sig <> "\n  case route {\n" <> arms <> "\n" <> not_found_arm <> "\n  }\n}"
@@ -908,8 +909,7 @@ fn generate_hydrate_page(
   let error_fallback = case has_client_context {
     True ->
       "        Error(_) -> init_page(route: route, client_context: client_context)\n"
-    False ->
-      "        Error(_) -> init_page(route: route)\n"
+    False -> "        Error(_) -> init_page(route: route)\n"
   }
   let arms =
     routes
@@ -921,9 +921,11 @@ fn generate_hydrate_page(
           let decoder_name = page_model_decoder_name(route.module_path)
           let init_loaded_call = case has_client_context {
             True ->
-              alias <> ".init_loaded(" <> hydrate_client_context_name <> ", model)"
-            False ->
-              alias <> ".init_loaded(model)"
+              alias
+              <> ".init_loaded("
+              <> hydrate_client_context_name
+              <> ", model)"
+            False -> alias <> ".init_loaded(model)"
           }
           let variant = route.variant_name
           Ok(
