@@ -74,10 +74,10 @@ pub fn generate(
   }
 
   let auth_imports = case auth_config {
-    Some(AuthConfig(auth_module:)) ->
+    Some(AuthConfig(auth_module:)) if has_load_pages ->
       import_as(auth_module, auth_module_ref)
       <> "\nimport rally_runtime/auth as rally_auth\nimport gleam/int\nimport gleam/list\n"
-    None -> ""
+    _ -> ""
   }
 
   let wire_externals =
@@ -209,7 +209,7 @@ fn shell_html() -> String {
     False -> ""
   }
 
-  let cookies_helper = case has_auth {
+  let cookies_helper = case has_auth && has_load_pages {
     True ->
       "
 fn apply_cookies(resp: response.Response(ResponseData), cookies: List(rally_auth.Cookie)) -> response.Response(ResponseData) {

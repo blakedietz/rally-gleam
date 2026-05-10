@@ -425,7 +425,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       }
     False -> option.None
   }
-  let handler_seeds = libero.collect_seeds(handler_endpoints)
+  let handler_seeds = libero.collect_seeds(ns_endpoints)
   let cc_seeds = case client_context_source {
     option.Some(source) ->
       codec.client_context_seeds(source, client_context_module)
@@ -497,7 +497,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
 
   let atoms_erl =
     libero.generate_atoms(
-      handler_endpoints,
+      ns_endpoints,
       discovered,
       config.atoms_module,
       option.Some(config.wire_module),
@@ -511,7 +511,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     libero.generate_wire_erl(
       discovered:,
       wire_module: config.wire_module,
-      endpoints: handler_endpoints,
+      endpoints: ns_endpoints,
       push_dispatches: push_dispatches,
     )
   {
@@ -526,7 +526,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
   )
 
-  let server_symbols = collect_server_symbols(handler_endpoints)
+  let server_symbols = collect_server_symbols(ns_endpoints)
 
   use client_context_contract <- result.try(case client_context_source {
     option.Some(source) ->
@@ -538,7 +538,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     option.None -> Ok(option.None)
   })
   let raw_codec_files =
-    codec.generate(contracts, discovered, handler_endpoints, server_symbols)
+    codec.generate(contracts, discovered, ns_endpoints, server_symbols)
   let codec_files =
     list.map(raw_codec_files, fn(f: codec.CodecFile) {
       client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
@@ -707,7 +707,7 @@ fn do_write_files(
     write_file(config.output_ws, ws_source)
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
   )
-  use _ <- result.try(case handler_endpoints {
+  use _ <- result.try(case ns_endpoints {
     [] -> Ok(Nil)
     _ -> {
       let http_source =

@@ -607,7 +607,7 @@ fn handler_page_info(variant: String) -> Result(PageAuthInfo, Nil) {
 }
 
 fn stub_check_page_authorize(auth_ref: String) -> String {
-  "fn check_page_authorize(page: String, server_context: ServerContext, identity: "
+  "fn check_page_authorize(page: String, _server_context: ServerContext, _identity: "
   <> auth_ref
   <> ".Identity) -> Bool {
   case page {
