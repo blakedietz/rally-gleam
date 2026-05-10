@@ -63,6 +63,10 @@ pub type ClientContextContract {
   )
 }
 
+pub type AuthConfig {
+  AuthConfig(auth_module: String)
+}
+
 pub type PageContract {
   PageContract(
     model_variants: List(VariantInfo),

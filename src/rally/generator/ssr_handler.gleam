@@ -1,7 +1,7 @@
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
-import rally/types.{type PageContract, type ScannedRoute}
+import rally/types.{type AuthConfig, type PageContract, type ScannedRoute}
 
 pub fn generate(
   page_contracts page_contracts: List(#(ScannedRoute, PageContract)),
@@ -13,6 +13,7 @@ pub fn generate(
   atoms_module atoms_module: String,
   wire_module wire_module: Option(String),
   client_context_module client_context_module: Option(String),
+  auth_config _auth_config: Option(AuthConfig),
 ) -> String {
   let use_session = has_client_context && has_from_session
   let from_session_ref = last_segment(from_session_module)

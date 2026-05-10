@@ -169,7 +169,12 @@ pub fn realworld_routes_http_rpc_test() {
 
 pub fn ws_handler_logs_decoded_rpc_value_test() {
   let output =
-    ws_handler.generate([], "generated@rpc_atoms", "generated/rpc_dispatch")
+    ws_handler.generate(
+      [],
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      option.None,
+    )
 
   output
   |> string.contains(
@@ -280,6 +285,7 @@ pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
       "generated/public/rpc_atoms",
       option.None,
       option.None,
+      option.None,
     )
 
   output
@@ -338,6 +344,7 @@ pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
       "generated/public/rpc_atoms",
       option.None,
       option.None,
+      option.None,
     )
 
   output
@@ -382,6 +389,7 @@ pub fn ssr_app_marker_preserves_tag_order_test() {
       "generated/router",
       "<html><head></head><body><main class=\"root\" id = \"app\"></main></body></html>",
       "generated/public/rpc_atoms",
+      option.None,
       option.None,
       option.None,
     )

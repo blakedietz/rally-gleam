@@ -283,6 +283,30 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       }
     _ -> check_server_context_from_session(server_context_path)
   }
+  let auth_path = dirname(config.pages_root) <> "/auth.gleam"
+  let auth_config = case simplifile.read(auth_path) {
+    Ok(source) -> {
+      let auth_module = module_from_src_path(auth_path)
+      case
+        string.contains(source, "pub type Identity")
+        && string.contains(source, "pub fn resolve")
+        && string.contains(source, "pub fn is_authenticated")
+        && string.contains(source, "pub const redirect_url")
+      {
+        True -> option.Some(types.AuthConfig(auth_module:))
+        False -> {
+          io.println_error(
+            "rally: auth.gleam found at "
+            <> auth_path
+            <> " but missing required exports (Identity, resolve, is_authenticated, redirect_url)",
+          )
+          option.None
+        }
+      }
+    }
+    _ -> option.None
+  }
+
   let router_module = module_from_src_path(config.output_route)
   let rpc_dispatch_module = module_from_src_path(config.output_server_dispatch)
 
@@ -329,6 +353,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         True -> option.Some(client_context_module)
         False -> option.None
       },
+      auth_config,
     )
 
   // Write generated files, aborting on first failure
@@ -342,6 +367,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       contracts:,
       handler_endpoints:,
       rpc_dispatch_module:,
+      auth_config:,
     )
   use _ <- result.try(result)
 
@@ -610,9 +636,15 @@ fn do_write_files(
   contracts contracts: List(#(types.ScannedRoute, types.PageContract)),
   handler_endpoints handler_endpoints: List(libero_scanner.HandlerEndpoint),
   rpc_dispatch_module rpc_dispatch_module: String,
+  auth_config auth_config: option.Option(types.AuthConfig),
 ) -> Result(Nil, RallyError) {
   let ws_source =
-    ws_handler.generate(contracts, config.atoms_module, rpc_dispatch_module)
+    ws_handler.generate(
+      contracts,
+      config.atoms_module,
+      rpc_dispatch_module,
+      auth_config,
+    )
   use _ <- result.try(
     write_file(config.output_route, route_source)
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
@@ -637,7 +669,11 @@ fn do_write_files(
     [] -> Ok(Nil)
     _ -> {
       let http_source =
-        http_handler.generate(handler_endpoints, rpc_dispatch_module)
+        http_handler.generate(
+          handler_endpoints,
+          rpc_dispatch_module,
+          auth_config,
+        )
       write_file(config.output_http, http_source)
       |> result.map_error(fn(msg) { RallyError("write error: " <> msg) })
     }
