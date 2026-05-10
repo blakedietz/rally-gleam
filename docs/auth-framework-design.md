@@ -24,14 +24,13 @@ The auth module must export:
 | Export | Signature | Purpose |
 |--------|-----------|---------|
 | `Identity` | type | App-defined identity type. Opaque to rally. |
-| `AuthError` | type | App-defined error type for infrastructure failures. Opaque to rally. |
-| `resolve` | `fn(ServerContext, String) -> Result(Identity, AuthError)` | Resolves session_id into an identity. Returns `Ok(Anonymous)` for missing/expired sessions, `Error(...)` for infrastructure failures (DB down, etc.). |
+| `resolve` | `fn(ServerContext, String) -> Result(Identity, Nil)` | Resolves session_id into an identity. Returns `Ok(Anonymous)` for missing/expired sessions, `Error(Nil)` for infrastructure failures. `resolve` logs its own error details before returning `Error`. |
 | `is_authenticated` | `fn(Identity) -> Bool` | Rally calls this for `Required` pages to decide whether to redirect. |
 | `redirect_url` | `String` | Where to redirect unauthenticated users. |
 
 Rally imports the app's `Identity` type and threads it through to page functions. Rally never inspects the type's structure.
 
-**Error handling:** `resolve` returns `Result` with an app-defined `AuthError` type. `Ok` with an unauthenticated variant (e.g., `Anonymous`) is a normal "no session" state. `Error` signals an infrastructure problem (DB unavailable, token verifier broken). Rally returns HTTP 500 on `Error` and logs the error's string representation. It never silently downgrades a broken auth check to "logged out."
+**Error handling:** `resolve` returns `Result(Identity, Nil)`. `Ok` with an unauthenticated variant (e.g., `Anonymous`) is a normal "no session" state. `Error(Nil)` signals an infrastructure problem (DB unavailable, token verifier broken). The app's `resolve` function is responsible for logging error details (it knows the error type and context). Rally returns HTTP 500 on `Error` with a generic "auth service unavailable" message. It never silently downgrades a broken auth check to "logged out."
 
 ### Interaction with from_session
 
@@ -150,27 +149,32 @@ Each HTTP RPC is stateless: resolve and from_session run on every request. The o
 
 ### Generated WS Handler Behavior
 
-**Pre-upgrade auth check:**
+**On upgrade (HTTP layer):**
 
-Auth for WebSocket connections happens before the upgrade, in the HTTP routing layer. `app.gleam` resolves identity from the upgrade request's cookies. If the namespace requires auth (has auth.gleam) and `is_authenticated` returns `False`, the upgrade is rejected with an HTTP redirect or 401. No WebSocket connection is opened.
-
-If auth succeeds (or the namespace has no auth.gleam), the upgrade proceeds. Identity and a timestamp are stored on the connection state.
+The upgrade always proceeds. Auth is page-level, not namespace-level: a namespace with `auth.gleam` can still have Optional pages. Rejecting at upgrade time would block anonymous access to Optional pages.
 
 ```
-HTTP upgrade request → extract session_id from cookie
-  → resolve(server_context, session_id)
-  → if Required namespace and !is_authenticated(identity): reject upgrade (HTTP 302 or 401)
-  → proceed with upgrade, store identity + auth_timestamp on connection state
+HTTP upgrade request → extract session_id and hostname from request
+  → resolve(server_context, session_id) → identity (Ok or Error)
+  → from_session(server_context, session_id, hostname, identity) → #(client_context, enriched_sc)
+  → proceed with upgrade, store identity + enriched_sc + client_context + auth_timestamp on connection state
 ```
+
+If `resolve` returns `Error`, the upgrade is rejected with HTTP 500 (infrastructure failure, not an auth policy decision).
+
+`from_session` runs at upgrade time because the HTTP Host header (needed for org/tenant resolution) is not available after the WebSocket handshake. The enriched ServerContext and ClientContext are stored on connection state and used for all subsequent auth checks and RPC dispatch.
 
 **On page navigation (page-init frame):**
 
 ```
 page-init frame → update current page + route params on connection state
+  → if Required and !is_authenticated(identity): send auth-redirect frame
   → if authorize exists on new page:
     → authorize(enriched_sc, identity, current_route_params)
     → False: send auth-failure frame (client handles redirect)
 ```
+
+Page-level auth policy is enforced at navigation time, not upgrade time. This is where `Required` vs `Optional` matters for WebSocket connections.
 
 **On RPC message:**
 
@@ -178,11 +182,11 @@ page-init frame → update current page + route params on connection state
 on_message:
   → if (now - last_auth_check) > reauth_interval:
     → re-resolve identity, update connection state
-    → if is_authenticated was true, now false: close connection
+    → if is_authenticated was true, now false on Required page: send auth-redirect frame
   → determine owning page (current page from connection state)
   → if authorize exists: authorize(enriched_sc, identity, current_route_params)
     → False: send auth-failure frame
-  → dispatch to server_* handler with identity
+  → dispatch to server_* handler with enriched_sc and identity
 ```
 
 **Reauth interval:** default 30 minutes. No timers, no polling. One integer comparison per incoming message. Only re-resolves when the interval has elapsed.
@@ -204,7 +208,9 @@ pub fn rpc_route_params(msg: ServerMsg) -> RouteParams {
 }
 ```
 
-Rally calls `rpc_route_params` to extract params from the message before calling `authorize`. If the page doesn't export `rpc_route_params`, authorize receives empty params. This makes HTTP RPC authorize opt-in per page.
+Rally calls `rpc_route_params` to extract params from the message before calling `authorize`.
+
+**Codegen safety:** if a page exports both `authorize` and `server_*` handlers but does not export `rpc_route_params`, rally emits a codegen error. This prevents silent authorization against empty/default params. Pages that don't need route params in their authorize check shouldn't export authorize in the first place (page-level auth policy is sufficient).
 
 ### Server Handler Signatures
 
@@ -225,9 +231,10 @@ Identity is threaded to every server handler. The handler can use it for busines
 During codegen, rally's scanner checks each namespace for:
 
 1. `auth.gleam` exists at namespace root
-2. If yes, verify it exports: `Identity` (type), `AuthError` (type), `resolve` (fn), `is_authenticated` (fn), `redirect_url` (const)
+2. If yes, verify it exports: `Identity` (type), `resolve` (fn), `is_authenticated` (fn), `redirect_url` (const)
 3. For each page module, check for `pub const page_auth` declaration, optional `pub fn authorize`, and optional `pub fn rpc_route_params`
-4. Generate handler code accordingly
+4. If a page has `authorize` and `server_*` handlers but no `rpc_route_params`: codegen error
+5. Generate handler code accordingly
 
 Missing exports from auth.gleam should produce a clear codegen error.
 
@@ -250,17 +257,17 @@ The `identity` parameter is added to `load`, and the return type becomes `LoadRe
 ## Implementation Checklist
 
 1. Define `rally.Required` and `rally.Optional` constants, `LoadResult` type, `Cookie` type
-2. Scanner: detect auth.gleam per namespace, parse exports (Identity, AuthError, resolve, is_authenticated, redirect_url)
+2. Scanner: detect auth.gleam per namespace, parse exports (Identity, resolve, is_authenticated, redirect_url)
 3. Scanner: detect `pub const page_auth`, `pub fn authorize`, and `pub fn rpc_route_params` on page modules
 4. SSR handler codegen: resolve → is_authenticated check → from_session(identity) → authorize(enriched_sc) → load ordering
 5. SSR handler codegen: handle LoadResult (Page vs Redirect, apply cookies)
 6. HTTP RPC handler codegen: resolve → is_authenticated → from_session → authorize (with rpc_route_params) → dispatch with identity
-7. WS pre-upgrade: resolve + is_authenticated check before WebSocket upgrade in HTTP routing layer
-8. WS handler codegen: store identity + auth_timestamp on connection state
-9. WS handler codegen: re-run authorize on page-init frames with current route params
-10. WS handler codegen: periodic re-resolve on message (30 min interval)
-11. WS handler: send auth-failure frame on authorize failure (client handles redirect)
-12. Error reporting: clear messages for missing auth exports, resolve errors → 500
+7. WS on-upgrade: resolve + from_session, store identity + enriched_sc + client_context + auth_timestamp on connection state (reject on resolve Error only)
+8. WS handler codegen: enforce page-level auth on page-init frames (Required + is_authenticated, then authorize)
+9. WS handler codegen: periodic re-resolve on message (30 min interval)
+10. WS handler: send auth-failure / auth-redirect frames on policy failure
+11. Codegen error: page with authorize + server_* handlers but no rpc_route_params
+12. Error reporting: clear messages for missing auth exports, resolve Error → 500 with generic message
 
 ## Design Principles
 
