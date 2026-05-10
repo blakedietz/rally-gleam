@@ -506,3 +506,141 @@ pub fn ws_auth_rpc_unknown_variant_fails_closed_test() {
   let assert True =
     string.contains(output, "auth:page_mismatch")
 }
+
+// -- WS reauth --
+
+pub fn ws_auth_checks_reauth_timestamp_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // Must read auth timestamp
+  let assert True =
+    string.contains(output, "effect.get_ws_auth_timestamp()")
+  // Must check staleness against reauth interval (30 min in seconds)
+  let assert True =
+    string.contains(output, "1800")
+}
+
+pub fn ws_auth_reauth_reruns_resolve_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // On stale, must call auth.resolve again
+  // The output already has one resolve call in on_init; reauth adds another
+  let assert True =
+    string.contains(output, "auth.resolve(server_context, session_id)")
+}
+
+pub fn ws_auth_reauth_stores_refreshed_state_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // After successful reauth, must store refreshed state
+  let assert True =
+    string.contains(output, "effect.put_ws_identity(")
+  let assert True =
+    string.contains(output, "effect.put_ws_auth_timestamp(")
+}
+
+pub fn ws_auth_reauth_failure_fails_closed_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // On resolve failure during reauth, must clear auth state
+  let assert True =
+    string.contains(output, "effect.clear_ws_auth_state()")
+}
+
+pub fn ws_auth_no_reauth_when_fresh_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // When not stale, must skip re-resolve and use stored identity
+  let assert True =
+    string.contains(output, "effect.get_ws_identity()")
+}

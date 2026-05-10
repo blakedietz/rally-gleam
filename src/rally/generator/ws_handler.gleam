@@ -50,6 +50,7 @@ pub fn generate(
       generate_frame_handler_with_auth(
         page_contracts,
         auth_module_ref,
+        from_session_ref,
         endpoints,
       )
     False -> generate_frame_handler_no_auth()
@@ -210,6 +211,7 @@ fn generate_frame_handler_no_auth() -> String {
 fn generate_frame_handler_with_auth(
   page_contracts: List(#(ScannedRoute, PageContract)),
   auth_ref: String,
+  from_session_ref: String,
   endpoints: List(HandlerEndpoint),
 ) -> String {
   let page_auth_policy_fn = generate_page_auth_policy(page_contracts)
@@ -229,6 +231,33 @@ fn generate_frame_handler_with_auth(
   case msg {
     mist.Binary(data) -> {
       debug_log(\"[rally:ws] Binary frame: \" <> int.to_string(bit_array.byte_size(data)) <> \" bytes\")
+      // Reauth: re-resolve identity if the last auth check is stale.
+      let now = timestamp.unix(timestamp.system_time())
+      let last_auth = effect.get_ws_auth_timestamp()
+      case now - last_auth > 1800 {
+        True -> {
+          let session_id = effect.get_ws_session()
+          let hostname = effect.get_ws_hostname()
+          let assert Ok(server_context) = effect.get_stored_server_context()
+          case "
+    <> auth_ref
+    <> ".resolve(server_context, session_id) {
+            Error(Nil) -> {
+              effect.clear_ws_auth_state()
+              let Nil = effect.put_ws_state(conn, server_context, \"\")
+            }
+            Ok(identity) -> {
+              let #(_, enriched_sc) = "
+    <> from_session_ref
+    <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)
+              let Nil = effect.put_ws_state(conn, enriched_sc, \"\")
+              let Nil = effect.put_ws_identity(identity)
+              let Nil = effect.put_ws_auth_timestamp(now)
+            }
+          }
+        }
+        False -> Nil
+      }
       case wire.decode_call(data) {
         Ok(#(page, request_id, _value)) if request_id == 0 -> {
           debug_log(\"[rally:ws] page_init: \" <> page)
