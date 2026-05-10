@@ -193,7 +193,7 @@ Four-level server-to-client messaging using OTP `pg` process groups:
 
 - **Current wire format:** ETF (Erlang External Term Format), binary
 - **Configured protocol target:** Rally calls Libero protocol helpers through the generated `protocol_wire` facade rather than depending on ETF or JSON frame details directly. The facade is generated at build time based on the `protocol` config field (`"etf"` or `"json"`).
-- **Protocol boundary:** The generated `protocol_wire` facade is the only module that imports libero wire functions. Generated app code imports the protocol_wire facade, not raw Libero wire modules. The legacy `rally_runtime/wire.gleam` ETF shim still imports `libero/wire` directly; this will be removed when the facade migration is complete. All encode, decode, call framing, and flag operations route through the facade.
+- **Protocol boundary:** For generated app code, the `protocol_wire` facade is the only module that imports libero wire functions. Generated app code imports the protocol_wire facade, not raw Libero wire modules. The legacy `rally_runtime/wire.gleam` ETF shim still imports `libero/wire` directly; this will be removed when the facade migration is complete. All encode, decode, call framing, and flag operations route through the facade.
 - **Call envelope:** Libero-owned request shape for client to server RPC calls
 - **Response frame:** Libero-owned correlated response frame
 - **Push frame:** Libero-owned server to client push frame
