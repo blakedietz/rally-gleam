@@ -2,6 +2,8 @@ import gleam/dynamic.{type Dynamic}
 import libero/error.{type DecodeError}
 import libero/wire as libero_wire
 
+/// Raw ETF encode. Not safe for user custom types (bare atoms, not
+/// hashed). Only correct for pre-encoded values or primitives.
 pub fn encode(value: a) -> BitArray {
   libero_wire.encode(value)
 }
