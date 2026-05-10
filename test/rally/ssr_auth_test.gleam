@@ -265,6 +265,42 @@ pub fn no_auth_unchanged_output_test() {
     )
 }
 
+pub fn auth_from_session_without_client_context_test() {
+  // P0 regression: auth must call from_session even without ClientContext
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output =
+    ssr_handler.generate(
+      [#(route, contract)],
+      False,
+      True,
+      "admin/client_context_server",
+      "generated/admin/router",
+      shell,
+      "generated/admin/rpc_atoms",
+      None,
+      None,
+      Some(AuthConfig(auth_module: "admin/auth")),
+    )
+
+  // Must call from_session with identity, discarding ClientContext
+  let assert True =
+    string.contains(output, "let #(_, server_context) = ")
+  let assert True =
+    string.contains(
+      output,
+      ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)",
+    )
+  // from_session must run before authorize/load
+  let assert True =
+    string.contains(output, ".load(server_context, identity)")
+}
+
 pub fn no_auth_cookie_helpers_absent_test() {
   let contract =
     make_contract(

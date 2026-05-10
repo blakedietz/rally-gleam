@@ -41,6 +41,7 @@ pub fn generate(
   let page_imports = generate_page_imports(page_contracts)
 
   let needs_server_context = use_session || has_load_pages
+  let needs_from_session_import = use_session || { has_auth && has_from_session }
   let needs_codec = use_session || has_load_pages
 
   let base_imports =
@@ -53,7 +54,7 @@ pub fn generate(
   let server_imports = case needs_server_context {
     True ->
       "import server_context.{type ServerContext}\n"
-      <> case from_session_module != "server_context" {
+      <> case needs_from_session_import && from_session_module != "server_context" {
         True -> import_as(from_session_module, from_session_ref) <> "\n"
         False -> ""
       }
