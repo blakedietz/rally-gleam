@@ -714,7 +714,7 @@ pub fn generate_empty_rpc_dispatch(
 
   let extra_handle_params =
     list.map(extra_params, fn(p: codegen_dispatch.ExtraParam) {
-      "\n  " <> p.name <> " " <> p.name <> ": " <> p.type_ref <> ","
+      "\n  " <> p.name <> " _" <> p.name <> ": " <> p.type_ref <> ","
     })
     |> string.join("")
 

@@ -3,6 +3,7 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
+import libero/codegen_dispatch
 import rally/generator
 import rally/generator/client
 import rally/generator/ssr_handler
@@ -22,6 +23,29 @@ pub fn empty_rpc_dispatch_handles_bad_variant_tags_test() {
 
   output
   |> string.contains("UnknownFunction(\"rpc\")")
+  |> should.equal(True)
+}
+
+pub fn empty_rpc_dispatch_with_identity_extra_param_test() {
+  let output =
+    generator.generate_empty_rpc_dispatch(
+      "generated@rpc_atoms",
+      [
+        codegen_dispatch.ExtraParam(
+          name: "identity",
+          type_ref: "auth.Identity",
+          import_line: "import admin/auth",
+        ),
+      ],
+    )
+
+  // Must import the auth module
+  output
+  |> string.contains("import admin/auth")
+  |> should.equal(True)
+  // Must include identity in the handle signature
+  output
+  |> string.contains("identity _identity: auth.Identity")
   |> should.equal(True)
 }
 
