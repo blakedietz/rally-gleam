@@ -8,7 +8,7 @@
 -export([put_ws_state/3, get_ws_conn/0, get_ws_page/0, get_stored_server_context/0,
          push_outgoing_frame/1, drain_outgoing_frames/0,
          put_ws_session/1, get_ws_session/0, decode_rally_push/1,
-         store_system_conn/1, get_system_conn/0]).
+         store_system_conn/1, get_system_conn/0, encode_push_payload/2]).
 
 put_ws_state(Conn, Ctx, Page) ->
     put(rally_ws_conn, Conn),
@@ -70,4 +70,14 @@ get_system_conn() ->
     case persistent_term:get({rally, system_conn}, undefined) of
         undefined -> {error, nil};
         Conn -> {ok, Conn}
+    end.
+
+encode_push_payload(Page, Msg) ->
+    case persistent_term:get({libero, wire_module}, undefined) of
+        undefined -> Msg;
+        Mod ->
+            case erlang:function_exported(Mod, encode_push, 2) of
+                true -> Mod:encode_push(Page, Msg);
+                false -> Msg
+            end
     end.

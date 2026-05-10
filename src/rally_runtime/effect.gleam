@@ -40,7 +40,8 @@ pub fn send_to_client(msg: a) -> Effect(b) {
 /// for the sender's own connection (which isn't subscribed to its own topic).
 pub fn broadcast_to_page(msg: a) -> Effect(b) {
   let page = get_ws_page()
-  let frame = wire.encode_push(page, msg)
+  let encoded = encode_push_payload(page, msg)
+  let frame = wire.encode_push(page, encoded)
   topics.broadcast("page:" <> page, frame)
   push_outgoing_frame(frame)
   effect.none()
@@ -49,7 +50,8 @@ pub fn broadcast_to_page(msg: a) -> Effect(b) {
 /// Broadcast a message to every connection in the app.
 pub fn broadcast_to_app(msg: a) -> Effect(b) {
   let page = get_ws_page()
-  let frame = wire.encode_push(page, msg)
+  let encoded = encode_push_payload(page, msg)
+  let frame = wire.encode_push(page, encoded)
   topics.broadcast("app", frame)
   push_outgoing_frame(frame)
   effect.none()
@@ -59,7 +61,8 @@ pub fn broadcast_to_app(msg: a) -> Effect(b) {
 /// On the server, encodes and queues a push frame tagged "__ClientContext__".
 /// On the client, the generated app dispatches it through client_context.update.
 pub fn send_to_client_context(msg: a) -> Effect(b) {
-  let frame = wire.encode_push("__ClientContext__", msg)
+  let encoded = encode_push_payload("__ClientContext__", msg)
+  let frame = wire.encode_push("__ClientContext__", encoded)
   push_outgoing_frame(frame)
   effect.none()
 }
@@ -108,7 +111,8 @@ pub fn read_lang() -> String {
 pub fn broadcast_to_session(msg: a) -> Effect(b) {
   let page = get_ws_page()
   let session = get_ws_session()
-  let frame = wire.encode_push(page, msg)
+  let encoded = encode_push_payload(page, msg)
+  let frame = wire.encode_push(page, encoded)
   topics.broadcast("session:" <> session, frame)
   push_outgoing_frame(frame)
   effect.none()
@@ -116,7 +120,8 @@ pub fn broadcast_to_session(msg: a) -> Effect(b) {
 
 fn do_push(msg: a) -> Nil {
   let page = get_ws_page()
-  let frame = wire.encode_push(page, msg)
+  let encoded = encode_push_payload(page, msg)
+  let frame = wire.encode_push(page, encoded)
   push_outgoing_frame(frame)
 }
 
@@ -165,4 +170,9 @@ pub fn get_ws_session() -> String {
 @external(erlang, "rally_runtime_ffi", "decode_rally_push")
 pub fn decode_rally_push(_msg: a) -> Result(BitArray, Nil) {
   Error(Nil)
+}
+
+@external(erlang, "rally_runtime_ffi", "encode_push_payload")
+fn encode_push_payload(_page: String, msg: a) -> a {
+  msg
 }
