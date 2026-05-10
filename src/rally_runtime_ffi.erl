@@ -112,9 +112,9 @@ get_ws_auth_timestamp() ->
         Val -> Val
     end.
 
-%% Clear all auth state keys (used in tests and reauth).
+%% Clear identity and timestamp (used in tests and reauth failure).
+%% Hostname is preserved: it is connection-scoped, not auth-scoped.
 clear_ws_auth_state() ->
     erase(rally_ws_identity),
-    erase(rally_ws_hostname),
-    erase(rally_ws_auth_ts),
+    put(rally_ws_auth_ts, 0),
     nil.

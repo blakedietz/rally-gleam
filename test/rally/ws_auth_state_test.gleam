@@ -17,6 +17,9 @@ pub fn put_get_hostname_roundtrip_test() {
 
 pub fn get_hostname_unset_returns_empty_test() {
   effect.clear_ws_auth_state()
+  // clear_ws_auth_state preserves hostname (connection-scoped).
+  // Explicitly reset it to test the default.
+  effect.put_ws_hostname("")
   let assert "" = effect.get_ws_hostname()
 }
 

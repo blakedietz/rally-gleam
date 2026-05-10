@@ -327,7 +327,7 @@ Rally generates a `handler_page_info` function mapping each wire variant tag to 
 
 ### WS auth
 
-WebSocket auth resolves identity on upgrade (`on_init`), stores identity/hostname/auth-timestamp/enriched-server-context via FFI process dictionary. Page-init frames check auth policy before updating connection state: Required pages redirect unauthenticated users, authorize failures return forbidden. RPC messages extract owning page from variant tag, enforce Required/authorize, verify owning page matches current page, and fail closed on unknown/malformed variants. On `auth.resolve` infrastructure failure, no identity is stored — subsequent messages fail closed.
+WebSocket auth resolves identity on upgrade (`on_init`), stores identity/hostname/auth-timestamp/enriched-server-context via FFI process dictionary. Page-init frames check auth policy before updating connection state: Required pages redirect unauthenticated users, authorize failures return forbidden. RPC messages extract owning page from variant tag, enforce Required/authorize, verify owning page matches current page, and fail closed on unknown/malformed variants. Reauth runs before every message: if the auth timestamp is older than 1800 seconds, identity is re-resolved via `auth.resolve` and `from_session` re-runs with the stored hostname; on resolve failure only identity and timestamp are cleared (hostname is preserved for recovery). On `auth.resolve` infrastructure failure during upgrade, no identity is stored — subsequent messages fail closed.
 
 ### LoadResult
 
@@ -347,7 +347,7 @@ When auth is enabled, Libero dispatch gains an `identity` parameter via `ExtraPa
 ## Testing
 
 ```sh
-gleam test                       # 257 tests: scanner, generator, parser, wire, codec, auth, topics, session, broadcast, snapshots
+gleam test                       # 263 tests: scanner, generator, parser, wire, codec, auth, topics, session, broadcast, snapshots
 gleam run -m birdie accept       # accept all new snapshots
 gleam run -m birdie              # review snapshot changes interactively
 ```

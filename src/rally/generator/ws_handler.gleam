@@ -238,19 +238,20 @@ fn generate_frame_handler_with_auth(
         True -> {
           let session_id = effect.get_ws_session()
           let hostname = effect.get_ws_hostname()
+          let current_page = effect.get_ws_page()
           let assert Ok(server_context) = effect.get_stored_server_context()
           case "
     <> auth_ref
     <> ".resolve(server_context, session_id) {
             Error(Nil) -> {
               effect.clear_ws_auth_state()
-              let Nil = effect.put_ws_state(conn, server_context, \"\")
+              let Nil = effect.put_ws_state(conn, server_context, current_page)
             }
             Ok(identity) -> {
               let #(_, enriched_sc) = "
     <> from_session_ref
     <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)
-              let Nil = effect.put_ws_state(conn, enriched_sc, \"\")
+              let Nil = effect.put_ws_state(conn, enriched_sc, current_page)
               let Nil = effect.put_ws_identity(identity)
               let Nil = effect.put_ws_auth_timestamp(now)
             }

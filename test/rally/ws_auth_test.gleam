@@ -530,12 +530,18 @@ pub fn ws_auth_checks_reauth_timestamp_test() {
       endpoints: endpoints_for(contracts),
     )
 
-  // Must read auth timestamp
+  // Must read auth timestamp (in reauth block, not just on_init)
   let assert True =
     string.contains(output, "effect.get_ws_auth_timestamp()")
   // Must check staleness against reauth interval (30 min in seconds)
   let assert True =
     string.contains(output, "1800")
+  // Must read hostname from stored state, not just on_init parameter
+  let assert True =
+    string.contains(output, "effect.get_ws_hostname()")
+  // Must read current page to preserve it during reauth
+  let assert True =
+    string.contains(output, "effect.get_ws_page()")
 }
 
 pub fn ws_auth_reauth_reruns_resolve_test() {
@@ -586,11 +592,14 @@ pub fn ws_auth_reauth_stores_refreshed_state_test() {
       endpoints: endpoints_for(contracts),
     )
 
-  // After successful reauth, must store refreshed state
+  // After successful reauth, must store refreshed identity and timestamp
   let assert True =
-    string.contains(output, "effect.put_ws_identity(")
+    string.contains(output, "effect.put_ws_identity(identity)")
   let assert True =
-    string.contains(output, "effect.put_ws_auth_timestamp(")
+    string.contains(output, "effect.put_ws_auth_timestamp(now)")
+  // Must call from_session with stored hostname (reauth-specific, not on_init)
+  let assert True =
+    string.contains(output, "hostname: hostname")
 }
 
 pub fn ws_auth_reauth_failure_fails_closed_test() {
