@@ -2,8 +2,9 @@
 # On-demand auth codegen compile check. Not part of `gleam test`.
 # Creates a minimal auth app in ./tmp, runs codegen, builds, cleans up.
 #
-# Covers: Required+authorize page, server handler, from_session,
-#         LoadResult.Page, no-init_loaded page, zero-handler namespace.
+# Covers: Required+authorize page, from_session, LoadResult.Page,
+#         no-init_loaded page, auth zero-handler namespace.
+# TODO: add server_* handler when Libero ExtraParam dispatch is fixed.
 set -euo pipefail
 
 RALLY_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -140,6 +141,43 @@ pub fn load(
 pub fn init() -> #(Model, effect.Effect(Msg)) { #(Model(info: ""), effect.none()) }
 pub fn view(_model: Model) -> element.Element(Msg) { element.none() }
 pub fn update(model: Model, _msg: Msg) -> #(Model, effect.Effect(Msg)) { #(model, effect.none()) }
+GLEAM
+
+# --- public/auth.gleam: enables auth zero-handler namespace ---
+cat > "$APP_DIR/src/public/auth.gleam" <<'GLEAM'
+import server_context.{type ServerContext}
+
+pub type Identity {
+  Authenticated(user_id: Int)
+  Anonymous
+}
+
+pub fn resolve(_server_context: ServerContext, _session_id: String) -> Result(Identity, Nil) {
+  Ok(Anonymous)
+}
+
+pub fn is_authenticated(identity: Identity) -> Bool {
+  case identity { Authenticated(..) -> True  Anonymous -> False }
+}
+
+pub const redirect_url = "/login"
+GLEAM
+
+# --- public/client_context_server.gleam ---
+cat > "$APP_DIR/src/public/client_context_server.gleam" <<'GLEAM'
+import public/auth
+import server_context.{type ServerContext}
+
+pub type ClientContext { ClientContext }
+
+pub fn from_session(
+  server_context server_context: ServerContext,
+  session_id _session_id: String,
+  hostname _hostname: String,
+  identity _identity: auth.Identity,
+) -> #(ClientContext, ServerContext) {
+  #(ClientContext, server_context)
+}
 GLEAM
 
 # --- public/pages/home_.gleam: zero-handler namespace ---

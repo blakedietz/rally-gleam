@@ -334,19 +334,26 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     }
     option.None -> []
   }
-  let sd_source = case handler_endpoints {
+  let namespace_prefix = config.pages_root |> string.drop_start(4) |> fn(p) {
+    string.replace(p, "/pages", "")
+  }
+  let ns_endpoints =
+    list.filter(handler_endpoints, fn(ep) {
+      string.starts_with(ep.module_path, namespace_prefix <> "/")
+    })
+  let sd_source = case ns_endpoints {
     [] -> generator.generate_empty_rpc_dispatch(config.atoms_module, extra_dispatch_params)
     _ ->
       case extra_dispatch_params {
         [] ->
           libero.generate_dispatch(
-            handler_endpoints,
+            ns_endpoints,
             option.Some(config.atoms_module),
             option.Some(config.wire_module),
           )
         params ->
           libero.generate_dispatch_with_extra_params(
-            handler_endpoints,
+            ns_endpoints,
             option.Some(config.atoms_module),
             option.Some(config.wire_module),
             params,
@@ -664,6 +671,13 @@ fn do_write_files(
   auth_config auth_config: option.Option(types.AuthConfig),
   from_session_module from_session_module: String,
 ) -> Result(Nil, RallyError) {
+  let namespace_prefix = config.pages_root |> string.drop_start(4) |> fn(p) {
+    string.replace(p, "/pages", "")
+  }
+  let ns_endpoints =
+    list.filter(handler_endpoints, fn(ep) {
+      string.starts_with(ep.module_path, namespace_prefix <> "/")
+    })
   let ws_source =
     ws_handler.generate(
       contracts,
@@ -671,7 +685,7 @@ fn do_write_files(
       rpc_dispatch_module,
       auth_config,
       from_session_module:,
-      endpoints: handler_endpoints,
+      endpoints: ns_endpoints,
     )
   use _ <- result.try(
     write_file(config.output_route, route_source)
@@ -698,7 +712,7 @@ fn do_write_files(
     _ -> {
       let http_source =
         http_handler.generate(
-          handler_endpoints,
+          ns_endpoints,
           rpc_dispatch_module,
           auth_config,
           contracts,

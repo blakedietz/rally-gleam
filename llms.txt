@@ -347,9 +347,10 @@ When auth is enabled, Libero dispatch gains an `identity` parameter via `ExtraPa
 ## Testing
 
 ```sh
-gleam test                       # 263 tests: scanner, generator, parser, wire, codec, auth, topics, session, broadcast, snapshots
+gleam test                       # 264 tests: scanner, generator, parser, wire, codec, auth, topics, session, broadcast, snapshots
 gleam run -m birdie accept       # accept all new snapshots
 gleam run -m birdie              # review snapshot changes interactively
+bin/check-auth-codegen           # on-demand auth codegen compile check
 ```
 
 ## Links
