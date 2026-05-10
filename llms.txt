@@ -1,6 +1,8 @@
 # Rally Framework
 
-A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, ETF for wire format, libero for RPC plumbing.
+A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, libero for RPC plumbing.
+
+Target boundary: Rally is a protocol-oblivious consumer of Libero. Rally owns WebSocket lifecycle, routes, sessions, topics, reconnects, timeouts, page semantics, and logging. Libero owns the typed protocol contract, encode/decode, request envelopes, response frames, push frames, flags, validation, and security limits. ETF remains the fast native path for Rally's generated Lustre clients. If Libero adds JSON RPC as a configured protocol for non-Gleam clients, Rally should not need to understand the JSON shape. See `docs/libero-boundary-spec.md`.
 
 ## Quick start
 
@@ -122,16 +124,16 @@ Running `gleam run -m rally` produces:
 | `src/generated/<namespace>/page_dispatch.gleam` | `PageModel`/`PageMsg` unions plus per-route `init_page`, `update_page`, and `view_page` dispatch |
 | `src/generated/<namespace>/rpc_dispatch.gleam` | libero-generated RPC handler dispatch (pattern matches wire calls to server_ functions) |
 | `src/generated/<namespace>/ssr_handler.gleam` | SSR entry: takes parsed `Route`, calls `load`, renders `view` wrapped in layout, inserts it at `<div id="app">`, embeds model as flags, returns HTML with `content-type: text/html` |
-| `src/generated/<namespace>/ws_handler.gleam` | WebSocket handler: ETF frame loop, page topic join, RPC dispatch, push frame delivery, inbound message logging |
-| `src/generated/<namespace>/http_handler.gleam` | HTTP RPC handler: POST /rpc with ETF body, calls rpc_dispatch, returns ETF response |
+| `src/generated/<namespace>/ws_handler.gleam` | WebSocket handler: Libero protocol frame loop, page topic join, RPC dispatch, push frame delivery, inbound message logging |
+| `src/generated/<namespace>/http_handler.gleam` | HTTP RPC handler: POST /rpc with Libero protocol body, calls rpc_dispatch, returns Libero protocol response |
 | `.generated_clients/<namespace>/src/generated/app.gleam` | Lustre SPA entry point: per-page TEA loop, WebSocket transport, modem routing, page push handler registration |
-| `.generated_clients/<namespace>/src/generated/transport.gleam` | FFI bridge to `rpc_ffi.mjs`: WebSocket send, push handlers, RPC framework-error handler registration, ETF encode/decode, and safe ETF decode |
+| `.generated_clients/<namespace>/src/generated/transport.gleam` | FFI bridge to `transport_ffi.mjs`: WebSocket send, push handlers, RPC framework-error handler registration, and Libero protocol helpers |
 | `.generated_clients/<namespace>/src/<namespace>/pages/*.gleam` | Per-page client modules: tree-shaken page source with types, init/update/view, and private helpers |
 | `.generated_clients/<namespace>/src/rally_runtime/effect.gleam` | Client-side effect shim: rpc, navigate, send_to_client_context backed by transport |
 | `.generated_clients/<namespace>/src/generated/types.gleam` | ClientMsg type for RPC (mirrors server dispatch variants) |
 | `.generated_clients/<namespace>/src/generated/codec.gleam` | decode_flags utility for SSR hydration; absent or malformed flags return an Error so shell-only routes and corrupt SSR payloads can fall back to client init |
-| `.generated_clients/<namespace>/src/generated/codec_ffi.mjs` | JS typed decoders for ETF-serialized custom types |
-| `.generated_clients/<namespace>/src/generated/rpc_ffi.mjs` | ETF codec + WebSocket client (copied from rally_runtime); unwraps wire Ok before per-call RPC callbacks and routes framework errors through the registered RPC error handler |
+| `.generated_clients/<namespace>/src/generated/codec_ffi.mjs` | Libero-generated JS typed decoders for serialized custom types |
+| `.generated_clients/<namespace>/src/generated/transport_ffi.mjs` | Browser WebSocket runtime copied from `rally_runtime`; delegates protocol encoding and decoding to Libero |
 
 ## Architecture
 
@@ -153,7 +155,7 @@ Running `gleam run -m rally` produces:
 | `generator/http_handler.gleam` | HTTP RPC handler generation |
 | `format.gleam` | `gleam format` runner for generated code |
 
-Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generates dispatch source), walker (BFS type graph), codegen_decoders (JS type registration), field_type (type representation), wire (ETF codec), trace (panic catching). Rally delegates JS typed decoder generation to Libero so response decoders and constructor registrations stay in sync with Libero's wire boundary.
+Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generates dispatch source), walker (BFS type graph), codegen_decoders (JS type registration), field_type (type representation), wire/protocol helpers, and trace (panic catching). Rally delegates typed protocol code to Libero so response decoders, constructor registrations, and future protocol options stay in sync with Libero's contract boundary.
 
 Generated client layout wrapping is route-specific: each page uses the nearest layout assigned by the scanner. SSR client context is built once per request and reused for rendering and embedded hydration flags. Background jobs use a `claimed_at` lease so running jobs are reclaimed only after the lease expires.
 
@@ -168,10 +170,10 @@ Generated client layout wrapping is route-specific: each page uses the nearest l
 | `session.gleam` | Session cookie generation and extraction |
 | `env.gleam` | `APP_ENV` parsing, secure-cookie policy, browser env injection |
 | `topics.gleam` | Topic pub/sub using OTP `pg` process groups |
-| `wire.gleam` | Thin wrapper over libero/wire (ETF encode/decode, frame tagging) + tuple_element |
-| `codec.gleam` | Base64 ETF serialization for SSR flags |
+| `wire.gleam` | Thin wrapper over libero/wire protocol helpers + tuple_element |
+| `codec.gleam` | Libero-backed serialization for SSR flags |
 | `ssr.gleam` | HTML rendering via lustre element |
-| `rpc_ffi.mjs` | JS ETF codec + WebSocket client with auto-reconnect, RPC framework-error routing, and dev-mode message inspector |
+| `transport_ffi.mjs` | Browser WebSocket client with auto-reconnect, RPC framework-error routing, Libero protocol calls, and dev-mode message inspector |
 | `rally_runtime_ffi.erl` | Erlang FFI: WS process state management, push frame accumulator |
 
 ### Broadcast and Topics
@@ -187,10 +189,11 @@ Four-level server-to-client messaging using OTP `pg` process groups:
 
 ### Transport
 
-- **Wire format:** ETF (Erlang External Term Format), binary
-- **Call envelope:** `{module_name, request_id, msg}` for client to server RPC calls
-- **Response frame:** `<<0x00, request_id:32, response_etf>>`: correlated response
-- **Push frame:** `<<0x01, {module_name, msg}_etf>>`: server to client push
+- **Current wire format:** ETF (Erlang External Term Format), binary
+- **Configured protocol target:** Rally should call Libero protocol helpers instead of depending on ETF frame details
+- **Call envelope:** Libero-owned request shape for client to server RPC calls
+- **Response frame:** Libero-owned correlated response frame
+- **Push frame:** Libero-owned server to client push frame
 - **Transport:** WebSocket with auto-reconnect, or HTTP POST /rpc for non-WebSocket clients
 - **HTTP RPC:** scaffolded apps and the RealWorld example route `POST /rpc` to `generated/<namespace>/http_handler.handle`
 - **Page pushes:** generated clients register a push handler for pages whose `Msg` has a single-field `ToClient` wrapper, usually `GotServerMsg(ToClient)`

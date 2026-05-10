@@ -2,6 +2,12 @@
 
 A full-stack web framework for Gleam on the BEAM. Write page modules, run the codegen, get a working web app with real-time client-server messaging over WebSockets.
 
+Rally should be a protocol-oblivious consumer of Libero. Rally owns app
+lifecycle and transport behavior; Libero owns the typed protocol contract. ETF
+remains the native path for generated Gleam/Lustre clients, and future JSON RPC
+support should arrive through Libero config rather than Rally learning JSON
+wire details. See [Libero Boundary Spec](docs/libero-boundary-spec.md).
+
 ## Quick start
 
 ```sh
