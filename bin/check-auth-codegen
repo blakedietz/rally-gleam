@@ -2,15 +2,20 @@
 # On-demand auth codegen compile check. Not part of `gleam test`.
 # Creates a minimal auth app in ./tmp, runs codegen, builds, cleans up.
 #
-# Covers: Required+authorize page, from_session, LoadResult.Page,
-#         no-init_loaded page, auth zero-handler namespace.
-# TODO: add server_* handler when Libero ExtraParam dispatch is fixed.
+# Covers: Required+authorize page with server handler, from_session,
+#         LoadResult.Page, no-init_loaded page, auth zero-handler namespace.
 set -euo pipefail
 
 RALLY_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_DIR="$RALLY_ROOT/tmp/auth_check_$$"
 
-cleanup() { rm -rf "$APP_DIR"; }
+cleanup() {
+  if [ "${KEEP_AUTH_CHECK:-}" != "1" ]; then
+    rm -rf "$APP_DIR"
+  else
+    echo "Keeping $APP_DIR for debugging"
+  fi
+}
 trap cleanup EXIT
 
 echo "=== Rally auth codegen check ==="
@@ -89,7 +94,7 @@ GLEAM
 echo '<html><head></head><body><div id="app"></div></body></html>' > "$APP_DIR/src/admin/shell.html"
 echo '<html><head></head><body><div id="app"></div></body></html>' > "$APP_DIR/src/public/shell.html"
 
-# --- admin/pages/dashboard.gleam: Required + authorize ---
+# --- admin/pages/dashboard.gleam: Required + authorize + server handler ---
 cat > "$APP_DIR/src/admin/pages/dashboard.gleam" <<'GLEAM'
 import admin/auth
 import lustre/element
@@ -102,8 +107,18 @@ pub const page_auth = rally_auth.Required
 pub type Model { Model(count: Int) }
 pub type Msg { NoOp }
 
+pub type ServerIncrement { ServerIncrement(amount: Int) }
+
 pub fn authorize(_server_context: ServerContext, identity: auth.Identity) -> Bool {
   case identity { auth.Authenticated(..) -> True  _ -> False }
+}
+
+pub fn server_increment(
+  msg: ServerIncrement,
+  server_context: ServerContext,
+  identity: auth.Identity,
+) -> Result(Int, Nil) {
+  Ok(0)
 }
 
 pub fn load(
