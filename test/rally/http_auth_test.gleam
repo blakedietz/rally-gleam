@@ -1,5 +1,6 @@
 import gleam/option.{None, Some}
 import gleam/string
+import libero
 import libero/field_type
 import libero/scanner
 import rally/generator/http_handler
@@ -75,6 +76,7 @@ pub fn http_auth_imports_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
     )
 
   let assert True = string.contains(output, "import admin/auth")
@@ -99,6 +101,7 @@ pub fn http_auth_resolve_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
     )
 
   let assert True =
@@ -124,6 +127,7 @@ pub fn http_auth_500_on_error_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
     )
 
   let assert True = string.contains(output, "Error(Nil)")
@@ -149,6 +153,7 @@ pub fn http_auth_from_session_identity_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
     )
 
   let assert True = string.contains(output, "identity: identity")
@@ -173,6 +178,7 @@ pub fn http_auth_dispatch_gets_identity_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
     )
 
   let assert True =
@@ -201,6 +207,7 @@ pub fn http_auth_hostname_in_signature_test() {
       Some(AuthConfig(auth_module: "admin/auth")),
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
     )
 
   let assert True = string.contains(output, "hostname hostname: String")
@@ -227,6 +234,7 @@ pub fn http_no_auth_unchanged_test() {
       None,
       contracts,
       from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
     )
 
   let assert False = string.contains(output, "auth.resolve")
@@ -234,4 +242,207 @@ pub fn http_no_auth_unchanged_test() {
   let assert False = string.contains(output, "hostname")
   let assert True =
     string.contains(output, "rpc_dispatch.handle(server_context:, data: body)")
+}
+
+// -- Wire tag derivation test --
+
+pub fn wire_tag_matches_server_prefix_test() {
+  let endpoint = make_endpoint("admin/pages/dashboard", "load_data")
+  let dispatch =
+    libero.generate_dispatch(
+      [endpoint],
+      option.Some("generated@rpc_atoms"),
+      option.Some("generated@rpc_wire"),
+    )
+  // Libero's fn_name is "load_data" (without server_ prefix).
+  // The wire variant tag should be "server_load_data".
+  let assert True = string.contains(dispatch, "\"server_load_data\"")
+}
+
+// -- Auth enforcement tests (page-level policy for RPC) --
+
+pub fn http_auth_generates_handler_page_info_test() {
+  let endpoints = [
+    make_endpoint("admin/pages/dashboard", "load_data"),
+    make_endpoint("admin/pages/settings", "update_config"),
+  ]
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+    #(
+      make_route("admin/pages/settings"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: False,
+        has_authorize: True,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
+    )
+
+  // Should contain handler_page_info mapping both endpoints
+  let assert True = string.contains(output, "fn handler_page_info(")
+  let assert True = string.contains(output, "\"server_load_data\"")
+  let assert True = string.contains(output, "\"server_update_config\"")
+}
+
+pub fn http_auth_required_page_returns_401_test() {
+  let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
+    )
+
+  // Required pages must check is_authenticated before dispatch
+  let assert True = string.contains(output, "auth.is_authenticated(identity)")
+  let assert True = string.contains(output, "401")
+}
+
+pub fn http_auth_optional_page_dispatches_test() {
+  let endpoints = [make_endpoint("public/pages/about", "get_info")]
+  let contracts = [
+    #(
+      make_route("public/pages/about"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: False,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/public/rpc_dispatch",
+      Some(AuthConfig(auth_module: "public/auth")),
+      contracts,
+      from_session_module: "public/client_context_server",
+      wire_module: "generated@public@rpc_wire",
+    )
+
+  // Optional pages should NOT check is_authenticated
+  let assert False = string.contains(output, "auth.is_authenticated(identity)")
+  // But should still resolve and dispatch
+  let assert True = string.contains(output, "auth.resolve(")
+  let assert True = string.contains(output, "rpc_dispatch.handle(")
+}
+
+pub fn http_auth_authorize_false_returns_403_test() {
+  let endpoints = [make_endpoint("admin/pages/settings", "update_config")]
+  let contracts = [
+    #(
+      make_route("admin/pages/settings"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: True,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
+    )
+
+  // Should generate check_page_authorize function
+  let assert True = string.contains(output, "fn check_page_authorize(")
+  // Should call authorize on the page module
+  let assert True =
+    string.contains(
+      output,
+      "admin_pages_settings.authorize(server_context, identity)",
+    )
+  // Should return 403 on auth failure
+  let assert True = string.contains(output, "403")
+}
+
+pub fn http_auth_unknown_variant_returns_400_test() {
+  let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
+    )
+
+  // handler_page_info returns Error(Nil) for unknown variants
+  // The handle function must handle this case
+  let assert True = string.contains(output, "Error(Nil)")
+  // Should return 400 (not fall through to dispatch)
+  // The existing 500 is from resolve Error; we need a distinct 400 for unknown variant
+  let assert True = string.contains(output, "400")
+}
+
+pub fn http_auth_malformed_body_returns_400_test() {
+  let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+      wire_module: "generated@admin@rpc_wire",
+    )
+
+  // decode_call failure should return 400
+  let assert True = string.contains(output, "wire.decode_call(body)")
+  let assert True = string.contains(output, "Error(_)")
 }

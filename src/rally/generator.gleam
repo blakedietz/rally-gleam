@@ -713,9 +713,9 @@ pub fn handle(
   ensure_atoms()
   case wire.decode_call(data) {
     Ok(#(\"rpc\", request_id, _msg)) ->
-      #(wire.encode_response(request_id:, value: Error(UnknownFunction(\"rpc\")))), server_context)
+      #(wire.encode_response(request_id:, value: Error(UnknownFunction(\"rpc\"))), server_context)
     Ok(#(name, request_id, _)) ->
-      #(wire.encode_response(request_id:, value: Error(UnknownFunction(name)))), server_context)
+      #(wire.encode_response(request_id:, value: Error(UnknownFunction(name))), server_context)
     Error(_) ->
       #(wire.encode_response(request_id: 0, value: Error(MalformedRequest)), server_context)
   }
