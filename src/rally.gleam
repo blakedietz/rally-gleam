@@ -763,21 +763,8 @@ fn do_write_files(
   // Write protocol_wire facade
   let protocol_wire_output =
     string.replace(config.output_ws, "ws_handler.gleam", "protocol_wire.gleam")
-  let namespace_path = case config.pages_root {
-    "src/pages" -> ""
-    _ -> {
-      config.pages_root
-      |> string.drop_start(4)
-      |> string.replace("/pages", "")
-    }
-  }
   let protocol_wire_source =
-    generator.generate_protocol_wire(
-      config.protocol,
-      namespace_path,
-      config.atoms_module,
-      config.wire_module,
-    )
+    generator.generate_protocol_wire(config.protocol, config.atoms_module)
   use _ <- result.try(
     write_file(protocol_wire_output, protocol_wire_source)
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
