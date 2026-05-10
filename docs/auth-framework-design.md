@@ -69,21 +69,54 @@ The constant is named `page_auth` (not `auth`) to avoid colliding with the app's
 
 ### Page-Level Authorization
 
-Pages that need finer-grained access control export an `authorize` function:
+Pages that need role or category-level access control export an `authorize` function:
 
 ```gleam
 pub fn authorize(
   server_context: ServerContext,
   identity: Identity,
-  // route params — rally passes whatever the page's route extracts
 ) -> Bool
 ```
+
+`authorize` is a page gate: "Can this type of user access this area at all?" It checks roles, org membership, or user categories. It does not check resource-specific permissions (e.g., "can this user access item #5?").
 
 Rally calls `authorize` after `from_session` for pages that export it. Returns `False` = 403 or redirect. This applies to both Required and Optional pages: if `authorize` exists and returns `False`, access is denied regardless of auth policy.
 
 Pages without `authorize` are accessible to any authenticated user (Required) or anyone (Optional).
 
-`authorize` receives the enriched `ServerContext` (with org_id set) so apps can run tenant-scoped DB queries for row-level or resource-scoped permission checks.
+`authorize` receives the enriched `ServerContext` (with org_id set) so apps can run tenant-scoped queries (e.g., check org membership).
+
+### Resource-Level Authorization
+
+Resource-specific permission checks (e.g., "does this EventManager have access to event #5?", "has this member purchased product #3?") happen in `load` and server handlers, not in `authorize`. These functions have access to route params (from the URL for `load`) or message fields (for server handlers), plus identity and server_context.
+
+```gleam
+// src/admin/pages/registration/events/id_/registrations.gleam
+
+// Page gate: any admin with item-management capability
+pub fn authorize(server_context, identity) -> Bool {
+  case identity {
+    Admin(access: FullAccess, ..) | Admin(access: ItemManager(..), ..) -> True
+    _ -> False
+  }
+}
+
+// Resource check: this specific event
+pub fn load(server_context, identity) -> LoadResult(Data) {
+  let event_id = // from route params
+  case identity {
+    Admin(access: ItemManager(permissions), ..) ->
+      case has_item_permission(permissions, event_id, Registrations) {
+        True -> // load data
+        False -> Redirect("/admin", [])
+      }
+    Admin(access: FullAccess, ..) -> // load data
+    _ -> Redirect("/admin", [])
+  }
+}
+```
+
+This separation keeps `authorize` simple (one signature, no route params, works identically across SSR, WS, and HTTP RPC) and puts resource-level checks where the resource identity is naturally available.
 
 ### Load Result Type
 
@@ -119,7 +152,7 @@ HTTP GET → extract session_id from cookie
     → Ok(identity):
       → if Required and !is_authenticated(identity): redirect to redirect_url
       → from_session(server_context, session_id, hostname, identity) → #(client_context, enriched_sc)
-      → if authorize exists and !authorize(enriched_sc, identity, params): 403
+      → if authorize exists and !authorize(enriched_sc, identity): 403
       → load(enriched_sc, identity) → LoadResult
         → Page(data, cookies): render page, apply cookies
         → Redirect(url, cookies): HTTP 302, apply cookies
@@ -140,8 +173,7 @@ HTTP POST /rpc → extract session_id from cookie → parse RPC message
       → if Required and !is_authenticated(identity): return 401
       → from_session(server_context, session_id, hostname, identity) → #(_, enriched_sc)
       → if authorize exists on owning page:
-        → extract route params from message (see "RPC Route Params" below)
-        → authorize(enriched_sc, identity, params): False → 403
+        → authorize(enriched_sc, identity): False → 403
       → dispatch to server_* handler with enriched_sc and identity
 ```
 
@@ -155,14 +187,17 @@ The upgrade always proceeds. Auth is page-level, not namespace-level: a namespac
 
 ```
 HTTP upgrade request → extract session_id and hostname from request
-  → resolve(server_context, session_id) → identity (Ok or Error)
-  → from_session(server_context, session_id, hostname, identity) → #(client_context, enriched_sc)
-  → proceed with upgrade, store identity + enriched_sc + client_context + auth_timestamp on connection state
+  → resolve(server_context, session_id)
+    → Error: reject upgrade with HTTP 500
+    → Ok(identity):
+      → from_session(server_context, session_id, hostname, identity) → #(client_context, enriched_sc)
+      → proceed with upgrade
+      → store identity + enriched_sc + client_context + hostname + auth_timestamp on connection state
 ```
 
-If `resolve` returns `Error`, the upgrade is rejected with HTTP 500 (infrastructure failure, not an auth policy decision).
+`resolve` errors reject the upgrade (infrastructure failure, not an auth policy decision). Page-level auth (Required/Optional, authorize) is NOT checked at upgrade time.
 
-`from_session` runs at upgrade time because the HTTP Host header (needed for org/tenant resolution) is not available after the WebSocket handshake. The enriched ServerContext and ClientContext are stored on connection state and used for all subsequent auth checks and RPC dispatch.
+`from_session` runs at upgrade time because the HTTP Host header (needed for org/tenant resolution) is not available after the WebSocket handshake. The hostname is stored on connection state so reauth can re-run `from_session` later. The enriched ServerContext and ClientContext are stored on connection state and used for all subsequent auth checks and RPC dispatch.
 
 **On page navigation (page-init frame):**
 
@@ -172,7 +207,7 @@ Auth is checked against the candidate page *before* updating connection state. I
 page-init frame → parse candidate page + route params (do NOT update connection state yet)
   → if Required and !is_authenticated(identity): send auth-redirect frame, keep current page
   → if authorize exists on candidate page:
-    → authorize(enriched_sc, identity, candidate_route_params)
+    → authorize(enriched_sc, identity)
     → False: send auth-failure frame, keep current page
   → auth passed: update current page + route params on connection state
 ```
@@ -187,13 +222,13 @@ RPC auth uses the **owning page** (determined by the decoded message type at cod
 on_message:
   → if (now - last_auth_check) > reauth_interval:
     → re-resolve identity, update connection state
-    → re-run from_session to refresh enriched_sc and client_context
-      (role, org membership, theme may have changed)
+    → re-run from_session(server_context, session_id, stored_hostname, identity)
+      to refresh enriched_sc and client_context (role, org membership, theme may have changed)
   → decode RPC message → determine owning page (codegen-known, from message type)
   → verify owning page matches current page (reject if mismatch)
   → if Required on owning page and !is_authenticated(identity): send auth-redirect frame
   → if authorize exists on owning page:
-    → authorize(enriched_sc, identity, current_route_params)
+    → authorize(enriched_sc, identity)
     → False: send auth-failure frame
   → dispatch to server_* handler with enriched_sc and identity
 ```
@@ -205,27 +240,6 @@ on_message:
 **Reauth refresh:** when reauth triggers, both `resolve` and `from_session` re-run. This ensures the connection state reflects current reality: role changes, org membership changes, theme updates, etc. This is slightly more expensive than re-resolving identity alone, but only happens every 30 minutes.
 
 **Reauth interval:** default 30 minutes. No timers, no polling. One integer comparison per incoming message. Only re-resolves when the interval has elapsed.
-
-### RPC Route Params
-
-`authorize` may need route params (e.g., item_id) to do row-level checks. How params are available depends on the transport:
-
-**WebSocket:** the connection tracks the current page and its route params from the latest page-init frame. RPC dispatch verifies the owning page matches the current page, then passes the current route params to `authorize`.
-
-**HTTP RPC:** there's no "current page" context. The RPC message itself carries resource identifiers (e.g., `DeleteOrder(order_id: 5)`). For authorize to work, the page module can export an optional function:
-
-```gleam
-pub fn rpc_route_params(msg: ServerMsg) -> RouteParams {
-  case msg {
-    DeleteOrder(order_id:, ..) -> RouteParams(id: order_id)
-    _ -> RouteParams(id: 0)
-  }
-}
-```
-
-Rally calls `rpc_route_params` to extract params from the message before calling `authorize`.
-
-**Codegen safety:** if a page exports both `authorize` and `server_*` handlers but does not export `rpc_route_params`, rally emits a codegen error. This prevents silent authorization against empty/default params. Pages that don't need route params in their authorize check shouldn't export authorize in the first place (page-level auth policy is sufficient).
 
 ### Server Handler Signatures
 
@@ -247,9 +261,8 @@ During codegen, rally's scanner checks each namespace for:
 
 1. `auth.gleam` exists at namespace root
 2. If yes, verify it exports: `Identity` (type), `resolve` (fn), `is_authenticated` (fn), `redirect_url` (const)
-3. For each page module, check for `pub const page_auth` declaration, optional `pub fn authorize`, and optional `pub fn rpc_route_params`
-4. If a page has `authorize` and `server_*` handlers but no `rpc_route_params`: codegen error
-5. Generate handler code accordingly
+3. For each page module, check for `pub const page_auth` declaration and optional `pub fn authorize`
+4. Generate handler code accordingly
 
 Missing exports from auth.gleam should produce a clear codegen error.
 
@@ -276,13 +289,12 @@ The `identity` parameter is added to `load`, and the return type becomes `LoadRe
 3. Scanner: detect `pub const page_auth`, `pub fn authorize`, and `pub fn rpc_route_params` on page modules
 4. SSR handler codegen: resolve → is_authenticated check → from_session(identity) → authorize(enriched_sc) → load ordering
 5. SSR handler codegen: handle LoadResult (Page vs Redirect, apply cookies)
-6. HTTP RPC handler codegen: resolve → is_authenticated → from_session → authorize (with rpc_route_params) → dispatch with identity
-7. WS on-upgrade: resolve + from_session, store identity + enriched_sc + client_context + auth_timestamp on connection state (reject on resolve Error only)
+6. HTTP RPC handler codegen: resolve → is_authenticated → from_session → authorize → dispatch with identity
+7. WS on-upgrade: resolve + from_session, store identity + enriched_sc + client_context + hostname + auth_timestamp on connection state (reject on resolve Error only)
 8. WS handler codegen: enforce page-level auth on page-init frames (Required + is_authenticated, then authorize)
 9. WS handler codegen: periodic re-resolve on message (30 min interval)
 10. WS handler: send auth-failure / auth-redirect frames on policy failure
-11. Codegen error: page with authorize + server_* handlers but no rpc_route_params
-12. Error reporting: clear messages for missing auth exports, resolve Error → 500 with generic message
+11. Error reporting: clear messages for missing auth exports, resolve Error → 500 with generic message
 
 ## Design Principles
 
