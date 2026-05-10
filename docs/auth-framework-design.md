@@ -44,9 +44,9 @@ resolve(server_context, session_id) → Result(Identity, Nil)
   → Ok(identity):
     → if Required and !is_authenticated(identity): redirect to redirect_url
     → from_session(server_context, session_id, hostname, identity) → #(client_context, enriched_server_context)
-    → if authorize exists: authorize(enriched_server_context, identity, params)
+    → if authorize exists: authorize(enriched_server_context, identity)
       → False: 403 (regardless of Required or Optional)
-    → load(enriched_server_context, identity) → LoadResult
+    → load(route_params..., enriched_server_context, identity) → LoadResult
 ```
 
 `from_session`'s signature gains an `identity` parameter. It uses identity to populate identity-related ClientContext fields (email, role, dark_mode preference, etc.) instead of hardcoding or re-looking-up the session. One session lookup, one code path, no duplication.
@@ -272,21 +272,40 @@ When auth.gleam exists for a namespace, page function signatures change:
 
 **Without auth (current):**
 ```gleam
+// Static page
 pub fn load(server_context: ServerContext) -> Data
+
+// Dynamic page (e.g., events/id_.gleam)
+pub fn load(id: Int, server_context: ServerContext) -> Data
 ```
 
 **With auth:**
 ```gleam
+// Static page
 pub fn load(server_context: ServerContext, identity: Identity) -> LoadResult(Data)
+
+// Dynamic page (e.g., events/id_.gleam)
+pub fn load(id: Int, server_context: ServerContext, identity: Identity) -> LoadResult(Data)
 ```
 
-The `identity` parameter is added to `load`, and the return type becomes `LoadResult(Data)`. Pages access identity data through their model (populated in `init_loaded`). The `view` function signature doesn't change since identity flows through the model.
+Rally appends `identity` after `server_context`. Route params (generated from dynamic path segments) come first, matching the existing codegen convention. The return type becomes `LoadResult(Data)`. Pages access identity data through their model (populated in `init_loaded`). The `view` function signature doesn't change since identity flows through the model.
+
+This is also where resource-level authorization happens. A dynamic page's `load` has the route params (e.g., `id`) and can check resource-specific permissions before loading data:
+
+```gleam
+pub fn load(id: Int, server_context: ServerContext, identity: Identity) -> LoadResult(Data) {
+  case check_item_permission(server_context, identity, id) {
+    True -> Page(load_data(server_context, id), [])
+    False -> Redirect("/admin", [])
+  }
+}
+```
 
 ## Implementation Checklist
 
 1. Define `rally.Required` and `rally.Optional` constants, `LoadResult` type, `Cookie` type
 2. Scanner: detect auth.gleam per namespace, parse exports (Identity, resolve, is_authenticated, redirect_url)
-3. Scanner: detect `pub const page_auth`, `pub fn authorize`, and `pub fn rpc_route_params` on page modules
+3. Scanner: detect `pub const page_auth` and optional `pub fn authorize` on page modules
 4. SSR handler codegen: resolve → is_authenticated check → from_session(identity) → authorize(enriched_sc) → load ordering
 5. SSR handler codegen: handle LoadResult (Page vs Redirect, apply cookies)
 6. HTTP RPC handler codegen: resolve → is_authenticated → from_session → authorize → dispatch with identity
