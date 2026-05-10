@@ -671,6 +671,7 @@ fn do_write_files(
       rpc_dispatch_module,
       auth_config,
       from_session_module:,
+      endpoints: handler_endpoints,
     )
   use _ <- result.try(
     write_file(config.output_route, route_source)

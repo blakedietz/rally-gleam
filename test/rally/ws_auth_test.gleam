@@ -1,9 +1,24 @@
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import libero/field_type
+import libero/scanner
 import rally/generator/ws_handler
 import rally/types.{
   type PageContract, type ScannedRoute, AuthConfig, PageContract, ScannedRoute,
   StaticSegment,
+}
+
+fn make_endpoint(module: String, fn_name: String) -> scanner.HandlerEndpoint {
+  scanner.HandlerEndpoint(
+    module_path: module,
+    fn_name: fn_name,
+    return_ok: field_type.IntField,
+    return_err: field_type.NilField,
+    params: [],
+    mutates_context: False,
+    msg_type: None,
+  )
 }
 
 fn make_contract(
@@ -28,6 +43,15 @@ fn make_contract(
     page_auth_required:,
     has_authorize:,
   )
+}
+
+fn endpoints_for(
+  contracts: List(#(ScannedRoute, PageContract)),
+) -> List(scanner.HandlerEndpoint) {
+  list.map(contracts, fn(pair: #(ScannedRoute, PageContract)) {
+    let #(route, _) = pair
+    make_endpoint(route.module_path, "stub_handler")
+  })
 }
 
 fn make_route(module: String) -> ScannedRoute {
@@ -60,6 +84,7 @@ pub fn ws_no_auth_on_init_has_hostname_test() {
       "generated/rpc_dispatch",
       None,
       from_session_module: "client_context_server",
+      endpoints: endpoints_for(contracts),
     )
 
   let assert True =
@@ -84,6 +109,7 @@ pub fn ws_no_auth_does_not_call_resolve_test() {
       "generated/rpc_dispatch",
       None,
       from_session_module: "client_context_server",
+      endpoints: endpoints_for(contracts),
     )
 
   let assert False = string.contains(output, "auth.resolve")
@@ -110,6 +136,7 @@ pub fn ws_auth_on_init_resolves_identity_test() {
       "generated/rpc_dispatch",
       Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
     )
 
   let assert True =
@@ -134,6 +161,7 @@ pub fn ws_auth_on_init_calls_from_session_with_identity_test() {
       "generated/rpc_dispatch",
       Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
     )
 
   let assert True =
@@ -158,6 +186,7 @@ pub fn ws_auth_on_init_stores_auth_state_test() {
       "generated/rpc_dispatch",
       Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
     )
 
   let assert True = string.contains(output, "effect.put_ws_identity(identity)")
@@ -185,6 +214,7 @@ pub fn ws_page_init_required_emits_auth_redirect_error_test() {
       "generated/rpc_dispatch",
       Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
     )
 
   // Must check is_authenticated before updating page state
@@ -212,6 +242,7 @@ pub fn ws_page_init_authorize_false_emits_forbidden_error_test() {
       "generated/rpc_dispatch",
       Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
     )
 
   // Must include the error response
@@ -251,6 +282,7 @@ pub fn ws_page_init_no_auth_still_updates_state_test() {
       "generated/rpc_dispatch",
       None,
       from_session_module: "client_context_server",
+      endpoints: endpoints_for(contracts),
     )
 
   // No-auth page-init should still update state as before
@@ -277,6 +309,7 @@ pub fn ws_auth_check_page_authorize_always_defined_test() {
       "generated/rpc_dispatch",
       Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
     )
 
   let assert True =
@@ -301,6 +334,7 @@ pub fn ws_auth_rpc_dispatches_with_identity_test() {
       "generated/rpc_dispatch",
       Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
     )
 
   // Auth RPC dispatch must pass identity
@@ -315,4 +349,154 @@ pub fn ws_auth_rpc_dispatches_with_identity_test() {
   // Missing identity must fail closed
   let assert True =
     string.contains(output, "Error(Nil) -> {")
+}
+
+// -- WS RPC owning-page enforcement --
+
+pub fn ws_auth_rpc_generates_handler_page_info_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // Must generate handler_page_info mapping variant tags to page modules
+  let assert True = string.contains(output, "fn handler_page_info(")
+  let assert True =
+    string.contains(output, "\"server_")
+  let assert True =
+    string.contains(output, "Error(Nil)")
+}
+
+pub fn ws_auth_rpc_extracts_variant_tag_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // RPC branch must extract variant tag from decoded message
+  let assert True = string.contains(output, "wire.variant_tag(raw)")
+  // Must call handler_page_info with the variant
+  let assert True = string.contains(output, "handler_page_info(variant)")
+}
+
+pub fn ws_auth_rpc_enforces_required_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // RPC branch must check is_authenticated for Required pages
+  let assert True = string.contains(output, "required &&")
+  let assert True =
+    string.contains(output, "auth.is_authenticated(identity)")
+  // On failure, emit auth:redirect
+  let assert True =
+    string.contains(output, "auth:redirect:\" <> auth.redirect_url")
+}
+
+pub fn ws_auth_rpc_enforces_authorize_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/settings"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: True,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // RPC branch must check authorize for pages that export it
+  let assert True =
+    string.contains(output, "check_page_authorize(page, server_context, identity)")
+  // On failure, emit auth:forbidden
+  let assert True =
+    string.contains(output, "auth:forbidden")
+  // Must still dispatch on success
+  let assert True =
+    string.contains(
+      output,
+      "rpc_dispatch.handle(server_context:, data:, identity:)",
+    )
+}
+
+pub fn ws_auth_rpc_unknown_variant_fails_closed_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // handler_page_info returns Error(Nil) for unknown variants
+  // The RPC branch must handle this case
+  let assert True =
+    string.contains(output, "Error(Nil)")
 }

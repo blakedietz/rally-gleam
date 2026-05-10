@@ -1,6 +1,7 @@
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import libero/scanner.{type HandlerEndpoint}
 import rally/types.{
   type AuthConfig, type PageContract, type ScannedRoute, AuthConfig,
 }
@@ -11,6 +12,7 @@ pub fn generate(
   rpc_dispatch_module: String,
   auth_config: Option(AuthConfig),
   from_session_module from_session_module: String,
+  endpoints endpoints: List(HandlerEndpoint),
 ) -> String {
   let has_auth = option.is_some(auth_config)
   let auth_module_ref = case auth_config {
@@ -48,6 +50,7 @@ pub fn generate(
       generate_frame_handler_with_auth(
         page_contracts,
         auth_module_ref,
+        endpoints,
       )
     False -> generate_frame_handler_no_auth()
   }
@@ -207,8 +210,10 @@ fn generate_frame_handler_no_auth() -> String {
 fn generate_frame_handler_with_auth(
   page_contracts: List(#(ScannedRoute, PageContract)),
   auth_ref: String,
+  endpoints: List(HandlerEndpoint),
 ) -> String {
   let page_auth_policy_fn = generate_page_auth_policy(page_contracts)
+  let handler_page_info_fn = generate_handler_page_info(page_contracts, endpoints)
   let check_page_authorize_fn = generate_ws_check_page_authorize(
     page_contracts,
     auth_ref,
@@ -312,20 +317,77 @@ fn generate_frame_handler_with_auth(
               mist.continue(state)
             }
             Ok(identity) -> {
-              let start = timestamp.system_time()
-              let #(response_data, new_ctx) = rpc_dispatch.handle(server_context:, data:, identity:)
-              let elapsed_ms =
-                timestamp.difference(start, timestamp.system_time())
-                |> duration.to_milliseconds()
+              case wire.variant_tag(raw) {
+                Error(_) -> {
+                  let response_frame = wire.encode_response(request_id:, value: Error(\"auth:malformed\"))
+                  let _send_result = mist.send_binary_frame(conn, response_frame)
+                  send_pending_frames(conn)
+                  mist.continue(state)
+                }
+                Ok(variant) -> {
+                  case handler_page_info(variant) {
+                    Error(Nil) -> {
+                      let response_frame = wire.encode_response(request_id:, value: Error(\"auth:unknown_rpc\"))
+                      let _send_result = mist.send_binary_frame(conn, response_frame)
+                      send_pending_frames(conn)
+                      mist.continue(state)
+                    }
+                    Ok(info) -> {
+                      let owning_page = info.page
+                      let required = info.required
+                      let has_authorize = info.has_authorize
+                      case owning_page != current_page {
+                        True -> {
+                          let response_frame = wire.encode_response(request_id:, value: Error(\"auth:page_mismatch\"))
+                          let _send_result = mist.send_binary_frame(conn, response_frame)
+                          send_pending_frames(conn)
+                          mist.continue(state)
+                        }
+                        False -> {
+                          case required && !"
+    <> auth_ref
+    <> ".is_authenticated(identity) {
+                        True -> {
+                          let response_frame = wire.encode_response(request_id:, value: Error(\"auth:redirect:\" <> "
+    <> auth_ref
+    <> ".redirect_url))
+                          let _send_result = mist.send_binary_frame(conn, response_frame)
+                          send_pending_frames(conn)
+                          mist.continue(state)
+                        }
+                        False -> {
+                          case has_authorize && !check_page_authorize(owning_page, server_context, identity) {
+                            True -> {
+                              let response_frame = wire.encode_response(request_id:, value: Error(\"auth:forbidden\"))
+                              let _send_result = mist.send_binary_frame(conn, response_frame)
+                              send_pending_frames(conn)
+                              mist.continue(state)
+                            }
+                            False -> {
+                              let start = timestamp.system_time()
+                              let #(response_data, new_ctx) = rpc_dispatch.handle(server_context:, data:, identity:)
+                              let elapsed_ms =
+                                timestamp.difference(start, timestamp.system_time())
+                                |> duration.to_milliseconds()
 
-              let session_id = effect.get_ws_session()
-              let assert Ok(db_conn) = system.get_conn()
-              system.log_to_server(db: db_conn, session_id: session_id, user_id: Error(Nil), page: current_page, value: raw, raw_payload: data, elapsed_ms: elapsed_ms)
+                              let session_id = effect.get_ws_session()
+                              let assert Ok(db_conn) = system.get_conn()
+                              system.log_to_server(db: db_conn, session_id: session_id, user_id: Error(Nil), page: current_page, value: raw, raw_payload: data, elapsed_ms: elapsed_ms)
 
-              let Nil = effect.put_ws_state(conn, new_ctx, current_page)
-              let _send_result = mist.send_binary_frame(conn, response_data)
-              send_pending_frames(conn)
-              mist.continue(state)
+                              let Nil = effect.put_ws_state(conn, new_ctx, current_page)
+                              let _send_result = mist.send_binary_frame(conn, response_data)
+                              send_pending_frames(conn)
+                              mist.continue(state)
+                            }
+                          }
+                        }
+                      }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -352,7 +414,7 @@ fn generate_frame_handler_with_auth(
 
 " <> helpers_string()
 
-  handler <> "\n\n" <> page_auth_policy_fn <> "\n\n" <> page_has_authorize_fn(page_contracts) <> "\n\n" <> check_page_authorize_fn
+  handler <> "\n\n" <> page_auth_policy_fn <> "\n\n" <> page_has_authorize_fn(page_contracts) <> "\n\n" <> handler_page_info_fn <> "\n\n" <> check_page_authorize_fn
 }
 
 fn generate_page_auth_policy(
@@ -461,6 +523,57 @@ fn generate_ws_check_page_authorize(
   }
 }
 
+fn generate_handler_page_info(
+  page_contracts: List(#(ScannedRoute, PageContract)),
+  endpoints: List(HandlerEndpoint),
+) -> String {
+  // Build a dict from page module path to contract for quick lookup
+  let contract_for =
+    list.filter_map(page_contracts, fn(pair) {
+      let #(route, contract) = pair
+      Ok(#(route.module_path, contract))
+    })
+
+  let arms =
+    list.filter_map(endpoints, fn(endpoint) {
+      let wire_tag = "server_" <> endpoint.fn_name
+      case
+        list.find_map(contract_for, fn(pair) {
+          let #(module_path, contract) = pair
+          case module_path == endpoint.module_path {
+            True -> Ok(contract)
+            False -> Error(Nil)
+          }
+        })
+      {
+        Ok(contract) ->
+          Ok("    \""
+            <> wire_tag
+            <> "\" -> Ok(PageAuthInfo(page: \""
+            <> endpoint.module_path
+            <> "\", required: "
+            <> bool_str(contract.page_auth_required)
+            <> ", has_authorize: "
+            <> bool_str(contract.has_authorize)
+            <> "))")
+        Error(Nil) ->
+          panic as "rally codegen: WS handler has no matching page contract"
+      }
+    })
+    |> string.join("\n")
+    |> fn(s) { s <> "\n    _ -> Error(Nil)" }
+
+  "type PageAuthInfo {
+  PageAuthInfo(page: String, required: Bool, has_authorize: Bool)
+}
+
+fn handler_page_info(variant: String) -> Result(PageAuthInfo, Nil) {
+  case variant {
+" <> arms <> "
+  }
+}"
+}
+
 fn stub_check_page_authorize(auth_ref: String) -> String {
   "fn check_page_authorize(page: String, server_context: ServerContext, identity: "
   <> auth_ref
@@ -500,6 +613,13 @@ fn last_segment(module_path: String) -> String {
 
 fn module_to_alias(module_path: String) -> String {
   string.replace(module_path, "/", "_")
+}
+
+fn bool_str(b: Bool) -> String {
+  case b {
+    True -> "True"
+    False -> "False"
+  }
 }
 
 fn import_as(module_path: String, alias: String) -> String {

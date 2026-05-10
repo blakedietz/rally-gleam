@@ -175,6 +175,7 @@ pub fn ws_handler_logs_decoded_rpc_value_test() {
       "generated/rpc_dispatch",
       option.None,
       from_session_module: "client_context_server",
+      endpoints: [],
     )
 
   output
