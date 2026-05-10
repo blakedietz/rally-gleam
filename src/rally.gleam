@@ -10,6 +10,7 @@ import libero/codegen_dispatch.{ExtraParam}
 import libero/codegen_wire_erl
 import libero/field_type
 import libero/gen_error
+import libero/json/contract as json_contract
 import libero/scanner as libero_scanner
 import rally/dependency_resolver
 import rally/format
@@ -394,62 +395,8 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/client.js'></script></body>\n</html>"
   }
 
-  let protocol_wire_output =
-    string.replace(config.output_ws, "ws_handler.gleam", "protocol_wire.gleam")
-  let protocol_wire_module =
-    protocol_wire_output
-    |> string.drop_start(4)
-    |> string.drop_end(6)
-
-  let ssr_source =
-    ssr_handler.generate(
-      contracts,
-      has_client_context,
-      has_from_session,
-      from_session_module,
-      router_module,
-      shell_html,
-      config.atoms_module,
-      option.Some(config.wire_module),
-      case has_client_context {
-        True -> option.Some(client_context_module)
-        False -> option.None
-      },
-      auth_config,
-      wire_import_module: protocol_wire_module,
-    )
-
-  // Write generated files, aborting on first failure
-  let result =
-    do_write_files(
-      config:,
-      route_source:,
-      dispatch_source:,
-      sd_source:,
-      ssr_source:,
-      contracts:,
-      handler_endpoints:,
-      rpc_dispatch_module:,
-      auth_config:,
-      from_session_module:,
-      protocol_wire_module:,
-    )
-  use _ <- result.try(result)
-
-  let transport_ffi_path =
-    config.rally_package_path <> "/src/rally_runtime/transport_ffi.mjs"
-  use transport_ffi_content <- result.try(
-    simplifile.read(transport_ffi_path)
-    |> result.map_error(fn(e) {
-      RallyError(
-        "Cannot read transport_ffi.mjs from rally package at "
-        <> transport_ffi_path
-        <> ": "
-        <> simplifile.describe_error(e),
-      )
-    }),
-  )
-
+  // Read client context source and walk discovered types early
+  // (needed for contract hash computation before writing protocol_wire)
   let client_context_source = case has_client_context {
     True ->
       case simplifile.read(client_context_path) {
@@ -528,6 +475,101 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     list.append(page_dispatches, cc_dispatch)
   }
 
+  // Compute contract hash for JSON protocol
+  let push_contracts =
+    list.filter_map(contracts, fn(pair) {
+      let #(route, contract) = pair
+      case has_to_client_type(route, contract) {
+        True ->
+          Ok(json_contract.PushContract(
+            module: route.module_path,
+            type_module: route.module_path,
+            type_name: "ToClient",
+          ))
+        False -> Error(Nil)
+      }
+    })
+  let ssr_model_contracts =
+    list.filter_map(contracts, fn(pair) {
+      let #(route, contract) = pair
+      case contract.has_load && contract.has_model {
+        True ->
+          Ok(json_contract.SsrModelContract(
+            route_module: route.module_path,
+            type_module: route.module_path,
+            type_name: "Model",
+          ))
+        False -> Error(Nil)
+      }
+    })
+  let contract_hash = case config.protocol {
+    "json" ->
+      json_contract.generate_hash(
+        ns_endpoints,
+        discovered,
+        push_contracts,
+        ssr_model_contracts,
+      )
+    _ -> ""
+  }
+
+  let protocol_wire_output =
+    string.replace(config.output_ws, "ws_handler.gleam", "protocol_wire.gleam")
+  let protocol_wire_module =
+    protocol_wire_output
+    |> string.drop_start(4)
+    |> string.drop_end(6)
+
+  let ssr_source =
+    ssr_handler.generate(
+      contracts,
+      has_client_context,
+      has_from_session,
+      from_session_module,
+      router_module,
+      shell_html,
+      config.atoms_module,
+      option.Some(config.wire_module),
+      case has_client_context {
+        True -> option.Some(client_context_module)
+        False -> option.None
+      },
+      auth_config,
+      wire_import_module: protocol_wire_module,
+    )
+
+  // Write generated files, aborting on first failure
+  let result =
+    do_write_files(
+      config:,
+      route_source:,
+      dispatch_source:,
+      sd_source:,
+      ssr_source:,
+      contracts:,
+      handler_endpoints:,
+      rpc_dispatch_module:,
+      auth_config:,
+      from_session_module:,
+      protocol_wire_module:,
+      contract_hash:,
+    )
+  use _ <- result.try(result)
+
+  let transport_ffi_path =
+    config.rally_package_path <> "/src/rally_runtime/transport_ffi.mjs"
+  use transport_ffi_content <- result.try(
+    simplifile.read(transport_ffi_path)
+    |> result.map_error(fn(e) {
+      RallyError(
+        "Cannot read transport_ffi.mjs from rally package at "
+        <> transport_ffi_path
+        <> ": "
+        <> simplifile.describe_error(e),
+      )
+    }),
+  )
+
   let atoms_erl =
     libero.generate_atoms(
       ns_endpoints,
@@ -587,6 +629,12 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       client_context_contract,
       client_context_module,
     )
+    |> list.append([
+      client.GeneratedFile(
+        config.client_root <> "/src/generated/protocol_wire.mjs",
+        generator.generate_protocol_wire_js(config.protocol),
+      ),
+    ])
   let client_context_files = case has_client_context {
     True -> {
       case simplifile.read(client_context_path) {
@@ -704,6 +752,7 @@ fn do_write_files(
   auth_config auth_config: option.Option(types.AuthConfig),
   from_session_module from_session_module: String,
   protocol_wire_module protocol_wire_module: String,
+  contract_hash contract_hash: String,
 ) -> Result(Nil, RallyError) {
   let namespace_prefix =
     config.pages_root
@@ -760,11 +809,15 @@ fn do_write_files(
     }
   })
 
-  // Write protocol_wire facade
+  // Write protocol_wire facade (Gleam)
   let protocol_wire_output =
     string.replace(config.output_ws, "ws_handler.gleam", "protocol_wire.gleam")
   let protocol_wire_source =
-    generator.generate_protocol_wire(config.protocol, config.atoms_module)
+    generator.generate_protocol_wire(
+      config.protocol,
+      config.atoms_module,
+      contract_hash,
+    )
   use _ <- result.try(
     write_file(protocol_wire_output, protocol_wire_source)
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
