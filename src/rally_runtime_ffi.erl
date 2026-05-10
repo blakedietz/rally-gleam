@@ -74,5 +74,4 @@ get_system_conn() ->
 
 encode_push_payload(Page, Msg) ->
     Mod = persistent_term:get({libero, wire_module}),
-    ok = code:ensure_loaded(Mod),
     Mod:encode_push(Page, Msg).

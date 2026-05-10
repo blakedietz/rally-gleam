@@ -3,19 +3,22 @@ import gleeunit/should
 import rally_runtime/effect
 import rally_runtime/topics
 
+@external(erlang, "rally_test_wire_stub", "register")
+fn ensure_test_wire_module() -> Nil
+
 pub fn broadcast_to_page_no_crash_test() {
+  ensure_test_wire_module()
   topics.start()
   let page = "TestPage"
   effect.put_ws_state(Nil, Nil, page)
   topics.join("page:" <> page)
-  // Should not crash - broadcasts to others (none), pushes frame to self
   let _ = effect.broadcast_to_page(#("test", 42))
-  // Drain the frame that was pushed to self
   let frames = effect.drain_outgoing_frames()
   list.length(frames) |> should.equal(1)
 }
 
 pub fn broadcast_to_app_no_crash_test() {
+  ensure_test_wire_module()
   topics.start()
   effect.put_ws_state(Nil, Nil, "SomePage")
   topics.join("app")
@@ -25,6 +28,7 @@ pub fn broadcast_to_app_no_crash_test() {
 }
 
 pub fn broadcast_to_session_no_crash_test() {
+  ensure_test_wire_module()
   topics.start()
   effect.put_ws_state(Nil, Nil, "SomePage")
   effect.put_ws_session("test-session-123")
