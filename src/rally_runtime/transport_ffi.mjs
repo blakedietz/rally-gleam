@@ -2,13 +2,14 @@
 //
 // Rally WebSocket transport layer.
 //
-// Imports ETF codec functions from libero. All encode/decode logic
-// lives in libero's rpc_ffi.mjs; this file handles only the WebSocket
+// Imports encode/decode from the generated protocol_wire.mjs facade.
+// The facade delegates to libero's ETF or JSON wire modules depending
+// on the configured protocol. This file handles only the WebSocket
 // connection lifecycle, reconnects, RPC callbacks, push handlers,
 // SSR flags, and debug logging.
 
 import { Ok, Error as ResultError, CustomType, Empty, NonEmpty, BitArray } from "../../gleam_stdlib/gleam.mjs";
-import { encode_request, decode_server_frame } from "../../libero/libero/rpc_ffi.mjs";
+import { encode_request, decode_server_frame } from "./protocol_wire.mjs";
 import { MalformedRequest, UnknownFunction, InternalError } from "../../libero/libero/error.mjs";
 
 // ---------- Debug logging ----------

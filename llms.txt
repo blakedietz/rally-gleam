@@ -2,7 +2,7 @@
 
 A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, libero for RPC plumbing.
 
-Target boundary: Rally is a protocol-oblivious consumer of Libero. Rally owns WebSocket lifecycle, routes, sessions, topics, reconnects, timeouts, page semantics, and logging. Libero owns the typed protocol contract, encode/decode, request envelopes, response frames, push frames, flags, validation, and security limits. ETF remains the fast native path for Rally's generated Lustre clients. If Libero adds JSON RPC as a configured protocol for non-Gleam clients, Rally should not need to understand the JSON shape. See `docs/libero-boundary-spec.md`.
+Target boundary: The generated `protocol_wire` facade (`protocol_wire.gleam` on the server, `protocol_wire.mjs` in the JS client) is the concrete boundary mechanism: all wire operations go through it, and Rally never imports libero wire modules directly. Rally is a protocol-oblivious consumer of Libero. Rally owns WebSocket lifecycle, routes, sessions, topics, reconnects, timeouts, page semantics, and logging. Libero owns the typed protocol contract, encode/decode, request envelopes, response frames, push frames, flags, validation, and security limits. ETF remains the fast native path for Rally's generated Lustre clients. In JSON mode, the facade delegates to `libero/json/wire` instead, and Rally does not need to understand the JSON shape. See `docs/libero-boundary-spec.md`.
 
 ## Quick start
 
@@ -134,6 +134,8 @@ Running `gleam run -m rally` produces:
 | `.generated_clients/<namespace>/src/generated/codec.gleam` | decode_flags utility for SSR hydration; absent or malformed flags return an Error so shell-only routes and corrupt SSR payloads can fall back to client init |
 | `.generated_clients/<namespace>/src/generated/codec_ffi.mjs` | Libero-generated JS typed decoders for serialized custom types |
 | `.generated_clients/<namespace>/src/generated/transport_ffi.mjs` | Browser WebSocket runtime copied from `rally_runtime`; delegates protocol encoding and decoding to Libero |
+| `src/generated/<namespace>/protocol_wire.gleam` | Generated protocol facade: delegates to `libero/wire` (ETF) or `libero/json/wire` (JSON) based on protocol config. All wire operations (encode, decode, call framing, flags) go through this module. |
+| `.generated_clients/<namespace>/src/generated/protocol_wire.mjs` | JS protocol facade: re-exports `encode_request`, `decode_server_frame`, `encode_flags`, `decode_flags_typed`, `identity` from the correct libero FFI module. Rally's transport imports this facade, never libero FFI directly. |
 
 ## Architecture
 
@@ -190,7 +192,8 @@ Four-level server-to-client messaging using OTP `pg` process groups:
 ### Transport
 
 - **Current wire format:** ETF (Erlang External Term Format), binary
-- **Configured protocol target:** Rally should call Libero protocol helpers instead of depending on ETF frame details
+- **Configured protocol target:** Rally calls Libero protocol helpers through the generated `protocol_wire` facade rather than depending on ETF or JSON frame details directly. The facade is generated at build time based on the `protocol` config field (`"etf"` or `"json"`).
+- **Protocol boundary:** The generated `protocol_wire` facade is the only module that imports libero wire functions. Rally runtime (server-side `wire.gleam`, JS `transport_ffi.mjs`) never imports libero wire modules directly. All encode, decode, call framing, and flag operations route through the facade.
 - **Call envelope:** Libero-owned request shape for client to server RPC calls
 - **Response frame:** Libero-owned correlated response frame
 - **Push frame:** Libero-owned server to client push frame
@@ -278,7 +281,10 @@ In `gleam.toml`:
 [[tools.rally.clients]]
 namespace = "public"
 route_root = "/"
+protocol = "etf"     # "etf" (default) or "json"
 ```
+
+The `protocol` field selects the wire format for this client. `"etf"` (the default) uses Erlang External Term Format via `libero/wire`. `"json"` uses JSON encoding via `libero/json/wire`. The generated `protocol_wire` facade at compile time adapts all wire operations to the chosen protocol -- Rally code never branches on the protocol at runtime.
 
 ## Examples
 
