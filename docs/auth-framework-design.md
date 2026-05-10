@@ -101,12 +101,11 @@ pub fn authorize(server_context, identity) -> Bool {
   }
 }
 
-// Resource check: this specific event
-pub fn load(server_context, identity) -> LoadResult(Data) {
-  let event_id = // from route params
+// Resource check: this specific event (id from route)
+pub fn load(id: Int, server_context, identity) -> LoadResult(Data) {
   case identity {
     Admin(access: ItemManager(permissions), ..) ->
-      case has_item_permission(permissions, event_id, Registrations) {
+      case has_item_permission(permissions, id, Registrations) {
         True -> // load data
         False -> Redirect("/admin", [])
       }
@@ -153,12 +152,12 @@ HTTP GET → extract session_id from cookie
       → if Required and !is_authenticated(identity): redirect to redirect_url
       → from_session(server_context, session_id, hostname, identity) → #(client_context, enriched_sc)
       → if authorize exists and !authorize(enriched_sc, identity): 403
-      → load(enriched_sc, identity) → LoadResult
+      → load(route_params..., enriched_sc, identity) → LoadResult
         → Page(data, cookies): render page, apply cookies
         → Redirect(url, cookies): HTTP 302, apply cookies
 ```
 
-`load` gains an `identity` parameter when auth.gleam exists. This is a codegen change: rally generates `load(server_context, identity)` instead of `load(server_context)`.
+`identity` is appended after `server_context` in `load`. Route params come first, matching the existing codegen convention: `load(id, server_context, identity)` for dynamic pages, `load(server_context, identity)` for static pages.
 
 ### Generated HTTP RPC Handler Behavior
 
