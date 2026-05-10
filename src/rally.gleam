@@ -632,7 +632,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     |> list.append([
       client.GeneratedFile(
         config.client_root <> "/src/generated/protocol_wire.mjs",
-        generator.generate_protocol_wire_js(config.protocol),
+        generator.generate_protocol_wire_js(config.protocol, contract_hash),
       ),
     ])
   let client_context_files = case has_client_context {
