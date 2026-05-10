@@ -263,17 +263,6 @@ pub fn decode(data: BitArray) -> a
 @external(javascript, " <> libero_rpc <> ", \"decode_safe\")
 pub fn decode_safe(data: BitArray) -> Result(a, DecodeError)
 
-/// Raw ETF decode (atoms as strings, tuples as arrays) returning Result.
-/// Used before applying typed decoders, which expect raw shapes.
-@external(javascript, " <> libero_rpc <> ", \"decode_safe_raw\")
-pub fn decode_safe_raw(data: BitArray) -> Result(a, DecodeError)
-
-/// Apply a typed decoder to a raw ETF-decoded value.
-/// The decoder_name is the function name in codec_ffi.mjs
-/// (e.g. \"decode_client_context_client_context\").
-@external(javascript, " <> libero_rpc <> ", \"decodeTyped\")
-pub fn apply_typed_decoder(value: a, decoder_name: String) -> b
-
 /// Send a ToServer message to the server.
 /// Encodes the message and sends it over the WebSocket.
 pub fn send_to_server(page: String, msg: a) -> Nil {
@@ -460,20 +449,20 @@ fn app_gleam(
     True -> "  let flags = transport.read_flags()
   let #(ctx_model, ctx_effects) = client_context.init()
   let current_path = router.route_to_path(route)
-  let client_context = case codec.decode_flags(transport.read_client_context()) {
-    Ok(ctx) -> transport.apply_typed_decoder(ctx, \"" <> ctx_decoder_name <> "\")
+  let client_context = case codec.decode_flags_typed(transport.read_client_context(), \"" <> ctx_decoder_name <> "\") {
+    Ok(ctx) -> ctx
     Error(_) -> ctx_model
   }
-" <> init_context_overlay <> "  let #(page_model, page_effects) = case codec.decode_flags(flags) {
-    Ok(data) -> hydrate_page(route, data, client_context)
-    Error(_) -> init_page(route: route, client_context: client_context)
+" <> init_context_overlay <> "  let #(page_model, page_effects) = case flags {
+    \"\" -> init_page(route: route, client_context: client_context)
+    _ -> hydrate_page(route, flags, client_context)
   }
   #(Model(route:, page_model:, connection: Disconnected, client_context:, current_path:),
     effect.batch([init_transport(), " <> modem_init <> ", effect.map(ctx_effects, ClientContextUpdate), page_effects]))"
     False -> "  let flags = transport.read_flags()
-  let #(page_model, page_effects) = case codec.decode_flags(flags) {
-    Ok(data) -> hydrate_page(route, data)
-    Error(_) -> init_page(route: route)
+  let #(page_model, page_effects) = case flags {
+    \"\" -> init_page(route: route)
+    _ -> hydrate_page(route, flags)
   }
   #(Model(route:, page_model:, connection: Disconnected),
     effect.batch([init_transport(), " <> modem_init <> ", page_effects]))"
@@ -936,46 +925,52 @@ fn generate_hydrate_page(
           let alias = page_module_alias(route)
           let pattern = route_pattern_ignored(route)
           let decoder_name = page_model_decoder_name(route.module_path)
-          let call_args = case has_client_context {
+          let init_loaded_call = case has_client_context {
             True ->
-              "("
-              <> hydrate_client_context_name
-              <> ", transport.apply_typed_decoder(data, \""
-              <> decoder_name
-              <> "\"))"
+              alias <> ".init_loaded(" <> hydrate_client_context_name <> ", model)"
             False ->
-              "(transport.apply_typed_decoder(data, \""
-              <> decoder_name
-              <> "\"))"
+              alias <> ".init_loaded(model)"
           }
+          let variant = route.variant_name
           Ok(
             "    "
             <> pattern
             <> " -> {\n"
-            <> "      let #(m, e) = "
-            <> alias
-            <> ".init_loaded"
-            <> call_args
+            <> "      case codec.decode_flags_typed(flags, \""
+            <> decoder_name
+            <> "\") {\n"
+            <> "        Ok(model) -> {\n"
+            <> "          let #(m, e) = "
+            <> init_loaded_call
             <> "\n"
-            <> "      #("
-            <> route.variant_name
+            <> "          #("
+            <> variant
             <> "PageModel(m), effect.map(e, fn(msg) { PageMsg("
-            <> route.variant_name
+            <> variant
             <> "PageMsg(msg)) }))\n"
+            <> "        }\n"
+            <> "        Error(_) -> #(NoPageModel, effect.none())\n"
+            <> "      }\n"
             <> "    }",
           )
         }
         Ok(contract) if contract.has_model -> {
           let pattern = route_pattern_ignored(route)
           let decoder_name = page_model_decoder_name(route.module_path)
+          let variant = route.variant_name
           Ok(
             "    "
             <> pattern
-            <> " -> #("
-            <> route.variant_name
-            <> "PageModel(transport.apply_typed_decoder(data, \""
+            <> " -> {\n"
+            <> "      case codec.decode_flags_typed(flags, \""
             <> decoder_name
-            <> "\")), effect.none())",
+            <> "\") {\n"
+            <> "        Ok(model) -> #("
+            <> variant
+            <> "PageModel(model), effect.none())\n"
+            <> "        Error(_) -> #(NoPageModel, effect.none())\n"
+            <> "      }\n"
+            <> "    }",
           )
         }
         _ -> Error(Nil)
@@ -985,11 +980,11 @@ fn generate_hydrate_page(
 
   let sig = case has_client_context {
     True ->
-      "fn hydrate_page(route: router.Route, data: a, "
+      "fn hydrate_page(route: router.Route, flags: String, "
       <> hydrate_client_context_name
       <> ": client_context.ClientContext) -> #(PageModel, Effect(Msg)) {"
     False ->
-      "fn hydrate_page(route: router.Route, data: a) -> #(PageModel, Effect(Msg)) {"
+      "fn hydrate_page(route: router.Route, flags: String) -> #(PageModel, Effect(Msg)) {"
   }
 
   sig

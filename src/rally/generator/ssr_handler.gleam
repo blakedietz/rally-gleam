@@ -54,7 +54,7 @@ pub fn generate(
     _, _ -> ""
   }
   let codec_imports = case needs_codec {
-    True -> "import rally_runtime/codec\n"
+    True -> "import libero/wire as libero_wire\n"
     False -> ""
   }
   let load_page_imports = case has_load_pages {
@@ -106,7 +106,7 @@ pub fn handle_request(
   let ctx_script = case use_session {
     True -> "
 fn context_script(client_context: client_context.ClientContext) -> String {
-" <> cc_encode_line <> "  let encoded = codec.encode_flags(client_context)
+" <> cc_encode_line <> "  let encoded = libero_wire.encode_flags(client_context)
   \"<script>window.__RALLY_CLIENT_CONTEXT__='\" <> encoded <> \"'</script>\"
 }
 "
@@ -374,7 +374,7 @@ fn generate_load_arms(
         }
         let flags_line =
           wire_encode_flags
-          <> "      let flags = codec.encode_flags("
+          <> "      let flags = libero_wire.encode_flags("
           <> flags_target
           <> ")\n"
           <> "      let flags_tag = \"<script>window.__RALLY_FLAGS__='\" <> flags <> \"'</script>\"\n"

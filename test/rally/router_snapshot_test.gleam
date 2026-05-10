@@ -399,12 +399,14 @@ pub fn client_app_underscores_ignored_hydrate_route_params_test() {
     })
 
   file.content
-  |> string.contains("router.UsersId(_id) -> #(UsersIdPageModel")
+  |> string.contains(
+    "router.UsersId(_id) -> {",
+  )
   |> should.equal(True)
 
   file.content
-  |> string.contains("router.UsersId(id) -> #(UsersIdPageModel")
-  |> should.equal(False)
+  |> string.contains("UsersIdPageModel(model)")
+  |> should.equal(True)
 }
 
 pub fn client_app_underscores_unused_hydrate_context_test() {
@@ -471,15 +473,19 @@ pub fn client_app_uses_hydrate_context_when_init_loaded_needs_it_test() {
 
   file.content
   |> string.contains(
-    "fn hydrate_page(route: router.Route, data: a, client_context: client_context.ClientContext)",
+    "fn hydrate_page(route: router.Route, flags: String, client_context: client_context.ClientContext)",
   )
   |> should.equal(True)
 
   file.content
   |> string.contains(
-    "pages_home_.init_loaded(client_context, transport.apply_typed_decoder(data, \"decode_pages_home__model\"))",
+    "codec.decode_flags_typed(flags, \"decode_pages_home__model\")",
   )
   |> should.equal(True)
+
+  file.content
+  |> string.contains("transport.apply_typed_decoder")
+  |> should.equal(False)
 
   file.content
   |> string.contains("init_loaded(_client_context")
@@ -697,11 +703,17 @@ pub fn transport_gleam_exposes_safe_decode_test() {
     "pub fn decode_safe(data: BitArray) -> Result(a, DecodeError)",
   )
   |> should.equal(True)
+  // Step 3 boundary: generated transport must NOT expose raw decode
+  // helpers. Consumers use Libero's decode_flags_typed instead.
   file.content
-  |> string.contains(
-    "@external(javascript, \"../../libero/libero/rpc_ffi.mjs\", \"decode_safe_raw\")",
-  )
-  |> should.equal(True)
+  |> string.contains("decode_safe_raw")
+  |> should.equal(False)
+  file.content
+  |> string.contains("apply_typed_decoder")
+  |> should.equal(False)
+  file.content
+  |> string.contains("decodeTyped")
+  |> should.equal(False)
 }
 
 pub fn app_gleam_sends_page_init_for_static_routes_test() {
