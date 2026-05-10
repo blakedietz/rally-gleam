@@ -14,7 +14,7 @@ import simplifile
 import tom
 
 pub fn empty_rpc_dispatch_handles_bad_variant_tags_test() {
-  let output = generator.generate_empty_rpc_dispatch("generated@rpc_atoms")
+  let output = generator.generate_empty_rpc_dispatch("generated@rpc_atoms", [])
 
   output
   |> string.contains("Error(_) ->")

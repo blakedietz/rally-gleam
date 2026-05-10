@@ -335,7 +335,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     option.None -> []
   }
   let sd_source = case handler_endpoints {
-    [] -> generator.generate_empty_rpc_dispatch(config.atoms_module)
+    [] -> generator.generate_empty_rpc_dispatch(config.atoms_module, extra_dispatch_params)
     _ ->
       case extra_dispatch_params {
         [] ->

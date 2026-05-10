@@ -460,9 +460,9 @@ pub fn ws_auth_rpc_enforces_authorize_test() {
       endpoints: endpoints_for(contracts),
     )
 
-  // RPC branch must check authorize for pages that export it
+  // RPC branch must check authorize on owning_page (not "page" from page-init)
   let assert True =
-    string.contains(output, "check_page_authorize(page, server_context, identity)")
+    string.contains(output, "check_page_authorize(owning_page, server_context, identity)")
   // On failure, emit auth:forbidden
   let assert True =
     string.contains(output, "auth:forbidden")
@@ -496,7 +496,13 @@ pub fn ws_auth_rpc_unknown_variant_fails_closed_test() {
     )
 
   // handler_page_info returns Error(Nil) for unknown variants
-  // The RPC branch must handle this case
+  // RPC branch must emit auth:unknown_rpc on unknown variant
   let assert True =
-    string.contains(output, "Error(Nil)")
+    string.contains(output, "auth:unknown_rpc")
+  // RPC branch must handle malformed tags
+  let assert True =
+    string.contains(output, "auth:malformed")
+  // RPC branch must check page mismatch
+  let assert True =
+    string.contains(output, "auth:page_mismatch")
 }
