@@ -265,6 +265,9 @@ pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
       view_source: "",
       init_source: "",
       update_source: "",
+      has_page_auth: False,
+      page_auth_required: False,
+      has_authorize: False,
     )
   let output =
     ssr_handler.generate(
@@ -321,6 +324,9 @@ pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
             view_source: "",
             init_source: "",
             update_source: "",
+            has_page_auth: False,
+            page_auth_required: False,
+            has_authorize: False,
           ),
         ),
       ],
@@ -364,6 +370,9 @@ pub fn ssr_app_marker_preserves_tag_order_test() {
             view_source: "",
             init_source: "",
             update_source: "",
+            has_page_auth: False,
+            page_auth_required: False,
+            has_authorize: False,
           ),
         ),
       ],

@@ -96,6 +96,9 @@ pub fn parse_page(
     view_source:,
     init_source:,
     update_source:,
+    has_page_auth: False,
+    page_auth_required: False,
+    has_authorize: False,
   ))
 }
 

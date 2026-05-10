@@ -77,5 +77,8 @@ pub type PageContract {
     view_source: String,
     init_source: String,
     update_source: String,
+    has_page_auth: Bool,
+    page_auth_required: Bool,
+    has_authorize: Bool,
   )
 }
