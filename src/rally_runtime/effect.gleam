@@ -218,7 +218,8 @@ pub fn get_ws_auth_timestamp() -> Int {
   0
 }
 
-/// Clear all WS auth state keys. Used during reauth and in tests.
+/// Clear identity and reset timestamp to 0. Hostname is preserved
+/// (connection-scoped, not auth-scoped). Used during reauth and in tests.
 @external(erlang, "rally_runtime_ffi", "clear_ws_auth_state")
 pub fn clear_ws_auth_state() -> Nil {
   Nil
