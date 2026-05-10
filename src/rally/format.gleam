@@ -40,6 +40,10 @@ fn run_format(tmp: String, fallback: String) -> String {
           simplifile.read(tmp)
           |> result.unwrap(fallback)
         _ -> {
+          // Expected during tests: generated code imports target-project
+          // modules (e.g. generated/admin/rpc_dispatch) that don't exist in
+          // Rally's own dependency tree. Formatter exits non-zero but the
+          // fallback (unformatted original) is correct.
           io.println_error(
             "warning: gleam format failed (exit code "
             <> int.to_string(exit_code)
