@@ -6,6 +6,7 @@ import gleam/option
 import gleam/result
 import gleam/string
 import libero
+import libero/codegen_dispatch.{ExtraParam}
 import libero/codegen_wire_erl
 import libero/field_type
 import libero/gen_error
@@ -320,14 +321,37 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       client_context_module,
     )
 
+  let extra_dispatch_params = case auth_config {
+    option.Some(types.AuthConfig(auth_module:)) -> {
+      let auth_ref = last_segment(auth_module)
+      [
+        ExtraParam(
+          name: "identity",
+          type_ref: auth_ref <> ".Identity",
+          import_line: import_as_string(auth_module, auth_ref),
+        ),
+      ]
+    }
+    option.None -> []
+  }
   let sd_source = case handler_endpoints {
     [] -> generator.generate_empty_rpc_dispatch(config.atoms_module)
     _ ->
-      libero.generate_dispatch(
-        handler_endpoints,
-        option.Some(config.atoms_module),
-        option.Some(config.wire_module),
-      )
+      case extra_dispatch_params {
+        [] ->
+          libero.generate_dispatch(
+            handler_endpoints,
+            option.Some(config.atoms_module),
+            option.Some(config.wire_module),
+          )
+        params ->
+          libero.generate_dispatch_with_extra_params(
+            handler_endpoints,
+            option.Some(config.atoms_module),
+            option.Some(config.wire_module),
+            params,
+          )
+      }
   }
   let sd_source =
     sd_source
@@ -743,6 +767,20 @@ fn dirname(path: String) -> String {
 
 fn module_from_src_path(path: String) -> String {
   path |> string.drop_start(4) |> string.drop_end(6)
+}
+
+fn last_segment(module_path: String) -> String {
+  case string.split(module_path, "/") |> list.last {
+    Ok(seg) -> seg
+    Error(Nil) -> module_path
+  }
+}
+
+fn import_as_string(module_path: String, alias: String) -> String {
+  case last_segment(module_path) == alias {
+    True -> "import " <> module_path
+    False -> "import " <> module_path <> " as " <> alias
+  }
 }
 
 fn source_root_for_pages(pages_root: String) -> String {
