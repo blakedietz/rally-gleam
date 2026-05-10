@@ -713,11 +713,11 @@ pub fn handle(
   ensure_atoms()
   case wire.decode_call(data) {
     Ok(#(\"rpc\", request_id, _msg)) ->
-      #(wire.tag_response(request_id:, data: wire.encode(Error(UnknownFunction(\"rpc\")))), server_context)
+      #(wire.encode_response(request_id:, value: Error(UnknownFunction(\"rpc\")))), server_context)
     Ok(#(name, request_id, _)) ->
-      #(wire.tag_response(request_id:, data: wire.encode(Error(UnknownFunction(name)))), server_context)
+      #(wire.encode_response(request_id:, value: Error(UnknownFunction(name)))), server_context)
     Error(_) ->
-      #(wire.tag_response(request_id: 0, data: wire.encode(Error(MalformedRequest))), server_context)
+      #(wire.encode_response(request_id: 0, value: Error(MalformedRequest)), server_context)
   }
 }
 "

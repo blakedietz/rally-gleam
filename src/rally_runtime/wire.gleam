@@ -36,6 +36,10 @@ pub fn encode_request(
   libero_wire.encode_request(module:, request_id:, msg:)
 }
 
+pub fn encode_response(request_id request_id: Int, value value: a) -> BitArray {
+  libero_wire.encode_response(request_id:, value:)
+}
+
 pub fn tag_response(
   request_id request_id: Int,
   data data: BitArray,
@@ -43,9 +47,12 @@ pub fn tag_response(
   libero_wire.tag_response(request_id:, data:)
 }
 
+pub fn encode_push(module module: String, value value: a) -> BitArray {
+  libero_wire.encode_push(module:, value:)
+}
+
 pub fn tag_push(module module: String, msg msg: a) -> BitArray {
-  let data = libero_wire.encode(#(module, msg))
-  <<1, data:bits>>
+  encode_push(module:, value: msg)
 }
 
 pub fn variant_tag(value: Dynamic) -> Result(String, Nil) {

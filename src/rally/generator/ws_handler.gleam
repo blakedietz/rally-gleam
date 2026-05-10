@@ -60,7 +60,7 @@ fn generate_frame_handler() -> String {
             _ -> topics.leave(\"page:\" <> old_page)
           }
           topics.join(\"page:\" <> page)
-          let response_frame = wire.tag_response(request_id:, data: wire.encode(Nil))
+          let response_frame = wire.encode_response(request_id:, value: Nil)
           let _send_result = mist.send_binary_frame(conn, response_frame)
           send_pending_frames(conn)
           mist.continue(state)
