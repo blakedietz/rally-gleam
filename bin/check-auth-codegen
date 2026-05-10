@@ -115,10 +115,10 @@ pub fn authorize(_server_context: ServerContext, identity: auth.Identity) -> Boo
 
 pub fn server_increment(
   msg: ServerIncrement,
-  server_context: ServerContext,
-  identity: auth.Identity,
+  _server_context: ServerContext,
+  _identity: auth.Identity,
 ) -> Result(Int, Nil) {
-  Ok(0)
+  Ok(msg.amount)
 }
 
 pub fn load(
