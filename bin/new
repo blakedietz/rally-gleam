@@ -201,10 +201,14 @@ pub fn main() {
             }
           Error(_) -> session.generate_id()
         }
+        let hostname = case request.get_header(req, "host") {
+          Ok(h) -> h
+          Error(_) -> ""
+        }
         mist.websocket(
           req,
           ws_handler.handler,
-          fn(conn) { ws_handler.on_init(conn: conn, server_context: server_context, session_id: session_id) },
+          fn(conn) { ws_handler.on_init(conn: conn, server_context: server_context, session_id: session_id, hostname: hostname) },
           ws_handler.on_close,
         )
       }

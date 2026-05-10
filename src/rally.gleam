@@ -670,6 +670,7 @@ fn do_write_files(
       config.atoms_module,
       rpc_dispatch_module,
       auth_config,
+      from_session_module:,
     )
   use _ <- result.try(
     write_file(config.output_route, route_source)
