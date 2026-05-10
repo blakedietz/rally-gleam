@@ -9,12 +9,14 @@
 
 import glance
 import gleam/dict
+import gleam/io
 import gleam/list
 import gleam/option
 import gleam/string
 import libero/codegen
 import libero/codegen_decoders
 import libero/field_type.{type FieldType, UserType}
+import libero/json/codegen as json_codegen
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType}
 import rally/tree_shaker
@@ -67,6 +69,26 @@ fn generate_page_modules(
       }
     }
   })
+}
+
+/// Generate JSON typed encoder/decoder source for the client package.
+/// Uses libero's JSON codegen to produce per-type json.Json builders
+/// and typed decoders for all discovered types.
+pub fn generate_json_codecs(
+  discovered discovered: List(DiscoveredType),
+  endpoints endpoints: List(HandlerEndpoint),
+) -> List(CodecFile) {
+  case json_codegen.generate(discovered, endpoints, []) {
+    Ok(content) -> [
+      CodecFile("src/generated/json_codecs.gleam", content),
+    ]
+    Error(errors) -> {
+      list.each(errors, fn(e) {
+        io.println_error("JSON codegen error: " <> e.path <> ": " <> e.message)
+      })
+      []
+    }
+  }
 }
 
 /// Convert a server module path to a client page path.

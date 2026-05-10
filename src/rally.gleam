@@ -619,6 +619,19 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
     })
 
+  // Add JSON typed codecs when protocol is json
+  let codec_files = case config.protocol {
+    "json" ->
+      list.append(
+        codec_files,
+        codec.generate_json_codecs(discovered, ns_endpoints)
+          |> list.map(fn(f: codec.CodecFile) {
+            client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
+          }),
+      )
+    _ -> codec_files
+  }
+
   let client_files =
     client.generate_package_with_client_context_contract(
       routes,
@@ -628,6 +641,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       transport_ffi_content,
       client_context_contract,
       client_context_module,
+      config.protocol,
     )
     |> list.append([
       client.GeneratedFile(

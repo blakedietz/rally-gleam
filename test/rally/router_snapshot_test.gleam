@@ -297,6 +297,7 @@ pub fn app_gleam_with_browser_client_context_snapshot_test() {
       "",
       Some(client_context_contract_with_browser_fields()),
       "client_context",
+      "etf",
     )
   let app =
     list.find(files, fn(f: client.GeneratedFile) {
@@ -316,6 +317,7 @@ pub fn client_app_syncs_browser_client_context_fields_test() {
       "",
       Some(client_context_contract_with_browser_fields()),
       "client_context",
+      "etf",
     )
   let assert Ok(file) =
     list.find(files, fn(f: client.GeneratedFile) {
