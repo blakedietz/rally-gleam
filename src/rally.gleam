@@ -701,7 +701,6 @@ fn do_write_files(
           auth_config,
           contracts,
           from_session_module:,
-          wire_module: config.wire_module,
         )
       write_file(config.output_http, http_source)
       |> result.map_error(fn(msg) { RallyError("write error: " <> msg) })

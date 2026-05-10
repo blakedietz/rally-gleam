@@ -1,3 +1,4 @@
+import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
@@ -21,7 +22,6 @@ pub fn generate(
   auth_config: Option(AuthConfig),
   contracts: List(#(ScannedRoute, PageContract)),
   from_session_module from_session_module: String,
-  wire_module wire_module: String,
 ) -> String {
   case auth_config {
     Some(AuthConfig(auth_module:)) ->
@@ -29,7 +29,6 @@ pub fn generate(
         rpc_dispatch_module,
         auth_module,
         from_session_module,
-        wire_module,
         endpoints,
         contracts,
       )
@@ -73,7 +72,6 @@ fn generate_with_auth(
   rpc_dispatch_module: String,
   auth_module: String,
   from_session_module: String,
-  wire_module: String,
   endpoints: List(HandlerEndpoint),
   contracts: List(#(ScannedRoute, PageContract)),
 ) -> String {
@@ -84,7 +82,6 @@ fn generate_with_auth(
   let page_auth_map = build_page_auth_map(endpoints, contracts)
 
   // Build imports
-  let wire_import = import_as(wire_module, "wire")
   let auth_import = import_as(auth_module, auth_ref)
   let from_session_import = case from_session_ref == "server_context" {
     True -> ""
@@ -104,7 +101,7 @@ import " <> rpc_dispatch_module <> " as rpc_dispatch
 import rally_runtime/effect
 import server_context.{type ServerContext}
 " <> auth_import <> "
-" <> wire_import <> "
+import rally_runtime/wire as wire
 " <> from_session_import <> "
 " <> authorize_imports <> "
 
@@ -156,14 +153,16 @@ fn build_page_auth_map(
           has_authorize: contract.has_authorize,
           wire_tag: wire_tag,
         ))
-      Error(Nil) ->
-        // Endpoint exists but no matching contract (shouldn't happen in practice)
-        Ok(PageAuthInfo(
-          page: endpoint.module_path,
-          required: False,
-          has_authorize: False,
-          wire_tag: wire_tag,
-        ))
+      Error(Nil) -> {
+        io.println_error(
+          "rally: handler "
+          <> endpoint.fn_name
+          <> " in "
+          <> endpoint.module_path
+          <> " has no matching page contract — RPCs to this handler will be rejected",
+        )
+        Error(Nil)
+      }
     }
   })
 }
