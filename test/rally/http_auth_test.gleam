@@ -1,3 +1,4 @@
+import birdie
 import gleam/option.{None, Some}
 import gleam/string
 import libero
@@ -464,4 +465,86 @@ pub fn http_auth_imports_rally_runtime_wire_test() {
     string.contains(output, "import rally_runtime/wire as wire")
   // Must NOT import an Erlang module as wire
   let assert False = string.contains(output, "generated@")
+}
+
+// -- Snapshot tests --
+
+pub fn http_handler_no_auth_snapshot_test() {
+  let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: False,
+        page_auth_required: False,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      None,
+      contracts,
+      from_session_module: "admin/client_context_server",
+    )
+  birdie.snap(output, "http_handler_no_auth")
+}
+
+pub fn http_handler_with_auth_required_snapshot_test() {
+  let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+    )
+  birdie.snap(output, "http_handler_with_auth_required")
+}
+
+pub fn http_handler_with_auth_and_authorize_snapshot_test() {
+  let endpoints = [
+    make_endpoint("admin/pages/dashboard", "load_data"),
+    make_endpoint("admin/pages/settings", "update_config"),
+  ]
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+    #(
+      make_route("admin/pages/settings"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: False,
+        has_authorize: True,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+    )
+  birdie.snap(output, "http_handler_with_auth_and_authorize")
 }
