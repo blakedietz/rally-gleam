@@ -30,6 +30,7 @@ pub fn generate(
       page_contracts: page_contracts,
       has_client_context: has_client_context,
       use_session: use_session,
+      has_from_session: has_from_session,
       from_session_module: from_session_ref,
       wire_module: wire_module,
       auth_config: auth_config,
@@ -348,6 +349,7 @@ fn generate_load_arms(
   page_contracts page_contracts: List(#(ScannedRoute, PageContract)),
   has_client_context has_client_context: Bool,
   use_session use_session: Bool,
+  has_from_session has_from_session: Bool,
   from_session_module from_session_module: String,
   wire_module wire_module: Option(String),
   auth_config auth_config: Option(AuthConfig),
@@ -369,6 +371,7 @@ fn generate_load_arms(
           |> string.join(", ")
         let has_params = route.params != []
         let has_auth = option.is_some(auth_config)
+        let needs_fs_for_auth = has_from_session
 
         let identity_arg = case has_auth {
           True ->
@@ -390,11 +393,21 @@ fn generate_load_arms(
             from_session_module
             <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname)"
         }
-        let ctx_init = case use_session {
+        // Auth requires from_session to enrich ServerContext before
+        // authorize and load, regardless of whether ClientContext exists.
+        let needs_from_session = use_session || { has_auth && needs_fs_for_auth }
+        let ctx_init = case needs_from_session {
           True ->
-            "      let #(client_context, server_context) = "
-            <> from_session_call
-            <> "\n"
+            case has_client_context {
+              True ->
+                "      let #(client_context, server_context) = "
+                <> from_session_call
+                <> "\n"
+              False ->
+                "      let #(_, server_context) = "
+                <> from_session_call
+                <> "\n"
+            }
           False ->
             case has_client_context {
               True -> "      let #(client_context, _) = client_context.init()\n"
