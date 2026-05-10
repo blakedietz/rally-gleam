@@ -129,19 +129,19 @@ fn hydrate_page(route: router.Route, flags: String, _client_context: client_cont
     router.Home -> {
       case codec.decode_flags_typed(flags, "decode_pages_home__model") {
         Ok(model) -> #(HomePageModel(model), effect.none())
-        Error(_) -> #(NoPageModel, effect.none())
+        Error(_) -> init_page(route: route, client_context: client_context)
       }
     }
     router.About -> {
       case codec.decode_flags_typed(flags, "decode_pages_about_model") {
         Ok(model) -> #(AboutPageModel(model), effect.none())
-        Error(_) -> #(NoPageModel, effect.none())
+        Error(_) -> init_page(route: route, client_context: client_context)
       }
     }
     router.UsersId(_id) -> {
       case codec.decode_flags_typed(flags, "decode_pages_users_id__model") {
         Ok(model) -> #(UsersIdPageModel(model), effect.none())
-        Error(_) -> #(NoPageModel, effect.none())
+        Error(_) -> init_page(route: route, client_context: client_context)
       }
     }
     _ -> #(NoPageModel, effect.none())

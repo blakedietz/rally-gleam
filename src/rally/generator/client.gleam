@@ -251,18 +251,6 @@ pub fn register_on_disconnect(callback: fn(String) -> Nil) -> Nil
 @external(javascript, " <> transport_ffi <> ", \"registerRpcErrorHandler\")
 pub fn register_rpc_error_handler(callback: fn(String) -> Nil) -> Nil
 
-/// Encode a value to ETF binary.
-@external(javascript, " <> libero_rpc <> ", \"encode_value\")
-pub fn encode(value: a) -> BitArray
-
-/// Decode ETF binary to a value.
-@external(javascript, " <> libero_rpc <> ", \"decode_value\")
-pub fn decode(data: BitArray) -> a
-
-/// Decode ETF binary to a value without throwing on malformed input.
-@external(javascript, " <> libero_rpc <> ", \"decode_safe\")
-pub fn decode_safe(data: BitArray) -> Result(a, DecodeError)
-
 /// Send a ToServer message to the server.
 /// Encodes the message and sends it over the WebSocket.
 pub fn send_to_server(page: String, msg: a) -> Nil {
@@ -917,6 +905,12 @@ fn generate_hydrate_page(
     True -> "client_context"
     False -> "_client_context"
   }
+  let error_fallback = case has_client_context {
+    True ->
+      "        Error(_) -> init_page(route: route, client_context: client_context)\n"
+    False ->
+      "        Error(_) -> init_page(route: route)\n"
+  }
   let arms =
     routes
     |> list.filter_map(fn(route) {
@@ -949,7 +943,7 @@ fn generate_hydrate_page(
             <> variant
             <> "PageMsg(msg)) }))\n"
             <> "        }\n"
-            <> "        Error(_) -> #(NoPageModel, effect.none())\n"
+            <> error_fallback
             <> "      }\n"
             <> "    }",
           )
@@ -968,7 +962,7 @@ fn generate_hydrate_page(
             <> "        Ok(model) -> #("
             <> variant
             <> "PageModel(model), effect.none())\n"
-            <> "        Error(_) -> #(NoPageModel, effect.none())\n"
+            <> error_fallback
             <> "      }\n"
             <> "    }",
           )

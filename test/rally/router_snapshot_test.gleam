@@ -693,18 +693,15 @@ pub fn transport_gleam_exposes_safe_decode_test() {
   file.content
   |> string.contains("pub type DecodeError")
   |> should.equal(True)
+  // Boundary: generated transport must NOT expose raw ETF codec helpers.
+  // Consumers use Libero's boundary API (decode_server_frame,
+  // decode_flags_typed, encode_request) instead.
   file.content
-  |> string.contains(
-    "@external(javascript, \"../../libero/libero/rpc_ffi.mjs\", \"decode_safe\")",
-  )
-  |> should.equal(True)
+  |> string.contains("decode_value")
+  |> should.equal(False)
   file.content
-  |> string.contains(
-    "pub fn decode_safe(data: BitArray) -> Result(a, DecodeError)",
-  )
-  |> should.equal(True)
-  // Step 3 boundary: generated transport must NOT expose raw decode
-  // helpers. Consumers use Libero's decode_flags_typed instead.
+  |> string.contains("decode_safe")
+  |> should.equal(False)
   file.content
   |> string.contains("decode_safe_raw")
   |> should.equal(False)
@@ -713,6 +710,9 @@ pub fn transport_gleam_exposes_safe_decode_test() {
   |> should.equal(False)
   file.content
   |> string.contains("decodeTyped")
+  |> should.equal(False)
+  file.content
+  |> string.contains("pub fn encode(value: a) -> BitArray")
   |> should.equal(False)
 }
 

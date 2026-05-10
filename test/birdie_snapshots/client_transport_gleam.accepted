@@ -50,18 +50,6 @@ pub fn register_on_disconnect(callback: fn(String) -> Nil) -> Nil
 @external(javascript, "./transport_ffi.mjs", "registerRpcErrorHandler")
 pub fn register_rpc_error_handler(callback: fn(String) -> Nil) -> Nil
 
-/// Encode a value to ETF binary.
-@external(javascript, "../../libero/libero/rpc_ffi.mjs", "encode_value")
-pub fn encode(value: a) -> BitArray
-
-/// Decode ETF binary to a value.
-@external(javascript, "../../libero/libero/rpc_ffi.mjs", "decode_value")
-pub fn decode(data: BitArray) -> a
-
-/// Decode ETF binary to a value without throwing on malformed input.
-@external(javascript, "../../libero/libero/rpc_ffi.mjs", "decode_safe")
-pub fn decode_safe(data: BitArray) -> Result(a, DecodeError)
-
 /// Send a ToServer message to the server.
 /// Encodes the message and sends it over the WebSocket.
 pub fn send_to_server(page: String, msg: a) -> Nil {
