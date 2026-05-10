@@ -6,6 +6,8 @@ import gleam/option
 import gleam/result
 import gleam/string
 import libero
+import libero/codegen_wire_erl
+import libero/field_type
 import libero/gen_error
 import libero/scanner as libero_scanner
 import rally/dependency_resolver
@@ -379,13 +381,60 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         False -> Error(Nil)
       }
     })
-  let seeds = list.flatten([handler_seeds, cc_seeds, page_model_seeds])
+  let to_client_seeds =
+    list.filter_map(contracts, fn(pair) {
+      let #(route, contract) = pair
+      case has_to_client_type(route, contract) {
+        True -> Ok(#(route.module_path, "ToClient"))
+        False -> Error(Nil)
+      }
+    })
+  let seeds =
+    list.flatten([handler_seeds, cc_seeds, page_model_seeds, to_client_seeds])
   let discovered = case libero.walk(seeds) {
     Ok(types) -> types
     Error(errors) -> {
       list.each(errors, gen_error.print_error)
       []
     }
+  }
+
+  let push_dispatches = {
+    let page_dispatches =
+      list.filter_map(contracts, fn(pair) {
+        let #(route, contract) = pair
+        case has_to_client_type(route, contract) {
+          True -> {
+            let type_atom =
+              libero.qualified_atom_name(
+                module_path: route.module_path,
+                variant_name: "ToClient",
+              )
+            Ok(codegen_wire_erl.PushDispatch(
+              page_tag: route.variant_name,
+              type_atom: type_atom,
+            ))
+          }
+          False -> Error(Nil)
+        }
+      })
+    let cc_dispatch = case has_client_context, client_context_source {
+      True, option.Some(_) -> {
+        let type_atom =
+          libero.qualified_atom_name(
+            module_path: client_context_module,
+            variant_name: "ClientContextMsg",
+          )
+        [
+          codegen_wire_erl.PushDispatch(
+            page_tag: "__ClientContext__",
+            type_atom: type_atom,
+          ),
+        ]
+      }
+      _, _ -> []
+    }
+    list.append(page_dispatches, cc_dispatch)
   }
 
   let atoms_erl =
@@ -405,6 +454,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       discovered:,
       wire_module: config.wire_module,
       endpoints: handler_endpoints,
+      push_dispatches: push_dispatches,
     )
   {
     Ok(src) -> src
@@ -742,6 +792,24 @@ fn collect_server_symbols(
       }
     })
   ["ServerContext", ..handler_type_names]
+}
+
+fn has_to_client_type(
+  route: types.ScannedRoute,
+  contract: types.PageContract,
+) -> Bool {
+  list.any(contract.msg_variants, fn(variant) {
+    case variant.fields {
+      [field] ->
+        case field.type_ {
+          field_type.UserType(module_path:, type_name: "ToClient", args: [])
+            if module_path == route.module_path
+          -> True
+          _ -> False
+        }
+      _ -> False
+    }
+  })
 }
 
 fn tom_error_to_string(e: tom.ParseError) -> String {
