@@ -98,7 +98,9 @@ fn generate_init_with_auth(
   <> auth_ref
   <> ".resolve(server_context, session_id) {
     Error(Nil) -> {
-      // Infrastructure failure — store nothing, connection will fail closed.
+      // Infrastructure failure — no identity stored. Connection starts with
+      // the un-enriched server_context. Subsequent page-init and RPC will see
+      // get_ws_identity() -> Error(Nil) and fail closed for Required pages.
       let Nil = effect.put_ws_state(conn, server_context, \"\")
       topics.join(\"app\")
       topics.join(\"session:\" <> session_id)
@@ -340,7 +342,7 @@ fn generate_frame_handler_with_auth(
 
 " <> helpers_string()
 
-  handler <> "\n\n" <> page_auth_policy_fn <> "\n\n" <> page_has_authorize_fn() <> "\n\n" <> check_page_authorize_fn
+  handler <> "\n\n" <> page_auth_policy_fn <> "\n\n" <> page_has_authorize_fn(page_contracts) <> "\n\n" <> check_page_authorize_fn
 }
 
 fn generate_page_auth_policy(
@@ -375,10 +377,28 @@ fn page_auth_policy(page: String) -> rally_auth.AuthPolicy {
 }"
 }
 
-fn page_has_authorize_fn() -> String {
+fn page_has_authorize_fn(
+  page_contracts: List(#(ScannedRoute, PageContract)),
+) -> String {
+  let arms =
+    list.filter_map(page_contracts, fn(pair) {
+      let #(route, contract) = pair
+      case contract.has_authorize {
+        True -> Ok("    \"" <> route.module_path <> "\" -> True")
+        False -> Error(Nil)
+      }
+    })
+    |> string.join("\n")
+    |> fn(s) {
+      case s {
+        "" -> "    _ -> False"
+        _ -> s <> "\n    _ -> False"
+      }
+    }
+
   "fn page_has_authorize(page: String) -> Bool {
   case page {
-    _ -> False
+" <> arms <> "
   }
 }"
 }

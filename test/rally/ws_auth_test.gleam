@@ -214,8 +214,23 @@ pub fn ws_page_init_authorize_false_emits_forbidden_error_test() {
       from_session_module: "admin/client_context_server",
     )
 
+  // Must include the error response
   let assert True =
     string.contains(output, "auth:forbidden")
+  // page_has_authorize must map the authorized page to True
+  let assert True =
+    string.contains(
+      output,
+      "\"admin/pages/settings\" -> True",
+    )
+  // check_page_authorize must be generated and call the page module
+  let assert True =
+    string.contains(output, "fn check_page_authorize(")
+  let assert True =
+    string.contains(
+      output,
+      "admin_pages_settings.authorize(server_context, identity)",
+    )
 }
 
 pub fn ws_page_init_no_auth_still_updates_state_test() {
