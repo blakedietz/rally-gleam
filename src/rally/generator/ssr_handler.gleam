@@ -1,7 +1,9 @@
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
-import rally/types.{type AuthConfig, type PageContract, type ScannedRoute}
+import rally/types.{
+  type AuthConfig, type PageContract, type ScannedRoute, AuthConfig,
+}
 
 pub fn generate(
   page_contracts page_contracts: List(#(ScannedRoute, PageContract)),
@@ -13,10 +15,15 @@ pub fn generate(
   atoms_module atoms_module: String,
   wire_module wire_module: Option(String),
   client_context_module client_context_module: Option(String),
-  auth_config _auth_config: Option(AuthConfig),
+  auth_config auth_config: Option(AuthConfig),
 ) -> String {
   let use_session = has_client_context && has_from_session
   let from_session_ref = last_segment(from_session_module)
+  let has_auth = option.is_some(auth_config)
+  let auth_module_ref = case auth_config {
+    Some(AuthConfig(auth_module:)) -> last_segment(auth_module)
+    None -> ""
+  }
 
   let load_arms =
     generate_load_arms(
@@ -25,6 +32,7 @@ pub fn generate(
       use_session: use_session,
       from_session_module: from_session_ref,
       wire_module: wire_module,
+      auth_config: auth_config,
     )
   let has_load_pages = load_arms != ""
 
@@ -63,6 +71,13 @@ pub fn generate(
     False -> ""
   }
 
+  let auth_imports = case auth_config {
+    Some(AuthConfig(auth_module:)) ->
+      import_as(auth_module, auth_module_ref)
+      <> "\nimport rally_runtime/auth as rally_auth\nimport gleam/int\nimport gleam/list\n"
+    None -> ""
+  }
+
   let wire_externals =
     generate_wire_externals(
       wire_module:,
@@ -77,6 +92,7 @@ pub fn generate(
     <> client_context_imports
     <> codec_imports
     <> load_page_imports
+    <> auth_imports
     <> layout_imports
     <> page_imports
     <> wire_externals
@@ -115,7 +131,8 @@ fn context_script(client_context: client_context.ClientContext) -> String {
   }
 
   let shell_call = case use_session {
-    True -> "serve_html_shell(server_context: server_context, session_id: session_id, hostname: hostname)"
+    True ->
+      "serve_html_shell(server_context: server_context, session_id: session_id, hostname: hostname)"
     False -> "serve_html_shell()"
   }
 
@@ -145,8 +162,24 @@ fn context_script(client_context: client_context.ClientContext) -> String {
     |> string.replace("\"", "\\\"")
     |> string.replace("\n", "\\n")
 
-  let shell_fn = case use_session {
-    True -> "
+  let shell_fn = case use_session, has_auth {
+    True, True -> "
+fn serve_html_shell(server_context server_context: ServerContext, session_id session_id: String, hostname hostname: String) -> response.Response(ResponseData) {
+  case " <> auth_module_ref <> ".resolve(server_context, session_id) {
+    Error(Nil) ->
+      response.new(500)
+      |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Auth service unavailable\")))
+    Ok(identity) -> {
+      let #(client_context, _) = " <> from_session_ref <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)
+      let html = \"" <> escaped_shell <> "\" <> env.browser_env_script() <> context_script(client_context)
+      response.new(200)
+      |> response.set_header(\"content-type\", \"text/html\")
+      |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
+    }
+  }
+}
+"
+    True, False -> "
 fn serve_html_shell(server_context server_context: ServerContext, session_id session_id: String, hostname hostname: String) -> response.Response(ResponseData) {
   let #(client_context, _) = " <> from_session_ref <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname)
   let html = \"" <> escaped_shell <> "\" <> env.browser_env_script() <> context_script(client_context)
@@ -155,7 +188,7 @@ fn serve_html_shell(server_context server_context: ServerContext, session_id ses
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
 }
 "
-    False -> "
+    False, _ -> "
 fn serve_html_shell() -> response.Response(ResponseData) {
   let html = \"" <> escaped_shell <> "\" <> env.browser_env_script()
   response.new(200)
@@ -174,11 +207,31 @@ fn shell_html() -> String {
     False -> ""
   }
 
+  let cookies_helper = case has_auth {
+    True ->
+      "
+fn apply_cookies(resp: response.Response(ResponseData), cookies: List(rally_auth.Cookie)) -> response.Response(ResponseData) {
+  list.fold(cookies, resp, fn(resp, cookie) {
+    case cookie {
+      rally_auth.SetCookie(name, value, max_age) ->
+        response.prepend_header(resp, \"set-cookie\",
+          name <> \"=\" <> value <> \"; Path=/; HttpOnly; SameSite=Lax; Max-Age=\" <> int.to_string(max_age))
+      rally_auth.ClearCookie(name) ->
+        response.prepend_header(resp, \"set-cookie\",
+          name <> \"=; Path=/; HttpOnly; Max-Age=0\")
+    }
+  })
+}
+"
+    False -> ""
+  }
+
   header
   <> fn_body
   <> ctx_script
   <> shell_fn
   <> shell_html_fn
+  <> cookies_helper
   <> marker_helper(has_load_pages)
 }
 
@@ -297,7 +350,12 @@ fn generate_load_arms(
   use_session use_session: Bool,
   from_session_module from_session_module: String,
   wire_module wire_module: Option(String),
+  auth_config auth_config: Option(AuthConfig),
 ) -> String {
+  let auth_module_ref = case auth_config {
+    Some(AuthConfig(auth_module:)) -> last_segment(auth_module)
+    None -> ""
+  }
   page_contracts
   |> list.filter_map(fn(pair) {
     let #(route, contract) = pair
@@ -310,15 +368,33 @@ fn generate_load_arms(
           |> list.map(fn(p) { p.0 })
           |> string.join(", ")
         let has_params = route.params != []
-        let ctx_arg = case has_params {
-          True -> ", server_context"
-          False -> "server_context"
+        let has_auth = option.is_some(auth_config)
+
+        let identity_arg = case has_auth {
+          True ->
+            case has_params {
+              True -> ", server_context, identity"
+              False -> "server_context, identity"
+            }
+          False ->
+            case has_params {
+              True -> ", server_context"
+              False -> "server_context"
+            }
+        }
+        let from_session_call = case has_auth {
+          True ->
+            from_session_module
+            <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)"
+          False ->
+            from_session_module
+            <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname)"
         }
         let ctx_init = case use_session {
           True ->
             "      let #(client_context, server_context) = "
-            <> from_session_module
-            <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname)\n"
+            <> from_session_call
+            <> "\n"
           False ->
             case has_client_context {
               True -> "      let #(client_context, _) = client_context.init()\n"
@@ -352,8 +428,7 @@ fn generate_load_arms(
             "    let rendered = element.to_string(" <> view_call <> ")\n"
         }
         let ctx_script = case use_session {
-          True ->
-            "      let ctx_tag = context_script(client_context)\n"
+          True -> "      let ctx_tag = context_script(client_context)\n"
           False -> ""
         }
         let flags_target = case contract.has_init_loaded {
@@ -385,42 +460,26 @@ fn generate_load_arms(
           False ->
             "      let shell = shell_html()\n      let full_html = insert_rendered(shell, rendered)\n        <> env.browser_env_script() <> flags_tag\n"
         }
-        let load_line = case contract.has_init_loaded, has_client_context {
-          True, True ->
-            "      let data = "
-            <> alias
-            <> ".load("
-            <> load_args
-            <> ctx_arg
-            <> ")\n"
-            <> "      let #(model, _) = "
-            <> alias
-            <> ".init_loaded(client_context, data)\n"
-          True, False ->
-            "      let data = "
-            <> alias
-            <> ".load("
-            <> load_args
-            <> ctx_arg
-            <> ")\n"
-            <> "      let #(model, _) = "
-            <> alias
-            <> ".init_loaded(data)\n"
-          False, _ ->
-            "      let model = "
-            <> alias
-            <> ".load("
-            <> load_args
-            <> ctx_arg
-            <> ")\n"
-        }
-        Ok(
-          "    router."
-          <> route.variant_name
-          <> pattern
-          <> " -> {\n"
-          <> ctx_init
-          <> load_line
+
+        let render_body =
+          ctx_init
+          <> "      let "
+          <> flags_target
+          <> " = "
+          <> alias
+          <> ".load("
+          <> load_args
+          <> identity_arg
+          <> ")\n"
+          <> case contract.has_init_loaded, has_client_context {
+            True, True ->
+              "      let #(model, _) = "
+              <> alias
+              <> ".init_loaded(client_context, data)\n"
+            True, False ->
+              "      let #(model, _) = " <> alias <> ".init_loaded(data)\n"
+            False, _ -> ""
+          }
           <> "      "
           <> view_expr
           <> ctx_script
@@ -429,6 +488,111 @@ fn generate_load_arms(
           <> "      response.new(200)\n"
           <> "      |> response.set_header(\"content-type\", \"text/html\")\n"
           <> "      |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))\n"
+
+        // For auth-enabled pages, wrap in resolve + checks + LoadResult handling
+        let arm_body = case has_auth {
+          True -> {
+            let resolve_open =
+              "      case "
+              <> auth_module_ref
+              <> ".resolve(server_context, session_id) {\n"
+              <> "        Error(Nil) ->\n"
+              <> "          response.new(500)\n"
+              <> "          |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Auth service unavailable\")))\n"
+              <> "        Ok(identity) -> {\n"
+            let is_auth_check = case contract.page_auth_required {
+              True ->
+                "          case "
+                <> auth_module_ref
+                <> ".is_authenticated(identity) {\n"
+                <> "            False -> response.new(302)\n"
+                <> "              |> response.set_header(\"location\", "
+                <> auth_module_ref
+                <> ".redirect_url)\n"
+                <> "              |> response.set_body(mist.Bytes(bytes_tree.from_string(\"\")))\n"
+                <> "            True -> {\n"
+              False -> ""
+            }
+            let authorize_check = case contract.has_authorize {
+              True ->
+                "              case "
+                <> alias
+                <> ".authorize(server_context, identity) {\n"
+                <> "                False -> response.new(403)\n"
+                <> "                  |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Forbidden\")))\n"
+                <> "                True -> {\n"
+              False -> ""
+            }
+
+            // The load+render block, wrapped in LoadResult case
+            let load_result_block =
+              ctx_init
+              <> "                  case "
+              <> alias
+              <> ".load("
+              <> load_args
+              <> identity_arg
+              <> ") {\n"
+              <> "                    rally_auth.Page(data, cookies) -> {\n"
+              <> case contract.has_init_loaded, has_client_context {
+                True, True ->
+                  "                      let #(model, _) = "
+                  <> alias
+                  <> ".init_loaded(client_context, data)\n"
+                True, False ->
+                  "                      let #(model, _) = "
+                  <> alias
+                  <> ".init_loaded(data)\n"
+                False, _ -> ""
+              }
+              <> "                      "
+              <> view_expr
+              <> ctx_script
+              <> flags_line
+              <> full_html_line
+              <> "                      apply_cookies(\n"
+              <> "                        response.new(200)\n"
+              <> "                        |> response.set_header(\"content-type\", \"text/html\")\n"
+              <> "                        |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html))),\n"
+              <> "                        cookies,\n"
+              <> "                      )\n"
+              <> "                    }\n"
+              <> "                    rally_auth.Redirect(url, cookies) ->\n"
+              <> "                      apply_cookies(\n"
+              <> "                        response.new(302)\n"
+              <> "                        |> response.set_header(\"location\", url)\n"
+              <> "                        |> response.set_body(mist.Bytes(bytes_tree.from_string(\"\"))),\n"
+              <> "                        cookies,\n"
+              <> "                      )\n"
+              <> "                  }\n"
+
+            let close_authorize = case contract.has_authorize {
+              True -> "                }\n              }\n"
+              False -> ""
+            }
+            let close_is_auth = case contract.page_auth_required {
+              True -> "            }\n          }\n"
+              False -> ""
+            }
+            let close_resolve = "        }\n      }\n"
+
+            resolve_open
+            <> is_auth_check
+            <> authorize_check
+            <> load_result_block
+            <> close_authorize
+            <> close_is_auth
+            <> close_resolve
+          }
+          False -> render_body
+        }
+
+        Ok(
+          "    router."
+          <> route.variant_name
+          <> pattern
+          <> " -> {\n"
+          <> arm_body
           <> "    }",
         )
       }
@@ -521,7 +685,11 @@ fn do_snake_case(
             True -> "_"
             False -> ""
           }
-          do_snake_case(remaining: rest, acc: acc <> sep <> lower, prev_lower: False)
+          do_snake_case(
+            remaining: rest,
+            acc: acc <> sep <> lower,
+            prev_lower: False,
+          )
         }
         False -> do_snake_case(remaining: rest, acc: acc <> g, prev_lower: True)
       }

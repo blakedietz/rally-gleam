@@ -1,0 +1,280 @@
+import gleam/option.{None, Some}
+import gleam/string
+import rally/generator/ssr_handler
+import rally/types.{
+  type PageContract, type ScannedRoute, AuthConfig, PageContract, ScannedRoute,
+  StaticSegment,
+}
+
+fn make_contract(
+  has_page_auth has_page_auth: Bool,
+  page_auth_required page_auth_required: Bool,
+  has_authorize has_authorize: Bool,
+) -> PageContract {
+  PageContract(
+    model_variants: [],
+    msg_variants: [],
+    has_load: True,
+    has_init: True,
+    has_init_loaded: True,
+    has_model: True,
+    updates_client_context: False,
+    param_names: [],
+    source: "",
+    view_source: "",
+    init_source: "",
+    update_source: "",
+    has_page_auth:,
+    page_auth_required:,
+    has_authorize:,
+  )
+}
+
+fn make_route(name: String, module: String) -> ScannedRoute {
+  ScannedRoute(
+    segments: [StaticSegment(name)],
+    variant_name: name,
+    params: [],
+    module_path: module,
+    layout_module: None,
+  )
+}
+
+const shell = "<html><head></head><body><div id=\"app\"></div></body></html>"
+
+fn generate_with_auth(contract: PageContract, route: ScannedRoute) -> String {
+  ssr_handler.generate(
+    [#(route, contract)],
+    True,
+    True,
+    "admin/client_context_server",
+    "generated/admin/router",
+    shell,
+    "generated/admin/rpc_atoms",
+    None,
+    Some("admin/client_context"),
+    Some(AuthConfig(auth_module: "admin/auth")),
+  )
+}
+
+fn generate_without_auth(
+  contract: PageContract,
+  route: ScannedRoute,
+) -> String {
+  ssr_handler.generate(
+    [#(route, contract)],
+    True,
+    True,
+    "admin/client_context_server",
+    "generated/admin/router",
+    shell,
+    "generated/admin/rpc_atoms",
+    None,
+    Some("admin/client_context"),
+    None,
+  )
+}
+
+// -- Auth-enabled tests --
+
+pub fn auth_imports_generated_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_with_auth(contract, route)
+
+  let assert True = string.contains(output, "import admin/auth")
+  let assert True = string.contains(output, "import rally_runtime/auth")
+}
+
+pub fn auth_resolve_called_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_with_auth(contract, route)
+
+  let assert True =
+    string.contains(output, "auth.resolve(server_context, session_id)")
+}
+
+pub fn auth_required_redirect_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_with_auth(contract, route)
+
+  let assert True = string.contains(output, "auth.is_authenticated(identity)")
+  let assert True = string.contains(output, "auth.redirect_url")
+}
+
+pub fn auth_optional_no_redirect_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: False,
+      has_authorize: False,
+    )
+  let route = make_route("Login", "public/pages/auth/login")
+  let output = generate_with_auth(contract, route)
+
+  let assert True = string.contains(output, "auth.resolve(")
+  let assert False = string.contains(output, "auth.is_authenticated(")
+}
+
+pub fn auth_from_session_gets_identity_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_with_auth(contract, route)
+
+  let assert True =
+    string.contains(
+      output,
+      "from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)",
+    )
+}
+
+pub fn auth_authorize_called_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: True,
+    )
+  let route = make_route("Managers", "admin/pages/settings/managers")
+  let output = generate_with_auth(contract, route)
+
+  let assert True =
+    string.contains(
+      output,
+      "admin_pages_settings_managers.authorize(server_context, identity)",
+    )
+}
+
+pub fn auth_no_authorize_when_not_exported_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_with_auth(contract, route)
+
+  let assert False = string.contains(output, ".authorize(")
+}
+
+pub fn auth_load_receives_identity_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_with_auth(contract, route)
+
+  let assert True = string.contains(output, ".load(server_context, identity)")
+}
+
+pub fn auth_load_result_handling_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_with_auth(contract, route)
+
+  let assert True = string.contains(output, "rally_auth.Page(data, cookies)")
+  let assert True = string.contains(output, "rally_auth.Redirect(url, cookies)")
+  let assert True = string.contains(output, "apply_cookies(")
+}
+
+pub fn auth_resolve_error_returns_500_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_with_auth(contract, route)
+
+  let assert True = string.contains(output, "Error(Nil)")
+  let assert True = string.contains(output, "500")
+}
+
+pub fn auth_shell_resolves_identity_test() {
+  let contract =
+    make_contract(
+      has_page_auth: True,
+      page_auth_required: True,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_with_auth(contract, route)
+
+  let assert True = string.contains(output, "fn serve_html_shell(")
+  let assert True = {
+    let shell_section = case string.split_once(output, "fn serve_html_shell(") {
+      Ok(#(_, after)) -> after
+      Error(Nil) -> ""
+    }
+    string.contains(shell_section, "auth.resolve(")
+    && string.contains(shell_section, "identity: identity")
+  }
+}
+
+// -- No-auth tests (backwards compat) --
+
+pub fn no_auth_unchanged_output_test() {
+  let contract =
+    make_contract(
+      has_page_auth: False,
+      page_auth_required: False,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_without_auth(contract, route)
+
+  let assert False = string.contains(output, "auth.resolve")
+  let assert False = string.contains(output, "rally_runtime/auth")
+  let assert False = string.contains(output, "identity")
+  let assert True =
+    string.contains(
+      output,
+      "from_session(server_context: server_context, session_id: session_id, hostname: hostname)",
+    )
+}
+
+pub fn no_auth_cookie_helpers_absent_test() {
+  let contract =
+    make_contract(
+      has_page_auth: False,
+      page_auth_required: False,
+      has_authorize: False,
+    )
+  let route = make_route("Dashboard", "admin/pages/dashboard")
+  let output = generate_without_auth(contract, route)
+
+  let assert False = string.contains(output, "apply_cookies")
+  let assert False = string.contains(output, "LoadResult")
+}
