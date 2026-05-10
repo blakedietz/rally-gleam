@@ -1,15 +1,21 @@
 // Behavioral test: prove that decode_server_frame returns properly
-// typed Gleam constructor instances for both response and push frames.
+// structured response and push frames with correctly typed values.
 //
-// Run from the rally root:
+// PREREQUISITE — libero's rpc_ffi.mjs imports from gleam_stdlib, which
+// only exists after `gleam build -t javascript`. This test imports
+// libero source directly, so it needs shim files at the expected paths.
+//
+// Run via the wrapper script (handles shim setup/teardown):
+//   test/js/run_decode_server_frame_test.sh
+//
+// Or run directly after creating shims manually:
+//   mkdir -p ../../libero/gleam_stdlib/gleam
+//   ... (create gleam.mjs, option.mjs, dict.mjs, error.mjs shims)
 //   node test/js/decode_server_frame_test.mjs
 //
-// Note: this imports from libero's source tree via path dependency.
-// The instanceof checks use constructor.name because rpc_ffi.mjs
-// imports Ok/Error from its own gleam_stdlib, and we can't import
-// the same classes without a Gleam build step. What matters for the
-// contract boundary is that the values are typed (CustomType instances,
-// not raw arrays with string atoms).
+// Infrastructure note: this test is blocked on a proper JS test harness
+// for the libero+rally monorepo. The shim approach works but is fragile.
+// See P3 in the contract-boundary review.
 
 import { strict as assert } from "assert";
 import {
@@ -99,7 +105,7 @@ function pushFrame(module, value) {
   console.log("PASS: response frame with tuple value");
 }
 
-// ---------- Push frame ----------
+// ---------- Push frame with integer value ----------
 
 {
   const raw = pushFrame("pages/home", 99);
@@ -144,7 +150,6 @@ function pushFrame(module, value) {
 // ---------- Verify frame.kind routing covers both paths ----------
 
 {
-  // Response
   const r = responseFrame(1, "resp");
   const result = decode_server_frame(r);
   assert.ok(isOk(result));
@@ -154,7 +159,6 @@ function pushFrame(module, value) {
 }
 
 {
-  // Push
   const r = pushFrame("m", "val");
   const result = decode_server_frame(r);
   assert.ok(isOk(result));
