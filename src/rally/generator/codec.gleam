@@ -165,46 +165,36 @@ pub fn decode_json_typed(
 /// Keys include the parent type name so a mismatched "type" field
 /// (e.g. { type: "some/module.OldType", variant: "Discount" }) never
 /// resolves to the registry entry for "some/module.Discount#Discount".
+fn next_unused_alias(
+  used: dict.Dict(String, Nil),
+  candidate: String,
+  n: Int,
+) -> String {
+  let alias = case n {
+    -1 -> candidate
+    _ -> candidate <> "_" <> int.to_string(n)
+  }
+  case dict.has_key(used, alias) {
+    False -> alias
+    True -> next_unused_alias(used, candidate, n + 1)
+  }
+}
+
 /// Build a collision-safe mapping from module_path to JS import alias.
-/// `admin/foo_bar/baz` and `admin/foo/bar_baz` would both produce
-/// `_m_admin_foo_bar_baz` with naive underscore replacement. When a
-/// collision is detected, a numeric suffix is appended (`_1`, `_2`, …).
+/// Maintains a global used-aliases set. For each module the clean
+/// candidate is tried first; if already taken, `_0`, `_1`, … suffixes
+/// are appended until an unused alias is found. This handles both
+/// slash/underscore collisions (`admin/foo_bar/baz` vs `admin/foo/bar_baz`)
+/// and suffix-poisoning (`admin/foo/bar_0` vs a suffixed `admin/foo/bar`).
 fn build_module_aliases(modules: List(String)) -> dict.Dict(String, String) {
-  // Count how many modules share each candidate alias
-  let alias_counts =
-    list.fold(modules, dict.new(), fn(acc, mod) {
-      let candidate = "_m_" <> string.replace(mod, "/", "_")
-      let n = case dict.get(acc, candidate) {
-        Ok(n) -> n + 1
-        Error(Nil) -> 1
-      }
-      dict.insert(acc, candidate, n)
-    })
-  // Assign aliases: unique ones keep the candidate; collisions get a suffix
-  let #(seen, aliases) =
+  let #(used, aliases) =
     list.fold(modules, #(dict.new(), dict.new()), fn(state, mod) {
-      let #(seen, aliases) = state
+      let #(used, aliases) = state
       let candidate = "_m_" <> string.replace(mod, "/", "_")
-      let total = case dict.get(alias_counts, candidate) {
-        Ok(n) -> n
-        Error(Nil) -> 1
-      }
-      case total {
-        1 -> {
-          let aliases = dict.insert(aliases, mod, candidate)
-          #(seen, aliases)
-        }
-        _ -> {
-          let nth = case dict.get(seen, candidate) {
-            Ok(n) -> n
-            Error(Nil) -> 0
-          }
-          let alias = candidate <> "_" <> int.to_string(nth)
-          let seen = dict.insert(seen, candidate, nth + 1)
-          let aliases = dict.insert(aliases, mod, alias)
-          #(seen, aliases)
-        }
-      }
+      let alias = next_unused_alias(used, candidate, -1)
+      let used = dict.insert(used, alias, Nil)
+      let aliases = dict.insert(aliases, mod, alias)
+      #(used, aliases)
     })
   aliases
 }

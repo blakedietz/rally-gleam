@@ -343,29 +343,98 @@ pub fn type_registry_aliases_avoid_slash_underscore_collision_test() {
 
   let registry = generate_json_type_registry_js(types)
 
-  // Must NOT contain a duplicate import binding
+  // First module keeps the clean alias
   registry.content
   |> string.contains("import * as _m_admin_foo_bar_baz from")
-  |> should.be_false()
-
-  // Must contain two distinct import aliases
-  registry.content
-  |> string.contains("import * as _m_admin_foo_bar_baz_0")
   |> should.be_true()
 
+  // Second module gets a suffixed alias
   registry.content
-  |> string.contains("import * as _m_admin_foo_bar_baz_1")
+  |> string.contains("import * as _m_admin_foo_bar_baz_0")
   |> should.be_true()
 
   // Each variant must reference its correct (disambiguated) alias
   registry.content
   |> string.contains(
-    "\"admin/foo_bar/baz.Msg#Msg\": () => new _m_admin_foo_bar_baz_0.Msg()",
+    "\"admin/foo_bar/baz.Msg#Msg\": () => new _m_admin_foo_bar_baz.Msg()",
   )
   |> should.be_true()
   registry.content
   |> string.contains(
-    "\"admin/foo/bar_baz.Msg#Msg\": (fields) => new _m_admin_foo_bar_baz_1.Msg(fields.x)",
+    "\"admin/foo/bar_baz.Msg#Msg\": (fields) => new _m_admin_foo_bar_baz_0.Msg(fields.x)",
+  )
+  |> should.be_true()
+}
+
+pub fn type_registry_aliases_prevent_suffix_poisoning_test() {
+  // `admin/foo/bar` and `admin/foo_bar` collide on `_m_admin_foo_bar`.
+  // The second gets `_m_admin_foo_bar_0`.  `admin/foo/bar_0` naturally
+  // produces `_m_admin_foo_bar_0` — which the second already owns — so
+  // it must be disambiguated further.
+  let types = [
+    DiscoveredType(
+      module_path: "admin/foo/bar",
+      type_name: "A",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "admin/foo/bar",
+          variant_name: "A",
+          atom_name: "a",
+          float_field_indices: [],
+          field_labels: [],
+          fields: [],
+        ),
+      ],
+    ),
+    DiscoveredType(
+      module_path: "admin/foo_bar",
+      type_name: "B",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "admin/foo_bar",
+          variant_name: "B",
+          atom_name: "b",
+          float_field_indices: [],
+          field_labels: [],
+          fields: [],
+        ),
+      ],
+    ),
+    DiscoveredType(
+      module_path: "admin/foo/bar_0",
+      type_name: "C",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "admin/foo/bar_0",
+          variant_name: "C",
+          atom_name: "c",
+          float_field_indices: [],
+          field_labels: [],
+          fields: [],
+        ),
+      ],
+    ),
+  ]
+
+  let registry = generate_json_type_registry_js(types)
+
+  // admin/foo/bar → clean alias
+  registry.content
+  |> string.contains("\"admin/foo/bar.A#A\": () => new _m_admin_foo_bar.A()")
+  |> should.be_true()
+
+  // admin/foo_bar → collides → _0
+  registry.content
+  |> string.contains("\"admin/foo_bar.B#B\": () => new _m_admin_foo_bar_0.B()")
+  |> should.be_true()
+
+  // admin/foo/bar_0 → candidate _0 already taken → _0_0
+  registry.content
+  |> string.contains(
+    "\"admin/foo/bar_0.C#C\": () => new _m_admin_foo_bar_0_0.C()",
   )
   |> should.be_true()
 }
