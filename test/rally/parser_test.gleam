@@ -105,7 +105,8 @@ pub fn init() -> #(Model, Effect(Msg)) { todo }
 }
 
 pub fn update_comment_does_not_count_as_client_context_update_test() {
-  let source = "
+  let source =
+    "
 import lustre/effect.{type Effect}
 pub type Model { Model }
 pub type Msg { NoOp }
@@ -121,7 +122,8 @@ pub fn view(model: Model) { todo }
 }
 
 pub fn update_three_tuple_return_counts_as_client_context_update_test() {
-  let source = "
+  let source =
+    "
 import gleam/option.{type Option}
 import lustre/effect.{type Effect}
 import public/client_context.{type ClientContext, type ClientContextMsg}

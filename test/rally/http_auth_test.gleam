@@ -461,8 +461,7 @@ pub fn http_auth_imports_rally_runtime_wire_test() {
     )
 
   // Must import rally_runtime/wire, not the Erlang module
-  let assert True =
-    string.contains(output, "import rally_runtime/wire as wire")
+  let assert True = string.contains(output, "import rally_runtime/wire as wire")
   // Must NOT import an Erlang module as wire
   let assert False = string.contains(output, "generated@")
 }

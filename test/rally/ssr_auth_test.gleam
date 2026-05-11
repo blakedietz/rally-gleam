@@ -234,12 +234,20 @@ pub fn auth_shell_resolves_identity_test() {
   // lacks SSR).
   let no_load_contract =
     PageContract(
-      model_variants: [], msg_variants: [],
-      has_load: False, has_init: True, has_init_loaded: False,
-      has_model: True, updates_client_context: False,
+      model_variants: [],
+      msg_variants: [],
+      has_load: False,
+      has_init: True,
+      has_init_loaded: False,
+      has_model: True,
+      updates_client_context: False,
       param_names: [],
-      source: "", view_source: "", init_source: "", update_source: "",
-      has_page_auth: False, page_auth_required: False,
+      source: "",
+      view_source: "",
+      init_source: "",
+      update_source: "",
+      has_page_auth: False,
+      page_auth_required: False,
       has_authorize: False,
     )
   let route = make_route("Dashboard", "admin/pages/dashboard")
@@ -315,21 +323,18 @@ pub fn auth_from_session_without_client_context_test() {
     )
 
   // Must call from_session with identity, discarding ClientContext
-  let assert True =
-    string.contains(output, "let #(_, server_context) = ")
+  let assert True = string.contains(output, "let #(_, server_context) = ")
   let assert True =
     string.contains(
       output,
       ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)",
     )
   // from_session must run BEFORE load (ordering is the point of this bug)
-  let assert True =
-    string.contains(output, ".load(server_context, identity)")
+  let assert True = string.contains(output, ".load(server_context, identity)")
   // Split at from_session; the after part must contain load
   let assert Ok(#(_, after_fs)) =
     string.split_once(output, ".from_session(server_context:")
-  let assert True =
-    string.contains(after_fs, ".load(server_context, identity)")
+  let assert True = string.contains(after_fs, ".load(server_context, identity)")
 }
 
 pub fn no_auth_cookie_helpers_absent_test() {

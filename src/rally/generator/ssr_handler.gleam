@@ -37,16 +37,18 @@ pub fn generate(
     )
   let has_load_pages = load_arms != ""
 
-  let all_routes_have_load = list.all(page_contracts, fn(pair) {
-    let #(_, contract) = pair
-    contract.has_load && contract.has_model
-  })
+  let all_routes_have_load =
+    list.all(page_contracts, fn(pair) {
+      let #(_, contract) = pair
+      contract.has_load && contract.has_model
+    })
 
   let layout_imports = generate_layout_imports(page_contracts)
   let page_imports = generate_page_imports(page_contracts)
 
   let needs_server_context = use_session || has_load_pages
-  let needs_from_session_import = use_session || { has_auth && has_from_session }
+  let needs_from_session_import =
+    use_session || { has_auth && has_from_session }
   let needs_codec = use_session || has_load_pages
 
   let base_imports =
@@ -59,7 +61,9 @@ pub fn generate(
   let server_imports = case needs_server_context {
     True ->
       "import server_context.{type ServerContext}\n"
-      <> case needs_from_session_import && from_session_module != "server_context" {
+      <> case
+        needs_from_session_import && from_session_module != "server_context"
+      {
         True -> import_as(from_session_module, from_session_ref) <> "\n"
         False -> ""
       }
@@ -181,8 +185,9 @@ fn context_script(client_context: client_context.ClientContext) -> String {
 
   let shell_fn = case needs_shell_fn {
     False -> ""
-    True -> case use_session, has_auth {
-    True, True -> "
+    True ->
+      case use_session, has_auth {
+        True, True -> "
 fn serve_html_shell(server_context server_context: ServerContext, session_id session_id: String, hostname hostname: String) -> response.Response(ResponseData) {
   case " <> auth_module_ref <> ".resolve(server_context, session_id) {
     Error(Nil) ->
@@ -198,7 +203,7 @@ fn serve_html_shell(server_context server_context: ServerContext, session_id ses
   }
 }
 "
-    True, False -> "
+        True, False -> "
 fn serve_html_shell(server_context server_context: ServerContext, session_id session_id: String, hostname hostname: String) -> response.Response(ResponseData) {
   let #(client_context, _) = " <> from_session_ref <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname)
   let html = \"" <> escaped_shell <> "\" <> env.browser_env_script() <> context_script(client_context)
@@ -207,7 +212,7 @@ fn serve_html_shell(server_context server_context: ServerContext, session_id ses
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
 }
 "
-    False, _ -> "
+        False, _ -> "
 fn serve_html_shell() -> response.Response(ResponseData) {
   let html = \"" <> escaped_shell <> "\" <> env.browser_env_script()
   response.new(200)
@@ -215,7 +220,7 @@ fn serve_html_shell() -> response.Response(ResponseData) {
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
 }
 "
-  }
+      }
   }
 
   let shell_html_fn = case has_load_pages {
@@ -414,7 +419,8 @@ fn generate_load_arms(
         }
         // Auth requires from_session to enrich ServerContext before
         // authorize and load, regardless of whether ClientContext exists.
-        let needs_from_session = use_session || { has_auth && needs_fs_for_auth }
+        let needs_from_session =
+          use_session || { has_auth && needs_fs_for_auth }
         let ctx_init = case needs_from_session {
           True ->
             case has_client_context {
@@ -423,9 +429,7 @@ fn generate_load_arms(
                 <> from_session_call
                 <> "\n"
               False ->
-                "      let #(_, server_context) = "
-                <> from_session_call
-                <> "\n"
+                "      let #(_, server_context) = " <> from_session_call <> "\n"
             }
           False ->
             case has_client_context {
@@ -587,7 +591,9 @@ fn generate_load_arms(
                 <> ".layout(page_view))\n"
               }
               None, _ ->
-                "    let rendered = element.to_string(" <> view_call_auth <> ")\n"
+                "    let rendered = element.to_string("
+                <> view_call_auth
+                <> ")\n"
             }
             let wire_encode_flags_auth = case wire_module {
               Some(_) -> {

@@ -10,9 +10,8 @@ import gleam/string
 import simplifile
 
 pub fn transport_ffi_has_no_byte_level_frame_awareness_test() {
-  let assert Ok(content) = simplifile.read(
-    "src/rally_runtime/transport_ffi.mjs",
-  )
+  let assert Ok(content) =
+    simplifile.read("src/rally_runtime/transport_ffi.mjs")
 
   // Must NOT inspect frame tag bytes
   let assert False = string.contains(content, "0x00")

@@ -35,7 +35,10 @@ pub fn generate(
 
   let rpc_imports = case has_auth && !has_endpoints {
     True -> ""
-    False -> "import rally_runtime/system\nimport " <> rpc_dispatch_module <> " as rpc_dispatch\n"
+    False ->
+      "import rally_runtime/system\nimport "
+      <> rpc_dispatch_module
+      <> " as rpc_dispatch\n"
   }
 
   let header =
@@ -104,9 +107,7 @@ fn generate_init_with_auth(
   ensure_atoms()
   topics.start()
   let Nil = effect.put_ws_session(session_id)
-  case "
-  <> auth_ref
-  <> ".resolve(server_context, session_id) {
+  case " <> auth_ref <> ".resolve(server_context, session_id) {
     Error(Nil) -> {
       // Infrastructure failure — no identity stored. Connection starts with
       // the un-enriched server_context. Subsequent page-init and RPC will see
@@ -119,9 +120,7 @@ fn generate_init_with_auth(
       #(Nil, Some(selector))
     }
     Ok(identity) -> {
-      let #(_, enriched_sc) = "
-  <> from_session_ref
-  <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)
+      let #(_, enriched_sc) = " <> from_session_ref <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)
       let Nil = effect.put_ws_state(conn, enriched_sc, \"\")
       let Nil = effect.put_ws_identity(identity)
       let Nil = effect.put_ws_hostname(hostname)
@@ -227,13 +226,10 @@ fn generate_frame_handler_with_auth(
     True -> generate_handler_page_info(page_contracts, endpoints)
     False -> ""
   }
-  let check_page_authorize_fn = generate_ws_check_page_authorize(
-    page_contracts,
-    auth_ref,
-  )
+  let check_page_authorize_fn =
+    generate_ws_check_page_authorize(page_contracts, auth_ref)
 
-  let handler =
-    "pub fn handler(
+  let handler = "pub fn handler(
   state state: Nil,
   msg msg: WebsocketMessage(a),
   conn conn: WebsocketConnection,
@@ -252,17 +248,13 @@ fn generate_frame_handler_with_auth(
           let hostname = effect.get_ws_hostname()
           let current_page = effect.get_ws_page()
           let assert Ok(server_context) = effect.get_stored_server_context()
-          case "
-    <> auth_ref
-    <> ".resolve(server_context, session_id) {
+          case " <> auth_ref <> ".resolve(server_context, session_id) {
             Error(Nil) -> {
               effect.clear_ws_auth_state()
               let Nil = effect.put_ws_state(conn, server_context, current_page)
             }
             Ok(identity) -> {
-              let #(_, enriched_sc) = "
-    <> from_session_ref
-    <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)
+              let #(_, enriched_sc) = " <> from_session_ref <> ".from_session(server_context: server_context, session_id: session_id, hostname: hostname, identity: identity)
               let Nil = effect.put_ws_state(conn, enriched_sc, current_page)
               let Nil = effect.put_ws_identity(identity)
               let Nil = effect.put_ws_auth_timestamp(now)
@@ -278,17 +270,11 @@ fn generate_frame_handler_with_auth(
             rally_auth.Required -> {
               case effect.get_ws_identity() {
                 Error(Nil) ->
-                  #(False, wire.encode_response(request_id:, value: Error(\"auth:redirect:\" <> "
-    <> auth_ref
-    <> ".redirect_url)))
+                  #(False, wire.encode_response(request_id:, value: Error(\"auth:redirect:\" <> " <> auth_ref <> ".redirect_url)))
                 Ok(identity) -> {
-                  case "
-    <> auth_ref
-    <> ".is_authenticated(identity) {
+                  case " <> auth_ref <> ".is_authenticated(identity) {
                     False ->
-                      #(False, wire.encode_response(request_id:, value: Error(\"auth:redirect:\" <> "
-    <> auth_ref
-    <> ".redirect_url)))
+                      #(False, wire.encode_response(request_id:, value: Error(\"auth:redirect:\" <> " <> auth_ref <> ".redirect_url)))
                     True -> {
                       case page_has_authorize(page) {
                         True -> {
@@ -376,7 +362,14 @@ fn generate_frame_handler_with_auth(
     False -> ""
   }
 
-  handler <> "\n\n" <> page_auth_policy_fn <> "\n\n" <> page_has_authorize_fn(page_contracts) <> page_info_section <> "\n\n" <> check_page_authorize_fn
+  handler
+  <> "\n\n"
+  <> page_auth_policy_fn
+  <> "\n\n"
+  <> page_has_authorize_fn(page_contracts)
+  <> page_info_section
+  <> "\n\n"
+  <> check_page_authorize_fn
 }
 
 fn rpc_body(has_endpoints: Bool, auth_ref: String) -> String {
@@ -491,10 +484,7 @@ fn generate_page_auth_policy(
             True -> "rally_auth.Required"
             False -> "rally_auth.Optional"
           }
-          Ok("    \""
-            <> route.module_path
-            <> "\" -> "
-            <> policy)
+          Ok("    \"" <> route.module_path <> "\" -> " <> policy)
         }
         False -> Error(Nil)
       }
@@ -572,7 +562,8 @@ fn generate_ws_check_page_authorize(
         |> list.unique
         |> string.join("\n")
 
-      imports <> "\n\nfn check_page_authorize(page: String, server_context: ServerContext, identity: "
+      imports
+      <> "\n\nfn check_page_authorize(page: String, server_context: ServerContext, identity: "
       <> auth_ref
       <> ".Identity) -> Bool {
   case page {
@@ -609,7 +600,8 @@ fn generate_handler_page_info(
         })
       {
         Ok(contract) ->
-          Ok("    \""
+          Ok(
+            "    \""
             <> wire_tag
             <> "\" -> Ok(PageAuthInfo(page: \""
             <> endpoint.module_path
@@ -617,7 +609,8 @@ fn generate_handler_page_info(
             <> bool_str(contract.page_auth_required)
             <> ", has_authorize: "
             <> bool_str(contract.has_authorize)
-            <> "))")
+            <> "))",
+          )
         Error(Nil) ->
           panic as "rally codegen: WS handler has no matching page contract"
       }

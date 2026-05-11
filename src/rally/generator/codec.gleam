@@ -309,9 +309,13 @@ fn emit_codec_ffi_with_endpoints(
   discovered: List(DiscoveredType),
   endpoints: List(HandlerEndpoint),
 ) -> String {
-  codegen_decoders.generate_decoders_ffi(discovered, endpoints, "../../", "client")
+  codegen_decoders.generate_decoders_ffi(
+    discovered,
+    endpoints,
+    "../../",
+    "client",
+  )
 }
-
 
 // ---------- Mirrored types (types.gleam) ----------
 
@@ -453,5 +457,3 @@ pub fn decode_flags_typed(
 }
 "
 }
-
-

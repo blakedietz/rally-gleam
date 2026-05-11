@@ -195,7 +195,9 @@ pub fn app_gleam_uses_nearest_layout_per_page_test() {
   |> should.equal(True)
 
   file.content
-  |> string.contains("SettingsProfilePageModel(_) ->\n      pages_settings_layout.layout")
+  |> string.contains(
+    "SettingsProfilePageModel(_) ->\n      pages_settings_layout.layout",
+  )
   |> should.equal(True)
 }
 
@@ -352,7 +354,9 @@ pub fn client_app_syncs_browser_client_context_fields_test() {
   |> should.equal(True)
 
   file.content
-  |> string.contains("init_page(route: route, client_context: new_client_context)")
+  |> string.contains(
+    "init_page(route: route, client_context: new_client_context)",
+  )
   |> should.equal(True)
 
   file.content
@@ -408,9 +412,7 @@ pub fn client_app_underscores_ignored_hydrate_route_params_test() {
     })
 
   file.content
-  |> string.contains(
-    "router.UsersId(_id) -> {",
-  )
+  |> string.contains("router.UsersId(_id) -> {")
   |> should.equal(True)
 
   file.content
@@ -554,7 +556,9 @@ pub fn app_gleam_layout_with_client_context_uses_context_msg_mapper_test() {
     })
 
   file.content
-  |> string.contains("pages_layout.layout(model.client_context, ClientContextUpdate, content)")
+  |> string.contains(
+    "pages_layout.layout(model.client_context, ClientContextUpdate, content)",
+  )
   |> should.equal(True)
 
   file.content

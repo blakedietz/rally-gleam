@@ -24,8 +24,8 @@ pub fn get_hostname_unset_returns_empty_test() {
 }
 
 pub fn put_get_auth_timestamp_roundtrip_test() {
-  effect.put_ws_auth_timestamp(1715000000)
-  let assert 1715000000 = effect.get_ws_auth_timestamp()
+  effect.put_ws_auth_timestamp(1_715_000_000)
+  let assert 1_715_000_000 = effect.get_ws_auth_timestamp()
 }
 
 pub fn get_auth_timestamp_unset_returns_zero_test() {
