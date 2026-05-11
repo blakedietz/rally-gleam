@@ -4,6 +4,8 @@ A full-stack web framework for Gleam + Lustre with file-based routing. Write pag
 
 Target boundary: Rally is a protocol-oblivious consumer of Libero. Rally owns WebSocket lifecycle, routes, sessions, topics, reconnects, timeouts, page semantics, and logging. Libero owns the typed protocol contract, encode/decode, request envelopes, response frames, push frames, flags, validation, and security limits. ETF remains the fast native path for Rally's generated Lustre clients. If Libero adds JSON RPC as a configured protocol for non-Gleam clients, Rally should not need to understand the JSON shape. See `docs/libero-boundary-spec.md`.
 
+Related codegen planning lives in `docs/plans/2026-05-11-libero-codegen-substrate.md`. That draft proposes moving shared Glance type resolution into Libero first, then deferring generated-file and formatter sharing until the JSON protocol work settles.
+
 ## Quick start
 
 ```sh
