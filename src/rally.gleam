@@ -536,6 +536,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       },
       auth_config,
       wire_import_module: protocol_wire_module,
+      protocol: config.protocol,
     )
 
   // Write generated files, aborting on first failure
@@ -613,7 +614,13 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     option.None -> Ok(option.None)
   })
   let raw_codec_files =
-    codec.generate(contracts, discovered, ns_endpoints, server_symbols)
+    codec.generate(
+      contracts,
+      discovered,
+      ns_endpoints,
+      server_symbols,
+      config.protocol,
+    )
   let codec_files =
     list.map(raw_codec_files, fn(f: codec.CodecFile) {
       client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
@@ -640,6 +647,26 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
       }),
     )
+
+  // Write server-side JSON codecs alongside SSR handler when protocol is JSON
+  use _ <- result.try(case config.protocol {
+    "json" -> {
+      case json_codec_files {
+        [] -> Ok(Nil)
+        [first, ..] -> {
+          let server_path =
+            string.replace(
+              config.output_ssr,
+              "ssr_handler.gleam",
+              "json_codecs.gleam",
+            )
+          write_file(server_path, first.content)
+          |> result.map_error(fn(msg) { RallyError("write error: " <> msg) })
+        }
+      }
+    }
+    _ -> Ok(Nil)
+  })
 
   let client_files =
     client.generate_package_with_client_context_contract(

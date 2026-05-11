@@ -218,6 +218,7 @@ pub fn ssr_handler_snapshot_test() {
       option.None,
       option.None,
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
   birdie.snap(output, "ssr_handler_gleam")
 }
@@ -239,6 +240,7 @@ pub fn ssr_handler_sets_content_type_for_load_pages_test() {
       option.None,
       option.None,
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
   let content_type_count =
     output
@@ -266,6 +268,7 @@ pub fn ssr_handler_with_client_context_snapshot_test() {
       option.None,
       option.None,
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
   birdie.snap(output, "ssr_handler_with_client_context_gleam")
 }
@@ -613,6 +616,7 @@ pub fn ssr_layout_with_client_context_uses_v3_session_contract_test() {
       Some("public/client_context"),
       option.None,
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   output
@@ -684,6 +688,7 @@ pub fn ssr_client_context_without_from_session_imports_client_context_test() {
       Some("public/client_context"),
       option.None,
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   output
@@ -934,7 +939,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       page_auth_required: False,
       has_authorize: False,
     )
-  let files = codec.generate([#(route, contract)], [], [], [])
+  let files = codec.generate([#(route, contract)], [], [], [], "etf")
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.contains(f.content, "send_to_server(Increment)")
@@ -951,7 +956,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
 pub fn types_gleam_snapshot_test() {
   let contracts = basic_contracts()
-  let files = codec.generate(contracts, [], [], [])
+  let files = codec.generate(contracts, [], [], [], "etf")
   let types =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "types.gleam")
@@ -971,7 +976,7 @@ pub fn types_gleam_does_not_import_modules_used_only_by_responses_test() {
       mutates_context: False,
       msg_type: None,
     )
-  let files = codec.generate([], [], [endpoint], [])
+  let files = codec.generate([], [], [endpoint], [], "etf")
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "types.gleam")
@@ -993,7 +998,7 @@ pub fn codec_ffi_includes_libero_response_decoders_test() {
       mutates_context: False,
       msg_type: None,
     )
-  let files = codec.generate([], [], [endpoint], [])
+  let files = codec.generate([], [], [endpoint], [], "etf")
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "codec_ffi.mjs")
@@ -1006,7 +1011,7 @@ pub fn codec_ffi_includes_libero_response_decoders_test() {
 
 pub fn codec_gleam_snapshot_test() {
   let contracts = basic_contracts()
-  let files = codec.generate(contracts, [], [], [])
+  let files = codec.generate(contracts, [], [], [], "etf")
   let codec_file =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "codec.gleam")
@@ -1016,7 +1021,7 @@ pub fn codec_gleam_snapshot_test() {
 }
 
 pub fn codec_gleam_omits_unused_dynamic_type_import_test() {
-  let files = codec.generate([], [], [], [])
+  let files = codec.generate([], [], [], [], "etf")
   let assert Ok(file) =
     list.find(files, fn(f: codec.CodecFile) {
       string.ends_with(f.path, "codec.gleam")

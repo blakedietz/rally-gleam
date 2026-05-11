@@ -314,6 +314,7 @@ pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
       option.None,
       option.None,
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   output
@@ -374,6 +375,7 @@ pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
       option.None,
       option.None,
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   output
@@ -422,6 +424,7 @@ pub fn ssr_app_marker_preserves_tag_order_test() {
       option.None,
       option.None,
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   output
