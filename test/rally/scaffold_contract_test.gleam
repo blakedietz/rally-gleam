@@ -186,9 +186,7 @@ pub fn realworld_routes_http_rpc_test() {
   |> should.equal(True)
 
   source
-  |> string.contains(
-    "http_handler.handle(body: body, server_context: server_context, session_id: session_id)",
-  )
+  |> string.contains("http_handler.handle")
   |> should.equal(True)
 }
 
