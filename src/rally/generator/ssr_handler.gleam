@@ -83,9 +83,13 @@ pub fn generate(
   }
 
   let auth_imports = case auth_config {
-    Some(AuthConfig(auth_module:)) if has_load_pages ->
+    Some(AuthConfig(auth_module:)) ->
       import_as(auth_module, auth_module_ref)
-      <> "\nimport rally_runtime/auth as rally_auth\nimport gleam/int\nimport gleam/list\n"
+      <> case has_load_pages {
+        True ->
+          "\nimport rally_runtime/auth as rally_auth\nimport gleam/int\nimport gleam/list\n"
+        False -> "\n"
+      }
     _ -> ""
   }
 
