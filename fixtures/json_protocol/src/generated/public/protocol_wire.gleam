@@ -10,6 +10,10 @@ import libero/json/wire.{type RequestEnvelope} as json_wire
 
 const contract_hash = "b4dc083569e4dc1b29dade5855fbfc4bc774f2ae2e8a4cf1ac9a9622dae2dc19"
 
+pub fn page_init_ok() -> json.Json {
+  json.null()
+}
+
 pub fn encode_request(
   module module: String,
   request_id request_id: Int,

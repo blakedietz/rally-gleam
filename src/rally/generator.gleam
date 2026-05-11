@@ -873,6 +873,8 @@ import libero/wire as libero_wire
 @external(erlang, \"" <> atoms_module <> "\", \"ensure\")
 fn ensure_atoms() -> Nil
 
+pub fn page_init_ok() -> Nil { Nil }
+
 pub fn encode(value: a) -> BitArray { libero_wire.encode(value) }
 pub fn decode_call(data: BitArray) -> Result(#(String, Int, Dynamic), DecodeError) { libero_wire.decode_call(data) }
 pub fn encode_call(module module: String, request_id request_id: Int, msg msg: a) -> BitArray { libero_wire.encode_call(module:, request_id:, msg:) }
@@ -903,6 +905,8 @@ import libero/json/error.{type JsonError} as json_error
 import libero/json/wire.{type RequestEnvelope} as json_wire
 
 const contract_hash = \"" <> contract_hash <> "\"
+
+pub fn page_init_ok() -> json.Json { json.null() }
 
 pub fn encode_request(module module: String, request_id request_id: Int, msg msg: json.Json) -> String {
   json_wire.encode_request(module:, request_id:, msg:, contract_hash:)

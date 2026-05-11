@@ -60,7 +60,7 @@ pub fn generate(
     string.replace(wire_import_module, "protocol_wire", "json_codecs")
   let json_imports = case protocol {
     "json" ->
-      "import gleam/dynamic.{type Dynamic}\nimport gleam/dynamic/decode\nimport gleam/json\nimport libero/json/error.{type JsonError, JsonError}\nimport libero/trace\nimport "
+      "import gleam/dynamic.{type Dynamic}\nimport gleam/dynamic/decode\nimport gleam/json\nimport gleam/string\nimport libero/json/error.{type JsonError, JsonError}\nimport libero/trace\nimport "
       <> json_codec_module
       <> " as json_codecs\n"
       <> string.join(handler_imports, "\n")
@@ -99,7 +99,14 @@ pub fn generate(
     "json" -> generate_json_dispatch_function(endpoints, has_auth)
     _ -> ""
   }
-  string.join([header, init, handler, json_dispatch], "\n\n") <> "\n"
+  let result =
+    string.join([header, init, handler, json_dispatch], "\n\n") <> "\n"
+  case protocol {
+    "json" ->
+      result
+      |> string.replace("mist.send_binary_frame", "mist.send_text_frame")
+    _ -> result
+  }
 }
 
 // -- Init (no auth) --
@@ -224,7 +231,7 @@ fn generate_frame_handler_no_auth(protocol: String) -> String {
             _ -> topics.leave(\"page:\" <> old_page)
           }
           topics.join(\"page:\" <> page)
-          let response_frame = wire.encode_response(request_id:, value: Nil)
+          let response_frame = wire.encode_response(request_id:, value: wire.page_init_ok())
           let _send_result = mist.send_binary_frame(conn, response_frame)
           send_pending_frames(conn)
           mist.continue(state)
@@ -379,10 +386,10 @@ fn generate_frame_handler_with_auth(
                           case check_page_authorize(page, server_context, identity) {
                             False ->
                               #(False, wire.encode_response(request_id:, value: Error(\"auth:forbidden\")))
-                            True -> #(True, wire.encode_response(request_id:, value: Nil))
+                            True -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
                           }
                         }
-                        False -> #(True, wire.encode_response(request_id:, value: Nil))
+                        False -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
                       }
                     }
                   }
@@ -400,12 +407,12 @@ fn generate_frame_handler_with_auth(
                       case check_page_authorize(page, server_context, identity) {
                         False ->
                           #(False, wire.encode_response(request_id:, value: Error(\"auth:forbidden\")))
-                        True -> #(True, wire.encode_response(request_id:, value: Nil))
+                        True -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
                       }
                     }
                   }
                 }
-                False -> #(True, wire.encode_response(request_id:, value: Nil))
+                False -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
               }
             }
           }
