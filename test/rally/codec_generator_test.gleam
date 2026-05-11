@@ -369,7 +369,7 @@ pub fn type_registry_aliases_avoid_slash_underscore_collision_test() {
 pub fn type_registry_aliases_prevent_suffix_poisoning_test() {
   // `admin/foo/bar` and `admin/foo_bar` collide on `_m_admin_foo_bar`.
   // The second gets `_m_admin_foo_bar_0`.  `admin/foo/bar_0` naturally
-  // produces `_m_admin_foo_bar_0` — which the second already owns — so
+  // produces `_m_admin_foo_bar_0`, which the second already owns, so
   // it must be disambiguated further.
   let types = [
     DiscoveredType(
@@ -421,17 +421,17 @@ pub fn type_registry_aliases_prevent_suffix_poisoning_test() {
 
   let registry = generate_json_type_registry_js(types)
 
-  // admin/foo/bar → clean alias
+  // admin/foo/bar -> clean alias
   registry.content
   |> string.contains("\"admin/foo/bar.A#A\": () => new _m_admin_foo_bar.A()")
   |> should.be_true()
 
-  // admin/foo_bar → collides → _0
+  // admin/foo_bar -> collides -> _0
   registry.content
   |> string.contains("\"admin/foo_bar.B#B\": () => new _m_admin_foo_bar_0.B()")
   |> should.be_true()
 
-  // admin/foo/bar_0 → candidate _0 already taken → _0_0
+  // admin/foo/bar_0 -> candidate _0 already taken -> _0_0
   registry.content
   |> string.contains(
     "\"admin/foo/bar_0.C#C\": () => new _m_admin_foo_bar_0_0.C()",

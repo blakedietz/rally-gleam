@@ -182,12 +182,12 @@ fn next_unused_alias(
 
 /// Build a collision-safe mapping from module_path to JS import alias.
 /// Maintains a global used-aliases set. For each module the clean
-/// candidate is tried first; if already taken, `_0`, `_1`, … suffixes
+/// candidate is tried first; if already taken, `_0`, `_1`, ... suffixes
 /// are appended until an unused alias is found. This handles both
 /// slash/underscore collisions (`admin/foo_bar/baz` vs `admin/foo/bar_baz`)
 /// and suffix-poisoning (`admin/foo/bar_0` vs a suffixed `admin/foo/bar`).
 fn build_module_aliases(modules: List(String)) -> dict.Dict(String, String) {
-  let #(used, aliases) =
+  let #(_, aliases) =
     list.fold(modules, #(dict.new(), dict.new()), fn(state, mod) {
       let #(used, aliases) = state
       let candidate = "_m_" <> string.replace(mod, "/", "_")
