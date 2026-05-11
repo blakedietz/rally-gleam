@@ -15,7 +15,11 @@ import simplifile
 import tom
 
 pub fn empty_rpc_dispatch_handles_bad_variant_tags_test() {
-  let output = generator.generate_empty_rpc_dispatch("generated@rpc_atoms", [])
+  let output =
+    generator.generate_empty_rpc_dispatch(
+      atoms_module: "generated@rpc_atoms",
+      extra_params: [],
+    )
 
   output
   |> string.contains("Error(_) ->")
@@ -28,13 +32,16 @@ pub fn empty_rpc_dispatch_handles_bad_variant_tags_test() {
 
 pub fn empty_rpc_dispatch_with_identity_extra_param_test() {
   let output =
-    generator.generate_empty_rpc_dispatch("generated@rpc_atoms", [
-      codegen_dispatch.ExtraParam(
-        name: "identity",
-        type_ref: "auth.Identity",
-        import_line: "import admin/auth",
-      ),
-    ])
+    generator.generate_empty_rpc_dispatch(
+      atoms_module: "generated@rpc_atoms",
+      extra_params: [
+        codegen_dispatch.ExtraParam(
+          name: "identity",
+          type_ref: "auth.Identity",
+          import_line: "import admin/auth",
+        ),
+      ],
+    )
 
   // Must import the auth module
   output
@@ -195,10 +202,10 @@ pub fn realworld_routes_http_rpc_test() {
 pub fn ws_handler_logs_decoded_rpc_value_test() {
   let output =
     ws_handler.generate(
-      [],
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      option.None,
+      page_contracts: [],
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: option.None,
       from_session_module: "client_context_server",
       endpoints: [],
     )

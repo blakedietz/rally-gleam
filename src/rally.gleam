@@ -345,8 +345,8 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
   let sd_source = case ns_endpoints {
     [] ->
       generator.generate_empty_rpc_dispatch(
-        config.atoms_module,
-        extra_dispatch_params,
+        atoms_module: config.atoms_module,
+        extra_params: extra_dispatch_params,
       )
     _ ->
       case extra_dispatch_params {
@@ -686,10 +686,10 @@ fn do_write_files(
     })
   let ws_source =
     ws_handler.generate(
-      contracts,
-      config.atoms_module,
-      rpc_dispatch_module,
-      auth_config,
+      page_contracts: contracts,
+      atoms_module: config.atoms_module,
+      rpc_dispatch_module:,
+      auth_config:,
       from_session_module:,
       endpoints: ns_endpoints,
     )
@@ -718,10 +718,10 @@ fn do_write_files(
     _ -> {
       let http_source =
         http_handler.generate(
-          ns_endpoints,
-          rpc_dispatch_module,
-          auth_config,
-          contracts,
+          endpoints: ns_endpoints,
+          rpc_dispatch_module:,
+          auth_config:,
+          contracts:,
           from_session_module:,
         )
       write_file(config.output_http, http_source)

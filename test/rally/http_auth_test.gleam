@@ -72,10 +72,10 @@ pub fn http_auth_imports_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -96,10 +96,10 @@ pub fn http_auth_resolve_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -121,10 +121,10 @@ pub fn http_auth_500_on_error_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -146,10 +146,10 @@ pub fn http_auth_from_session_identity_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -170,10 +170,10 @@ pub fn http_auth_dispatch_gets_identity_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -198,10 +198,10 @@ pub fn http_auth_hostname_in_signature_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -224,10 +224,10 @@ pub fn http_no_auth_unchanged_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      None,
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: None,
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -280,10 +280,10 @@ pub fn http_auth_generates_handler_page_info_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -307,10 +307,10 @@ pub fn http_auth_required_page_returns_401_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -333,10 +333,10 @@ pub fn http_auth_optional_page_dispatches_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/public/rpc_dispatch",
-      Some(AuthConfig(auth_module: "public/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/public/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "public/auth")),
+      contracts:,
       from_session_module: "public/client_context_server",
     )
 
@@ -361,10 +361,10 @@ pub fn http_auth_authorize_false_returns_403_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -394,10 +394,10 @@ pub fn http_auth_unknown_variant_returns_400_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -423,10 +423,10 @@ pub fn http_auth_malformed_body_returns_400_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -453,10 +453,10 @@ pub fn http_auth_imports_rally_runtime_wire_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
 
@@ -482,10 +482,10 @@ pub fn http_handler_no_auth_snapshot_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      None,
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: None,
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
   birdie.snap(output, "http_handler_no_auth")
@@ -505,10 +505,10 @@ pub fn http_handler_with_auth_required_snapshot_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
   birdie.snap(output, "http_handler_with_auth_required")
@@ -539,10 +539,10 @@ pub fn http_handler_with_auth_and_authorize_snapshot_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints,
-      "generated/admin/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
-      contracts,
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
       from_session_module: "admin/client_context_server",
     )
   birdie.snap(output, "http_handler_with_auth_and_authorize")

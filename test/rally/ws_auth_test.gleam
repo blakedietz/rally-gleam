@@ -79,10 +79,10 @@ pub fn ws_no_auth_on_init_has_hostname_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      None,
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: None,
       from_session_module: "client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -103,10 +103,10 @@ pub fn ws_no_auth_does_not_call_resolve_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      None,
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: None,
       from_session_module: "client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -130,10 +130,10 @@ pub fn ws_auth_on_init_resolves_identity_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -155,10 +155,10 @@ pub fn ws_auth_on_init_calls_from_session_with_identity_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -179,10 +179,10 @@ pub fn ws_auth_on_init_stores_auth_state_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -207,10 +207,10 @@ pub fn ws_page_init_required_emits_auth_redirect_error_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -235,10 +235,10 @@ pub fn ws_page_init_authorize_false_emits_forbidden_error_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -269,10 +269,10 @@ pub fn ws_page_init_no_auth_still_updates_state_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      None,
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: None,
       from_session_module: "client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -297,10 +297,10 @@ pub fn ws_auth_check_page_authorize_always_defined_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -321,10 +321,10 @@ pub fn ws_auth_rpc_dispatches_with_identity_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -356,10 +356,10 @@ pub fn ws_auth_rpc_generates_handler_page_info_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -383,10 +383,10 @@ pub fn ws_auth_rpc_extracts_variant_tag_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -410,10 +410,10 @@ pub fn ws_auth_rpc_enforces_required_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -439,10 +439,10 @@ pub fn ws_auth_rpc_enforces_authorize_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -476,10 +476,10 @@ pub fn ws_auth_rpc_unknown_variant_fails_closed_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -508,10 +508,10 @@ pub fn ws_auth_checks_reauth_timestamp_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -539,10 +539,10 @@ pub fn ws_auth_reauth_reruns_resolve_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -566,10 +566,10 @@ pub fn ws_auth_reauth_stores_refreshed_state_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -594,10 +594,10 @@ pub fn ws_auth_reauth_failure_fails_closed_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )
@@ -619,10 +619,10 @@ pub fn ws_auth_no_reauth_when_fresh_test() {
   ]
   let output =
     ws_handler.generate(
-      contracts,
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      Some(AuthConfig(auth_module: "admin/auth")),
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
     )

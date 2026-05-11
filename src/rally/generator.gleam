@@ -689,8 +689,8 @@ fn dispatch_page_imports(
 }
 
 pub fn generate_empty_rpc_dispatch(
-  atoms_module: String,
-  extra_params: List(codegen_dispatch.ExtraParam),
+  atoms_module atoms_module: String,
+  extra_params extra_params: List(codegen_dispatch.ExtraParam),
 ) -> String {
   let extra_imports =
     list.filter_map(extra_params, fn(p: codegen_dispatch.ExtraParam) {
