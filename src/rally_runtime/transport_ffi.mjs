@@ -9,7 +9,6 @@
 // SSR flags, and debug logging.
 
 import { Ok, Error as ResultError, CustomType, Empty, NonEmpty, BitArray } from "../../gleam_stdlib/gleam.mjs";
-import { protocol } from "./config.mjs";
 import { encode_request, decode_server_frame } from "./protocol_wire.mjs";
 import { MalformedRequest, UnknownFunction, InternalError } from "../../libero/libero/error.mjs";
 

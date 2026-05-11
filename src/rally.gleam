@@ -620,11 +620,23 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     })
 
   // Add JSON typed codecs when protocol is json
+  let json_codec_files = codec.generate_json_codecs(discovered, ns_endpoints)
+  use _ <- result.try(case config.protocol {
+    "json" ->
+      case json_codec_files {
+        [] ->
+          Error(RallyError(
+            "JSON codec generation failed - no codec files produced",
+          ))
+        _ -> Ok(Nil)
+      }
+    _ -> Ok(Nil)
+  })
   let codec_files = case config.protocol {
     "json" ->
       list.append(
         codec_files,
-        codec.generate_json_codecs(discovered, ns_endpoints)
+        json_codec_files
           |> list.map(fn(f: codec.CodecFile) {
             client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
           }),
