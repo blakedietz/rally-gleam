@@ -99,14 +99,7 @@ pub fn generate(
     "json" -> generate_json_dispatch_function(endpoints, has_auth)
     _ -> ""
   }
-  let result =
-    string.join([header, init, handler, json_dispatch], "\n\n") <> "\n"
-  case protocol {
-    "json" ->
-      result
-      |> string.replace("mist.send_binary_frame", "mist.send_text_frame")
-    _ -> result
-  }
+  string.join([header, init, handler, json_dispatch], "\n\n") <> "\n"
 }
 
 // -- Init (no auth) --
@@ -186,39 +179,15 @@ pub fn on_close(_state: Nil) -> Nil {
 // -- Frame handler (no auth) --
 
 fn generate_frame_handler_no_auth(protocol: String) -> String {
-  let text_branch = case protocol {
+  let binary_branch = case protocol {
     "json" ->
-      "\n    mist.Text(data) -> {
-      debug_log(\"[rally:ws] Text frame: \" <> int.to_string(string.length(data)) <> \" chars\")
-      let assert Ok(server_context) = effect.get_stored_server_context()
-      case wire.decode_request(data) {
-        Ok(envelope) -> {
-          let #(response_frame, new_ctx) = json_dispatch(message: envelope.message, request_id: envelope.request_id, server_context: server_context)
-          let current_page = effect.get_ws_page()
-          let Nil = effect.put_ws_state(conn, new_ctx, current_page)
-          let _send_result = mist.send_text_frame(conn, response_frame)
-          send_pending_frames(conn)
-          mist.continue(state)
-        }
-        Error(errors) -> {
-          let error_frame = wire.encode_error(None, errors)
-          let _send_result = mist.send_text_frame(conn, error_frame)
-          send_pending_frames(conn)
-          mist.continue(state)
-        }
-      }
+      "\n    mist.Binary(_data) -> {
+      let error_frame = wire.encode_error(None, [JsonError(\"frame\", \"binary frames are not supported by the JSON protocol\")])
+      let _send_result = mist.send_text_frame(conn, error_frame)
+      mist.continue(state)
     }"
-    _ -> ""
-  }
-
-  "pub fn handler(
-  state state: Nil,
-  msg msg: WebsocketMessage(a),
-  conn conn: WebsocketConnection,
-) {
-  debug_log(\"[rally:ws] handler called\")
-  case msg {
-    mist.Binary(data) -> {
+    _ ->
+      "\n    mist.Binary(data) -> {
       debug_log(\"[rally:ws] Binary frame: \" <> int.to_string(bit_array.byte_size(data)) <> \" bytes\")
       case wire.decode_call(data) {
         Ok(#(page, request_id, _value)) if request_id == 0 -> {
@@ -260,11 +229,53 @@ fn generate_frame_handler_no_auth(protocol: String) -> String {
           mist.continue(state)
         }
       }
-    }" <> text_branch <> "
+    }"
+  }
+
+  let text_branch = case protocol {
+    "json" ->
+      "\n    mist.Text(data) -> {
+      debug_log(\"[rally:ws] Text frame: \" <> int.to_string(string.length(data)) <> \" chars\")
+      let assert Ok(server_context) = effect.get_stored_server_context()
+      case wire.decode_request(data) {
+        Ok(envelope) -> {
+          let #(response_frame, new_ctx) = json_dispatch(message: envelope.message, request_id: envelope.request_id, server_context: server_context)
+          let current_page = effect.get_ws_page()
+          let Nil = effect.put_ws_state(conn, new_ctx, current_page)
+          let _send_result = mist.send_text_frame(conn, response_frame)
+          send_pending_frames(conn)
+          mist.continue(state)
+        }
+        Error(errors) -> {
+          let error_frame = wire.encode_error(None, errors)
+          let _send_result = mist.send_text_frame(conn, error_frame)
+          send_pending_frames(conn)
+          mist.continue(state)
+        }
+      }
+    }"
+    _ -> ""
+  }
+
+  let send_fn = case protocol {
+    "json" -> "send_text_frame"
+    _ -> "send_binary_frame"
+  }
+
+  "pub fn handler(
+  state state: Nil,
+  msg msg: WebsocketMessage(a),
+  conn conn: WebsocketConnection,
+) {
+  debug_log(\"[rally:ws] handler called\")
+  case msg {" <> binary_branch <> text_branch <> "
     mist.Custom(msg) -> {
-      case effect.decode_rally_push(msg) {
+      case effect.decode_rally_push" <> case protocol {
+    "json" -> "_json"
+    _ -> ""
+  } <> "(msg) {
         Ok(frame) -> {
-          let _send_result = mist.send_binary_frame(conn, frame)
+          let _send_result = mist." <> send_fn <> "(conn, frame)
           mist.continue(state)
         }
         Error(Nil) -> mist.continue(state)
@@ -297,50 +308,14 @@ fn generate_frame_handler_with_auth(
   let check_page_authorize_fn =
     generate_ws_check_page_authorize(page_contracts, auth_ref)
 
-  let text_branch = case protocol {
+  let binary_branch = case protocol {
     "json" ->
-      "
-    mist.Text(data) -> {
-      debug_log(\"[rally:ws] Text frame: \" <> int.to_string(string.length(data)) <> \" chars\")
-      let assert Ok(server_context) = effect.get_stored_server_context()
-      case effect.get_ws_identity() {
-        Error(Nil) -> {
-          let error_frame = wire.encode_error(None, [JsonError(\"auth\", \"not authenticated\")])
-          let _send_result = mist.send_text_frame(conn, error_frame)
-          send_pending_frames(conn)
-          mist.continue(state)
-        }
-        Ok(identity) -> {
-          case wire.decode_request(data) {
-            Ok(envelope) -> {
-              let #(response_frame, new_ctx) = json_dispatch(message: envelope.message, request_id: envelope.request_id, server_context: server_context, identity: identity)
-              let current_page = effect.get_ws_page()
-              let Nil = effect.put_ws_state(conn, new_ctx, current_page)
-              let _send_result = mist.send_text_frame(conn, response_frame)
-              send_pending_frames(conn)
-              mist.continue(state)
-            }
-            Error(errors) -> {
-              let error_frame = wire.encode_error(None, errors)
-              let _send_result = mist.send_text_frame(conn, error_frame)
-              send_pending_frames(conn)
-              mist.continue(state)
-            }
-          }
-        }
-      }
+      "\n    mist.Binary(_data) -> {
+      let error_frame = wire.encode_error(None, [JsonError(\"frame\", \"binary frames are not supported by the JSON protocol\")])
+      let _send_result = mist.send_text_frame(conn, error_frame)
+      mist.continue(state)
     }"
-    _ -> ""
-  }
-
-  let handler = "pub fn handler(
-  state state: Nil,
-  msg msg: WebsocketMessage(a),
-  conn conn: WebsocketConnection,
-) {
-  debug_log(\"[rally:ws] handler called\")
-  case msg {
-    mist.Binary(data) -> {
+    _ -> "\n    mist.Binary(data) -> {
       debug_log(\"[rally:ws] Binary frame: \" <> int.to_string(bit_array.byte_size(data)) <> \" bytes\")
       // Reauth: re-resolve identity if the last auth check is stale.
       let epoch = timestamp.from_unix_seconds(0)
@@ -443,11 +418,63 @@ fn generate_frame_handler_with_auth(
           mist.continue(state)
         }
       }
-    }" <> text_branch <> "
+    }"
+  }
+
+  let text_branch = case protocol {
+    "json" ->
+      "\n    mist.Text(data) -> {
+      debug_log(\"[rally:ws] Text frame: \" <> int.to_string(string.length(data)) <> \" chars\")
+      let assert Ok(server_context) = effect.get_stored_server_context()
+      case effect.get_ws_identity() {
+        Error(Nil) -> {
+          let error_frame = wire.encode_error(None, [JsonError(\"auth\", \"not authenticated\")])
+          let _send_result = mist.send_text_frame(conn, error_frame)
+          send_pending_frames(conn)
+          mist.continue(state)
+        }
+        Ok(identity) -> {
+          case wire.decode_request(data) {
+            Ok(envelope) -> {
+              let #(response_frame, new_ctx) = json_dispatch(message: envelope.message, request_id: envelope.request_id, server_context: server_context, identity: identity)
+              let current_page = effect.get_ws_page()
+              let Nil = effect.put_ws_state(conn, new_ctx, current_page)
+              let _send_result = mist.send_text_frame(conn, response_frame)
+              send_pending_frames(conn)
+              mist.continue(state)
+            }
+            Error(errors) -> {
+              let error_frame = wire.encode_error(None, errors)
+              let _send_result = mist.send_text_frame(conn, error_frame)
+              send_pending_frames(conn)
+              mist.continue(state)
+            }
+          }
+        }
+      }
+    }"
+    _ -> ""
+  }
+
+  let send_fn = case protocol {
+    "json" -> "send_text_frame"
+    _ -> "send_binary_frame"
+  }
+
+  let handler = "pub fn handler(
+  state state: Nil,
+  msg msg: WebsocketMessage(a),
+  conn conn: WebsocketConnection,
+) {
+  debug_log(\"[rally:ws] handler called\")
+  case msg {" <> binary_branch <> text_branch <> "
     mist.Custom(msg) -> {
-      case effect.decode_rally_push(msg) {
+      case effect.decode_rally_push" <> case protocol {
+      "json" -> "_json"
+      _ -> ""
+    } <> "(msg) {
         Ok(frame) -> {
-          let _send_result = mist.send_binary_frame(conn, frame)
+          let _send_result = mist." <> send_fn <> "(conn, frame)
           mist.continue(state)
         }
         Error(Nil) -> mist.continue(state)

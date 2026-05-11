@@ -58,62 +58,16 @@ pub fn handler(
 ) {
   debug_log("[rally:ws] handler called")
   case msg {
-    mist.Binary(data) -> {
-      debug_log(
-        "[rally:ws] Binary frame: "
-        <> int.to_string(bit_array.byte_size(data))
-        <> " bytes",
-      )
-      case wire.decode_call(data) {
-        Ok(#(page, request_id, _value)) if request_id == 0 -> {
-          debug_log("[rally:ws] page_init: " <> page)
-          let old_page = effect.get_ws_page()
-          let assert Ok(server_context) = effect.get_stored_server_context()
-          let Nil = effect.put_ws_state(conn, server_context, page)
-          case old_page {
-            "" -> Nil
-            _ -> topics.leave("page:" <> old_page)
-          }
-          topics.join("page:" <> page)
-          let response_frame =
-            wire.encode_response(request_id:, value: wire.page_init_ok())
-          let _send_result = mist.send_binary_frame(conn, response_frame)
-          send_pending_frames(conn)
-          mist.continue(state)
-        }
-        Ok(#(_page, request_id, raw)) -> {
-          debug_log("[rally:ws] RPC: request_id=" <> int.to_string(request_id))
-          let assert Ok(server_context) = effect.get_stored_server_context()
-          let current_page = effect.get_ws_page()
-          let start = timestamp.system_time()
-          let #(response_data, new_ctx) =
-            rpc_dispatch.handle(server_context:, data:)
-          let elapsed_ms =
-            timestamp.difference(start, timestamp.system_time())
-            |> duration.to_milliseconds()
-
-          let session_id = effect.get_ws_session()
-          let assert Ok(db_conn) = system.get_conn()
-          system.log_to_server(
-            db: db_conn,
-            session_id: session_id,
-            user_id: Error(Nil),
-            page: current_page,
-            value: raw,
-            raw_payload: data,
-            elapsed_ms: elapsed_ms,
-          )
-
-          let Nil = effect.put_ws_state(conn, new_ctx, current_page)
-          let _send_result = mist.send_binary_frame(conn, response_data)
-          send_pending_frames(conn)
-          mist.continue(state)
-        }
-        Error(_error) -> {
-          debug_log("[rally:ws] decode_call FAILED")
-          mist.continue(state)
-        }
-      }
+    mist.Binary(_data) -> {
+      let error_frame =
+        wire.encode_error(None, [
+          JsonError(
+            "frame",
+            "binary frames are not supported by the JSON protocol",
+          ),
+        ])
+      let _send_result = mist.send_text_frame(conn, error_frame)
+      mist.continue(state)
     }
     mist.Text(data) -> {
       debug_log(
@@ -145,9 +99,9 @@ pub fn handler(
       }
     }
     mist.Custom(msg) -> {
-      case effect.decode_rally_push(msg) {
+      case effect.decode_rally_push_json(msg) {
         Ok(frame) -> {
-          let _send_result = mist.send_binary_frame(conn, frame)
+          let _send_result = mist.send_text_frame(conn, frame)
           mist.continue(state)
         }
         Error(Nil) -> mist.continue(state)

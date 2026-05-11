@@ -7,7 +7,7 @@
 -module(rally_runtime_ffi).
 -export([put_ws_state/3, get_ws_conn/0, get_ws_page/0, get_stored_server_context/0,
          push_outgoing_frame/1, drain_outgoing_frames/0,
-         put_ws_session/1, get_ws_session/0, decode_rally_push/1,
+         put_ws_session/1, get_ws_session/0, decode_rally_push/1, decode_rally_push_json/1,
          store_system_conn/1, get_system_conn/0, encode_push_payload/2,
          put_ws_identity/1, get_ws_identity/0,
          put_ws_hostname/1, get_ws_hostname/0,
@@ -61,6 +61,12 @@ get_ws_session() ->
     end.
 
 decode_rally_push(Msg) ->
+    case Msg of
+        {rally_push, Frame} -> {ok, Frame};
+        _ -> {error, nil}
+    end.
+
+decode_rally_push_json(Msg) ->
     case Msg of
         {rally_push, Frame} -> {ok, Frame};
         _ -> {error, nil}

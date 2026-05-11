@@ -6,7 +6,7 @@ import gleam/result
 import gleam/string
 import gleeunit/should
 import libero/field_type as libero_field_type
-import libero/scanner.{type HandlerEndpoint, HandlerEndpoint}
+import libero/scanner.{type HandlerEndpoint}
 import rally/generator
 import rally/generator/ssr_handler
 import rally/generator/ws_handler
@@ -261,127 +261,33 @@ pub fn json_wire_facade_is_only_wire_import_test() {
 // Compile test — proves the generated JSON WS handler actually compiles
 // =============================================================================
 
-pub fn json_ws_handler_with_endpoint_compiles_test() {
-  let endpoint =
-    HandlerEndpoint(
-      module_path: "public/pages/home_",
-      fn_name: "increment",
-      return_ok: libero_field_type.IntField,
-      return_err: libero_field_type.NilField,
-      params: [],
-      mutates_context: False,
-      msg_type: Some(#("public/pages/home_", "ServerIncrement")),
-    )
+// =============================================================================
+// Fixture compile gate — JSON protocol app must build clean
+// =============================================================================
 
-  let ws_source =
-    ws_handler.generate(
-      [],
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      None,
-      "server_context",
-      [endpoint],
-      "generated/public/protocol_wire",
-      "json",
-    )
-
-  // Set up temp project
-  let root = "build/.test_json_ws"
-  let src = root <> "/src"
-  let _ = simplifile.delete_all([root])
-  let assert Ok(Nil) =
-    simplifile.create_directory_all(src <> "/generated/public")
-    |> result.map_error(string.inspect)
-  let assert Ok(Nil) =
-    simplifile.create_directory_all(src <> "/public/pages")
-    |> result.map_error(string.inspect)
-
-  // Write gleam.toml
-  let assert Ok(Nil) =
-    simplifile.write(root <> "/gleam.toml", json_compile_toml())
-    |> result.map_error(string.inspect)
-
-  // Write server_context
-  let assert Ok(Nil) =
-    simplifile.write(
-      src <> "/server_context.gleam",
-      "pub type ServerContext { ServerContext }\n",
-    )
-    |> result.map_error(string.inspect)
-
-  // Write JSON protocol_wire facade (minimal stub that compiles)
-  let stub_dir = "build/test_json_stubs"
-  let assert Ok(protocol_wire_stub) =
-    simplifile.read(stub_dir <> "/protocol_wire_stub.gleam")
-    |> result.map_error(string.inspect)
-  let assert Ok(Nil) =
-    simplifile.write(
-      src <> "/generated/public/protocol_wire.gleam",
-      protocol_wire_stub,
-    )
-    |> result.map_error(string.inspect)
-
-  // Write JSON codec stub
-  let assert Ok(codec_stub) =
-    simplifile.read(stub_dir <> "/codec_stub.gleam")
-    |> result.map_error(string.inspect)
-  let assert Ok(Nil) =
-    simplifile.write(src <> "/generated/public/json_codecs.gleam", codec_stub)
-    |> result.map_error(string.inspect)
-
-  // Write handler page stub
-  let assert Ok(handler_stub) =
-    simplifile.read(stub_dir <> "/handler_stub.gleam")
-    |> result.map_error(string.inspect)
-  let assert Ok(Nil) =
-    simplifile.write(src <> "/public/pages/home_.gleam", handler_stub)
-    |> result.map_error(string.inspect)
-
-  // Write generated WS handler
-  let assert Ok(Nil) =
-    simplifile.write(src <> "/generated/public/ws_handler.gleam", ws_source)
-    |> result.map_error(string.inspect)
-
-  // Compile
-  let #(status, output) = run_gleam(root, ["build"])
-  let _ = simplifile.delete_all([root])
-  let msg =
-    "JSON WS handler compile failed (exit "
-    <> int.to_string(status)
+pub fn json_fixture_builds_test() {
+  // Run rally gen first to ensure generated code matches current generator
+  let #(gen_status, gen_output) =
+    run_gleam(fixture_root, ["run", "-m", "rally", "--", "gen"])
+  let gen_msg =
+    "Fixture rally gen failed (exit "
+    <> int.to_string(gen_status)
     <> "):\n"
-    <> output
-  case status {
+    <> gen_output
+  case gen_status {
     0 -> Nil
-    _ -> panic as msg
+    _ -> panic as gen_msg
   }
 
-  // Verify generated code has correct dispatch structure
-  ws_source
-  |> string.contains("public/pages/home_.ServerIncrement")
-  |> should.be_true()
-  ws_source
-  |> string.contains(
-    "json_codecs.json_decode_public_pages_home__server_increment",
-  )
-  |> should.be_true()
-  ws_source
-  |> string.contains("json.encode_gleam_result__result")
-  |> should.be_true()
-  ws_source
-  |> string.contains("fn(x) { json.int(x) }")
-  |> should.be_true()
-  ws_source
-  |> string.contains("fn(x) { json.null() }")
-  |> should.be_true()
-}
-
-fn json_compile_toml() -> String {
-  "name = \"json_ws_compile_test\"
-version = \"1.0.0\"
-
-[dependencies]
-gleam_stdlib = \">= 0.69.0 and < 2.0.0\"
-rally = { path = \"../..\" }
-mist = \">= 6.0.0 and < 7.0.0\"
-"
+  // Now build
+  let #(build_status, build_output) = run_gleam(fixture_root, ["build"])
+  let build_msg =
+    "Fixture gleam build failed (exit "
+    <> int.to_string(build_status)
+    <> "):\n"
+    <> build_output
+  case build_status {
+    0 -> Nil
+    _ -> panic as build_msg
+  }
 }

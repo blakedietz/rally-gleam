@@ -267,12 +267,12 @@ pub fn generate_json_protocol_wire_js_facade_test() {
   let assert True =
     string.contains(
       output,
-      "{ kind: \"response\", requestId: frame.request_id, value: frame.value }",
+      "{ kind: \"response\", requestId: frame.request_id, value: typedJsonToGleamValue(frame.value) }",
     )
   let assert True =
     string.contains(
       output,
-      "{ kind: \"push\", module: frame.module, value: frame.value }",
+      "{ kind: \"push\", module: frame.module, value: typedJsonToGleamValue(frame.value) }",
     )
   let assert True =
     string.contains(

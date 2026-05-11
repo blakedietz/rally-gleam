@@ -172,6 +172,11 @@ pub fn decode_rally_push(_msg: a) -> Result(BitArray, Nil) {
   Error(Nil)
 }
 
+@external(erlang, "rally_runtime_ffi", "decode_rally_push_json")
+pub fn decode_rally_push_json(_msg: a) -> Result(String, Nil) {
+  Error(Nil)
+}
+
 @external(erlang, "rally_runtime_ffi", "encode_push_payload")
 fn encode_push_payload(_page: String, msg: a) -> a {
   msg
