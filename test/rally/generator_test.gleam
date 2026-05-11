@@ -260,6 +260,27 @@ pub fn scan_config_protocol_defaults_to_etf_test() {
   let assert "etf" = protocol
 }
 
+pub fn generate_json_protocol_wire_js_facade_test() {
+  let output = generator.generate_protocol_wire_js("json", "test_hash_abc123")
+  let assert True = string.contains(output, "test_hash_abc123")
+  let assert True = string.contains(output, "encode_request")
+  let assert True =
+    string.contains(
+      output,
+      "{ kind: \"response\", requestId: frame.request_id, value: frame.value }",
+    )
+  let assert True =
+    string.contains(
+      output,
+      "{ kind: \"push\", module: frame.module, value: frame.value }",
+    )
+  let assert True =
+    string.contains(
+      output,
+      "{ kind: \"error\", requestId: rid instanceof Some ? rid[0] : null, errors: frame.errors }",
+    )
+}
+
 pub fn scan_config_protocol_can_be_json_test() {
   let config =
     ScanConfig(

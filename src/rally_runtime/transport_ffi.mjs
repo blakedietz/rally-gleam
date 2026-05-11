@@ -300,6 +300,16 @@ export function ensureSocket(url) {
       return;
     }
 
+    if (frame.kind === "error") {
+      const msg = frame.errors
+        ? (Array.isArray(frame.errors)
+            ? frame.errors.map(e => (e && e[1]) || "").join("; ")
+            : String(frame.errors))
+        : "JSON protocol error";
+      invokeRpcErrorHandler(makeConnectionError(msg), "JSON protocol error");
+      return;
+    }
+
     // Response frame
     const entry = responseCallbacks.get(frame.requestId);
     if (entry) {
