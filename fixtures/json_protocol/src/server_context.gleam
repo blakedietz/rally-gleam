@@ -1,1 +1,3 @@
-pub type ServerContext { ServerContext }
+pub type ServerContext {
+  ServerContext
+}

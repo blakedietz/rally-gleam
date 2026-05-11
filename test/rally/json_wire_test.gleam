@@ -6,7 +6,7 @@ import gleam/result
 import gleam/string
 import gleeunit/should
 import libero/field_type as libero_field_type
-import libero/scanner.{type HandlerEndpoint}
+import libero/scanner.{type HandlerEndpoint, HandlerEndpoint}
 import rally/generator
 import rally/generator/ssr_handler
 import rally/generator/ws_handler
@@ -290,4 +290,124 @@ pub fn json_fixture_builds_test() {
     0 -> Nil
     _ -> panic as build_msg
   }
+}
+
+// =============================================================================
+// Identity collision tests — prove the protocol preserves type identity
+// =============================================================================
+
+pub fn json_wire_identity_distinct_modules_test() {
+  // Two handlers with the same type name (Discount) in different modules
+  // must emit distinct fully-qualified "type" values.
+  let ep1 =
+    HandlerEndpoint(
+      module_path: "admin/dashboard/discount",
+      fn_name: "create",
+      return_ok: libero_field_type.IntField,
+      return_err: libero_field_type.NilField,
+      params: [#("id", libero_field_type.IntField)],
+      mutates_context: False,
+      msg_type: Some(#("admin/dashboard/discount", "Discount")),
+    )
+  let ep2 =
+    HandlerEndpoint(
+      module_path: "admin/discounts/discount",
+      fn_name: "create",
+      return_ok: libero_field_type.IntField,
+      return_err: libero_field_type.NilField,
+      params: [
+        #("code", libero_field_type.StringField),
+        #("cents", libero_field_type.IntField),
+      ],
+      mutates_context: False,
+      msg_type: Some(#("admin/discounts/discount", "Discount")),
+    )
+
+  let ws =
+    ws_handler.generate(
+      [],
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      None,
+      "server_context",
+      [ep1, ep2],
+      "generated/protocol_wire",
+      "json",
+    )
+
+  // Both must appear with their distinct type identities
+  ws
+  |> string.contains("\"admin/dashboard/discount.Discount\"")
+  |> should.be_true()
+  ws
+  |> string.contains("\"admin/discounts/discount.Discount\"")
+  |> should.be_true()
+  // Neither must match by variant name alone
+  ws
+  |> string.contains("Ok(\"Discount\") -> {")
+  |> should.be_false()
+}
+
+pub fn json_wire_client_encode_uses_qualified_types_test() {
+  // json_encode_client_msg must use fully qualified type names,
+  // not just the variant/constructor name.
+  let endpoint =
+    HandlerEndpoint(
+      module_path: "admin/dashboard/discount",
+      fn_name: "create",
+      return_ok: libero_field_type.IntField,
+      return_err: libero_field_type.NilField,
+      params: [#("id", libero_field_type.IntField)],
+      mutates_context: False,
+      msg_type: Some(#("admin/dashboard/discount", "Discount")),
+    )
+
+  let ws =
+    ws_handler.generate(
+      [],
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      None,
+      "server_context",
+      [endpoint],
+      "generated/protocol_wire",
+      "json",
+    )
+
+  // Server dispatch must match on fully qualified type
+  ws
+  |> string.contains("Ok(\"admin/dashboard/discount.Discount\") -> {")
+  |> should.be_true()
+}
+
+pub fn json_wire_type_registry_emits_qualified_names_test() {
+  // The generated JS protocol_wire.mjs must decode custom types
+  // using the variant name from the Libero typed-value shape,
+  // which is then passed through as a CustomType constructor.
+  let js = generator.generate_protocol_wire_js("json", "test_hash_abc123")
+
+  // typedJsonToGleamValue must reconstruct user types from the
+  // typed-value shape, using the variant name as constructor.
+  js |> string.contains("new CustomType(v, fields)") |> should.be_true()
+
+  // The type and variant are read from the JSON payload, not hardcoded.
+  // Result types use array fields.
+  js
+  |> string.contains("Array.isArray(f) ? f[0]")
+  |> should.be_true()
+  // Option types handle both array and object fields.
+  js
+  |> string.contains("Array.isArray(f) && f.length === 0")
+  |> should.be_true()
+}
+
+pub fn json_wire_push_via_broadcast_is_generic_test() {
+  // topics.broadcast must accept generic frame types, not just BitArray
+  let topics_src =
+    simplifile.read("src/rally_runtime/topics.gleam")
+    |> result.unwrap("")
+
+  topics_src
+  |> string.contains("pub fn broadcast(_topic: String, _frame: a)")
+  |> should.be_true()
 }

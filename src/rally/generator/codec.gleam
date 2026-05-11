@@ -72,7 +72,14 @@ fn generate_page_modules(
       True -> {
         let shaken = tree_shaker.shake(contract.source, server_symbols:)
         let page_path = page_module_path(route.module_path)
-        let content = post_process_page(shaken, route.variant_name, protocol, contract)
+        let content =
+          post_process_page(
+            shaken,
+            route.variant_name,
+            protocol,
+            contract,
+            route.module_path,
+          )
         Ok(CodecFile("src/" <> page_path <> ".gleam", content))
       }
     }
@@ -164,6 +171,7 @@ fn post_process_page(
   variant_name: String,
   protocol: String,
   contract: PageContract,
+  page_module_path: String,
 ) -> String {
   let effect_aliases = effect_module_aliases(source)
   let has_send_to_server =
@@ -174,15 +182,22 @@ fn post_process_page(
 
   let json_msg_encoder = case protocol, contract.msg_variants {
     "json", [] -> ""
-    "json", _ -> generate_json_page_msg_encoder(contract.msg_variants)
+    "json", _ ->
+      generate_json_page_msg_encoder(contract.msg_variants, page_module_path)
     _, _ -> ""
   }
 
   let wrapper = case has_send_to_server {
     True -> {
       let transport_import = "\nimport generated/transport\n"
-      let json_import = case protocol { "json" -> "import gleam/json\n" _ -> "" }
-      let encode_call = case protocol { "json" -> "json_encode_msg(msg)" _ -> "msg" }
+      let json_import = case protocol {
+        "json" -> "import gleam/json\n"
+        _ -> ""
+      }
+      let encode_call = case protocol {
+        "json" -> "json_encode_msg(msg)"
+        _ -> "msg"
+      }
       transport_import
       <> json_import
       <> "\nfn send_to_server(msg: a) -> effect.Effect(b) {\n"
@@ -208,22 +223,30 @@ fn post_process_page(
 
 fn generate_json_page_msg_encoder(
   variants: List(VariantInfo),
+  page_module_path: String,
 ) -> String {
   let arms =
     list.map(variants, fn(v) {
+      let type_id = page_module_path <> "." <> v.name
       let fields = case v.fields {
         [] -> "json.object([])"
         _ -> {
           let pairs =
             list.map(v.fields, fn(f) {
-              "#(\"" <> f.label <> "\", " <> json_primitive_encoder(f.type_, f.label) <> ")"
+              "#(\""
+              <> f.label
+              <> "\", "
+              <> json_primitive_encoder(f.type_, f.label)
+              <> ")"
             })
           "json.object([" <> string.join(pairs, ", ") <> "])"
         }
       }
-      "    " <> v.name <> " -> json.object([\n"
-      <> "      #(\"type\", json.string(\""
+      "    "
       <> v.name
+      <> " -> json.object([\n"
+      <> "      #(\"type\", json.string(\""
+      <> type_id
       <> "\")),\n"
       <> "      #(\"variant\", json.string(\""
       <> v.name
@@ -326,6 +349,11 @@ fn emit_rally_effect_shim(protocol: String) -> String {
       <> "}\n"
   }
 
+  let ctx_send_arg = case protocol {
+    "json" -> "transport.coerce(msg)"
+    _ -> "msg"
+  }
+
   let imports = case protocol {
     "json" -> "import generated/transport\nimport generated/types\n\n"
     _ -> "import generated/transport\n\n"
@@ -339,7 +367,7 @@ fn emit_rally_effect_shim(protocol: String) -> String {
 import lustre/effect.{type Effect}" <> rpc_fn <> "
 pub fn send_to_client_context(msg: a) -> Effect(b) {
   effect.from(fn(_dispatch) {
-    transport.send_to_server(\"__ClientContext__\", msg)
+    transport.send_to_server(\"__ClientContext__\", " <> ctx_send_arg <> ")
     Nil
   })
 }
@@ -682,9 +710,14 @@ fn json_client_encoder(ft: FieldType, var: String) -> String {
     FloatField -> "json.float(" <> var <> ")"
     BoolField -> "json.bool(" <> var <> ")"
     NilField -> "json.null()"
-    BitArrayField -> "json.string(\"<bit_array>\")"
-    UserType(..) ->
-      "panic as \"client encoder: user type not supported\""
+    BitArrayField ->
+      panic as "client encoder: BitArray not supported in client-side JSON encoding"
+    UserType(module_path:, type_name:, ..) ->
+      panic as "client encoder: user type "
+      <> module_path
+      <> "."
+      <> type_name
+      <> " not supported in client-side JSON encoding — use msg_type endpoint or inline fields"
     ListOf(inner) ->
       "json.array("
       <> var
@@ -711,9 +744,12 @@ fn json_client_encoder(ft: FieldType, var: String) -> String {
       <> " } })("
       <> var
       <> ")"
-    DictOf(_, _) -> "json.object([])"
-    TupleOf(_) -> "json.array([" <> var <> "], of: fn(x) { x })"
-    TypeVar(_) -> "panic as \"client encoder: type variable not supported\""
+    DictOf(_, _) ->
+      panic as "client encoder: Dict not supported in client-side JSON encoding"
+    TupleOf(_) ->
+      panic as "client encoder: Tuple not supported in client-side JSON encoding"
+    TypeVar(_) ->
+      panic as "client encoder: type variable not supported in client-side JSON encoding"
   }
 }
 

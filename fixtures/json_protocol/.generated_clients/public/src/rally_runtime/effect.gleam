@@ -20,7 +20,7 @@ pub fn rpc(msg: a, on_response on_response: fn(b) -> msg) -> Effect(msg) {
 
 pub fn send_to_client_context(msg: a) -> Effect(b) {
   effect.from(fn(_dispatch) {
-    transport.send_to_server("__ClientContext__", msg)
+    transport.send_to_server("__ClientContext__", transport.coerce(msg))
     Nil
   })
 }
