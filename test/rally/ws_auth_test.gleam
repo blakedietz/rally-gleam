@@ -670,3 +670,39 @@ pub fn ws_auth_no_reauth_when_fresh_test() {
   // When not stale, must skip re-resolve and use stored identity
   let assert True = string.contains(output, "effect.get_ws_identity()")
 }
+
+pub fn json_protocol_generates_send_text_frame_for_pushes_test() {
+  // When protocol is "json", send_pending_frames must use send_text_frame
+  let output =
+    ws_handler.generate(
+      [],
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      None,
+      from_session_module: "client_context_server",
+      endpoints: [],
+      wire_import_module: "generated/protocol_wire",
+      protocol: "json",
+    )
+
+  let assert True = string.contains(output, "send_text_frame")
+  let assert True = string.contains(output, "send_pending_frames")
+}
+
+pub fn etf_protocol_does_not_generate_send_text_frame_test() {
+  // When protocol is "etf", send_pending_frames must use send_binary_frame
+  let output =
+    ws_handler.generate(
+      [],
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      None,
+      from_session_module: "client_context_server",
+      endpoints: [],
+      wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
+    )
+
+  let assert False = string.contains(output, "send_text_frame")
+  let assert True = string.contains(output, "send_binary_frame")
+}

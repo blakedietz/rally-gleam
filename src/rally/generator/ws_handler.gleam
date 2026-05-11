@@ -227,7 +227,7 @@ fn generate_frame_handler_no_auth(protocol: String) -> String {
   }
 }
 
-" <> helpers_string()
+" <> helpers_string(protocol)
 }
 
 // -- Frame handler (auth) --
@@ -476,7 +476,7 @@ fn generate_frame_handler_with_auth(
   }
 }
 
-" <> helpers_string()
+" <> helpers_string(protocol)
 
   handler
   <> "\n\n"
@@ -658,12 +658,16 @@ fn stub_check_page_authorize(auth_ref: String) -> String {
 
 // -- Generated helper functions (embedded in output) --
 
-fn helpers_string() -> String {
+fn helpers_string(protocol: String) -> String {
+  let send_fn = case protocol {
+    "json" -> "send_text_frame"
+    _ -> "send_binary_frame"
+  }
   "
 fn send_pending_frames(conn: WebsocketConnection) -> Nil {
   let frames = effect.drain_outgoing_frames()
   list.each(frames, fn(frame) {
-    let _send_result = mist.send_binary_frame(conn, frame)
+    let _send_result = mist." <> send_fn <> "(conn, frame)
     Nil
   })
 }
