@@ -456,25 +456,12 @@ fn generate_frame_handler_with_auth(
 
 " <> helpers_string()
 
-  // When there are zero endpoints, handler_page_info always returns
-  // Error(Nil). Replace the dispatch block with a direct error path so
-  // the PageAuthInfo type (never constructed) is not emitted, and fix
-  // unused variables and imports that were only consumed by the dispatch.
+  // When there are zero endpoints, replace the full RPC body (identity
+  // check, variant_tag, handler_page_info, dispatch) with a direct error.
+  // This avoids generating unused PageAuthInfo, imports, and variables.
   let handler = case has_endpoints {
     True -> handler
-    False -> {
-      let handler = string.replace(handler, handler_page_info_block(auth_ref), direct_error_block())
-      let handler = string.replace(handler,
-        "          let assert Ok(server_context) = effect.get_stored_server_context()\n          let current_page = effect.get_ws_page()",
-        "          let assert Ok(_server_context) = effect.get_stored_server_context()\n          let _current_page = effect.get_ws_page()")
-      let handler = string.replace(handler,
-        "            Ok(identity) -> {\n              case wire.variant_tag(raw) {\n                Error(_) -> {\n                  let response_frame = wire.encode_response(request_id:, value: Error(\"auth:malformed\"))",
-        "            Ok(_identity) -> {\n              case wire.variant_tag(raw) {\n                Error(_) -> {\n                  let response_frame = wire.encode_response(request_id:, value: Error(\"auth:malformed\"))")
-      let handler = string.replace(handler,
-        "                Ok(variant) -> {",
-        "                Ok(_variant) -> {")
-      handler
-    }
+    False -> string.replace(handler, rpc_body_true(auth_ref), rpc_body_false())
   }
 
   let page_info_section = case has_endpoints {
@@ -485,11 +472,31 @@ fn generate_frame_handler_with_auth(
   handler <> "\n\n" <> page_auth_policy_fn <> "\n\n" <> page_has_authorize_fn(page_contracts) <> page_info_section <> "\n\n" <> check_page_authorize_fn
 }
 
-/// Builds the exact string of the handler_page_info dispatch block as it
-/// appears in the generated handler. Used as the old_string for replacement
-/// when there are zero endpoints (the block is replaced with a direct error).
-fn handler_page_info_block(auth_ref: String) -> String {
-  "                  case handler_page_info(variant) {\n"
+/// Builds the full RPC body as generated inline in the handler for the
+/// has_endpoints=True case. Used as the old_string for replacement when
+/// there are zero endpoints.
+fn rpc_body_true(auth_ref: String) -> String {
+  "        Ok(#(_page, request_id, raw)) -> {\n"
+  <> "          debug_log(\"[rally:ws] RPC: request_id=\" <> int.to_string(request_id))\n"
+  <> "          let assert Ok(server_context) = effect.get_stored_server_context()\n"
+  <> "          let current_page = effect.get_ws_page()\n"
+  <> "          case effect.get_ws_identity() {\n"
+  <> "            Error(Nil) -> {\n"
+  <> "              let response_frame = wire.encode_response(request_id:, value: Error(\"auth:forbidden\"))\n"
+  <> "              let _send_result = mist.send_binary_frame(conn, response_frame)\n"
+  <> "              send_pending_frames(conn)\n"
+  <> "              mist.continue(state)\n"
+  <> "            }\n"
+  <> "            Ok(identity) -> {\n"
+  <> "              case wire.variant_tag(raw) {\n"
+  <> "                Error(_) -> {\n"
+  <> "                  let response_frame = wire.encode_response(request_id:, value: Error(\"auth:malformed\"))\n"
+  <> "                  let _send_result = mist.send_binary_frame(conn, response_frame)\n"
+  <> "                  send_pending_frames(conn)\n"
+  <> "                  mist.continue(state)\n"
+  <> "                }\n"
+  <> "                Ok(variant) -> {\n"
+  <> "                  case handler_page_info(variant) {\n"
   <> "                    Error(Nil) -> {\n"
   <> "                      let response_frame = wire.encode_response(request_id:, value: Error(\"auth:unknown_rpc\"))\n"
   <> "                      let _send_result = mist.send_binary_frame(conn, response_frame)\n"
@@ -549,14 +556,22 @@ fn handler_page_info_block(auth_ref: String) -> String {
   <> "                        }\n"
   <> "                      }\n"
   <> "                    }\n"
-  <> "                  }"
+  <> "                  }\n"
+  <> "                }\n"
+  <> "              }\n"
+  <> "            }\n"
+  <> "          }\n"
+  <> "        }"
 }
 
-fn direct_error_block() -> String {
-  "                  let response_frame = wire.encode_response(request_id:, value: Error(\"auth:unknown_rpc\"))\n"
-  <> "                  let _send_result = mist.send_binary_frame(conn, response_frame)\n"
-  <> "                  send_pending_frames(conn)\n"
-  <> "                  mist.continue(state)"
+fn rpc_body_false() -> String {
+  "        Ok(#(_page, request_id, _raw)) -> {\n"
+  <> "          debug_log(\"[rally:ws] RPC: request_id=\" <> int.to_string(request_id))\n"
+  <> "          let response_frame = wire.encode_response(request_id:, value: Error(\"auth:unknown_rpc\"))\n"
+  <> "          let _send_result = mist.send_binary_frame(conn, response_frame)\n"
+  <> "          send_pending_frames(conn)\n"
+  <> "          mist.continue(state)\n"
+  <> "        }"
 }
 
 fn generate_page_auth_policy(
