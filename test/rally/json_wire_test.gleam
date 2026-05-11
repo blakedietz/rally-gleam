@@ -380,25 +380,35 @@ pub fn json_wire_client_encode_uses_qualified_types_test() {
   |> should.be_true()
 }
 
-pub fn json_wire_type_registry_emits_qualified_names_test() {
-  // The generated JS protocol_wire.mjs must decode custom types
-  // using the variant name from the Libero typed-value shape,
-  // which is then passed through as a CustomType constructor.
+pub fn json_wire_js_decode_reconstructs_correct_core_types_test() {
+  // Result and Option types must be decoded with correct wire shapes.
   let js = generator.generate_protocol_wire_js("json", "test_hash_abc123")
 
-  // typedJsonToGleamValue must reconstruct user types from the
-  // typed-value shape, using the variant name as constructor.
-  js |> string.contains("new CustomType(v, fields)") |> should.be_true()
-
-  // The type and variant are read from the JSON payload, not hardcoded.
-  // Result types use array fields.
+  // Result types use array fields (matching Libero's wire format)
   js
   |> string.contains("Array.isArray(f) ? f[0]")
   |> should.be_true()
-  // Option types handle both array and object fields.
+  // Option types handle both array and empty-object fields
   js
   |> string.contains("Array.isArray(f) && f.length === 0")
   |> should.be_true()
+}
+
+// RED: This test will fail until client JSON decode routes through
+// generated typed constructors keyed by full type identity, instead
+// of generic `new CustomType(v, fields)`.
+//
+// When the identity fix lands, this test should assert the absence
+// of `new CustomType(v, fields)` and the presence of a generated
+// constructor registry that dispatches by the full "type" field
+// (e.g. "public/pages/home_.IncrementResult" → SpecificConstructor).
+pub fn red_json_wire_js_decode_must_not_use_generic_custom_type_test() {
+  let js = generator.generate_protocol_wire_js("json", "test_hash_abc123")
+
+  // Once typed constructors land, this must be false:
+  // the decode path must NOT rely on generic CustomType reconstruction
+  // that discards the module-qualified source identity.
+  js |> string.contains("new CustomType(v, fields)") |> should.be_false()
 }
 
 pub fn json_wire_push_via_broadcast_is_generic_test() {

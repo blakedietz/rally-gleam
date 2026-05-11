@@ -352,8 +352,7 @@ fn emit_rally_effect_shim(protocol: String) -> String {
   let client_context_fn = case protocol {
     "json" ->
       "\npub fn send_to_client_context(_msg: a) -> Effect(b) {\n"
-      <> "  let _ = panic as \"send_to_client_context: JSON client context encoding is not yet implemented\"\n"
-      <> "  effect.none()\n"
+      <> "  panic as \"send_to_client_context: JSON client context encoding is not yet implemented\"\n"
       <> "}\n"
     _ ->
       "\npub fn send_to_client_context(msg: a) -> Effect(b) {\n"
