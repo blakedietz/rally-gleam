@@ -23,7 +23,7 @@ import libero/json/codegen as json_codegen
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType, qualified_atom_name}
 import rally/tree_shaker
-import rally/types.{type PageContract, type ScannedRoute}
+import rally/types.{type PageContract, type ScannedRoute, type VariantInfo}
 
 pub type CodecFile {
   CodecFile(path: String, content: String)
@@ -54,7 +54,7 @@ pub fn generate(
     CodecFile("src/rally_runtime/rally_effect_ffi.mjs", emit_rally_effect_ffi()),
   ]
 
-  let page_files = generate_page_modules(contracts, server_symbols)
+  let page_files = generate_page_modules(contracts, server_symbols, protocol)
 
   list.append(codec_files, page_files)
 }
@@ -63,6 +63,7 @@ pub fn generate(
 fn generate_page_modules(
   contracts: List(#(ScannedRoute, PageContract)),
   server_symbols: List(String),
+  protocol: String,
 ) -> List(CodecFile) {
   list.filter_map(contracts, fn(pair) {
     let #(route, contract) = pair
@@ -71,7 +72,7 @@ fn generate_page_modules(
       True -> {
         let shaken = tree_shaker.shake(contract.source, server_symbols:)
         let page_path = page_module_path(route.module_path)
-        let content = post_process_page(shaken, route.variant_name)
+        let content = post_process_page(shaken, route.variant_name, protocol, contract)
         Ok(CodecFile("src/" <> page_path <> ".gleam", content))
       }
     }
@@ -157,7 +158,13 @@ fn page_module_path(module_path: String) -> String {
 /// Post-process tree-shaken source for client usage:
 /// - Replace rally_effect.send_to_server with local wrapper
 /// - Add transport import and local send_to_server wrapper
-fn post_process_page(source: String, variant_name: String) -> String {
+/// - For JSON protocol, generate json_encode_msg for page Msg type
+fn post_process_page(
+  source: String,
+  variant_name: String,
+  protocol: String,
+  contract: PageContract,
+) -> String {
   let effect_aliases = effect_module_aliases(source)
   let has_send_to_server =
     list.any(effect_aliases, fn(alias) {
@@ -165,17 +172,31 @@ fn post_process_page(source: String, variant_name: String) -> String {
       || string.contains(source, alias <> ".send_to_server (")
     })
 
+  let json_msg_encoder = case protocol, contract.msg_variants {
+    "json", [] -> ""
+    "json", _ -> generate_json_page_msg_encoder(contract.msg_variants)
+    _, _ -> ""
+  }
+
   let wrapper = case has_send_to_server {
-    True ->
-      "\nimport generated/transport\n"
+    True -> {
+      let transport_import = "\nimport generated/transport\n"
+      let json_import = case protocol { "json" -> "import gleam/json\n" _ -> "" }
+      let encode_call = case protocol { "json" -> "json_encode_msg(msg)" _ -> "msg" }
+      transport_import
+      <> json_import
       <> "\nfn send_to_server(msg: a) -> effect.Effect(b) {\n"
       <> "  effect.from(fn(_dispatch) {\n"
       <> "    transport.send_to_server(\""
       <> variant_name
-      <> "\", msg)\n"
+      <> "\", "
+      <> encode_call
+      <> ")\n"
       <> "    Nil\n"
       <> "  })\n"
       <> "}\n"
+      <> json_msg_encoder
+    }
     False -> ""
   }
 
@@ -183,6 +204,39 @@ fn post_process_page(source: String, variant_name: String) -> String {
   |> replace_send_to_server_calls(effect_aliases)
   |> drop_unused_effect_import(effect_aliases)
   |> fn(s) { s <> wrapper }
+}
+
+fn generate_json_page_msg_encoder(
+  variants: List(VariantInfo),
+) -> String {
+  let arms =
+    list.map(variants, fn(v) {
+      let fields = case v.fields {
+        [] -> "json.object([])"
+        _ -> {
+          let pairs =
+            list.map(v.fields, fn(f) {
+              "#(\"" <> f.label <> "\", " <> json_primitive_encoder(f.type_, f.label) <> ")"
+            })
+          "json.object([" <> string.join(pairs, ", ") <> "])"
+        }
+      }
+      "    " <> v.name <> " -> json.object([\n"
+      <> "      #(\"type\", json.string(\""
+      <> v.name
+      <> "\")),\n"
+      <> "      #(\"variant\", json.string(\""
+      <> v.name
+      <> "\")),\n"
+      <> "      #(\"fields\", "
+      <> fields
+      <> "),\n"
+      <> "    ])"
+    })
+    |> string.join("\n")
+  "\npub fn json_encode_msg(msg: Msg) -> json.Json {\n  case msg {\n"
+  <> arms
+  <> "\n  }\n}\n"
 }
 
 fn effect_module_aliases(source: String) -> List(String) {
@@ -451,8 +505,34 @@ fn emit_types_gleam(
             list.map(endpoints, fn(e) {
               let variant_name = to_pascal_case("server_" <> e.fn_name)
               case e.msg_type {
-                option.Some(#(type_module, type_name)) ->
+                option.Some(#(type_module, type_name)) -> {
+                  let param_pattern = case e.params {
+                    [] -> ""
+                    params -> {
+                      "("
+                      <> string.join(
+                        list.map(params, fn(p) { p.0 <> ": " <> p.0 }),
+                        ", ",
+                      )
+                      <> ")"
+                    }
+                  }
+                  let field_encoders = case e.params {
+                    [] -> "json.object([])"
+                    params -> {
+                      let pairs =
+                        list.map(params, fn(p) {
+                          "#(\""
+                          <> p.0
+                          <> "\", "
+                          <> json_primitive_encoder(p.1, p.0)
+                          <> ")"
+                        })
+                      "json.object([" <> string.join(pairs, ", ") <> "])"
+                    }
+                  }
                   variant_name
+                  <> param_pattern
                   <> " -> json.object([\n"
                   <> "        #(\"type\", json.string(\""
                   <> type_module
@@ -462,8 +542,11 @@ fn emit_types_gleam(
                   <> "        #(\"variant\", json.string(\""
                   <> type_name
                   <> "\")),\n"
-                  <> "        #(\"fields\", json.object([])),\n"
+                  <> "        #(\"fields\", "
+                  <> field_encoders
+                  <> "),\n"
                   <> "      ])"
+                }
                 option.None -> {
                   let field_encoders =
                     list.map(e.params, fn(p) {
@@ -592,7 +675,7 @@ fn collect_user_type_modules(ft: FieldType) -> List(String) {
   }
 }
 
-fn json_primitive_encoder(ft: FieldType, var: String) -> String {
+fn json_client_encoder(ft: FieldType, var: String) -> String {
   case ft {
     StringField -> "json.string(" <> var <> ")"
     IntField -> "json.int(" <> var <> ")"
@@ -600,14 +683,42 @@ fn json_primitive_encoder(ft: FieldType, var: String) -> String {
     BoolField -> "json.bool(" <> var <> ")"
     NilField -> "json.null()"
     BitArrayField -> "json.string(\"<bit_array>\")"
-    UserType(..) -> "json.string(\"<custom>\")"
-    ListOf(_) -> "json.array([], of: fn(x) { x })"
-    OptionOf(_) -> "json.null()"
-    ResultOf(_, _) -> "json.null()"
+    UserType(..) ->
+      "panic as \"client encoder: user type not supported\""
+    ListOf(inner) ->
+      "json.array("
+      <> var
+      <> ", of: fn(x) { "
+      <> json_client_encoder(inner, "x")
+      <> " })"
+    OptionOf(inner) ->
+      "(fn(opt) { case opt {"
+      <> " None -> json.object([#(\"type\", json.string(\"gleam/option.Option\")), #(\"variant\", json.string(\"None\")), #(\"fields\", json.object([]))])"
+      <> " Some(x) -> json.object([#(\"type\", json.string(\"gleam/option.Option\")), #(\"variant\", json.string(\"Some\")), #(\"fields\", json.array(["
+      <> json_client_encoder(inner, "x")
+      <> "], of: fn(y) { y }))])"
+      <> " } })("
+      <> var
+      <> ")"
+    ResultOf(ok, err) ->
+      "(fn(res) { case res {"
+      <> " Ok(x) -> json.object([#(\"type\", json.string(\"gleam/result.Result\")), #(\"variant\", json.string(\"Ok\")), #(\"fields\", json.array(["
+      <> json_client_encoder(ok, "x")
+      <> "], of: fn(y) { y }))])"
+      <> " Error(x) -> json.object([#(\"type\", json.string(\"gleam/result.Result\")), #(\"variant\", json.string(\"Error\")), #(\"fields\", json.array(["
+      <> json_client_encoder(err, "x")
+      <> "], of: fn(y) { y }))])"
+      <> " } })("
+      <> var
+      <> ")"
     DictOf(_, _) -> "json.object([])"
-    TupleOf(_) -> "json.array([], of: fn(x) { x })"
-    TypeVar(_) -> "json.null()"
+    TupleOf(_) -> "json.array([" <> var <> "], of: fn(x) { x })"
+    TypeVar(_) -> "panic as \"client encoder: type variable not supported\""
   }
+}
+
+fn json_primitive_encoder(ft: FieldType, var: String) -> String {
+  json_client_encoder(ft, var)
 }
 
 // ---------- Typed codec wrappers (codec.gleam) ----------

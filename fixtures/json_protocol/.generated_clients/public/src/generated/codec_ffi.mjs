@@ -17,12 +17,31 @@ setListCtors(Empty, NonEmpty);
 setDictFromList(dictFromList);
 _m_public_pages_home_.ServerIncrement.__wireAtom = "3adf004bda";
 _m_public_pages_home_.ServerIncrement.__fieldTypes = [];
+_m_public_pages_home_.IncrementResult.__wireAtom = "003511dd1c";
+_m_public_pages_home_.IncrementResult.__fieldTypes = [null, null];
+_m_public_pages_home_.ServerIncrementBy.__wireAtom = "10251ccd57";
+_m_public_pages_home_.ServerIncrementBy.__fieldTypes = [null];
 _m_public_pages_home_.Model.__wireAtom = "e4ff4f2689";
 _m_public_pages_home_.Model.__fieldTypes = [null];
 
 export function decode_public_pages_home__server_increment(term) {
   if (term === "3adf004bda") return new _m_public_pages_home_.ServerIncrement(); // ServerIncrement @ public/pages/home_
   throw new DecodeError("unknown variant atom: " + String(term));
+}
+
+export function decode_public_pages_home__increment_result(term) {
+  if (!Array.isArray(term) || term.length !== 3 || term[0] !== "003511dd1c") throw new DecodeError("expected 003511dd1c (IncrementResult @ public/pages/home_), got " + (Array.isArray(term) ? String(term[0]) : typeof term));
+  return new _m_public_pages_home_.IncrementResult(
+    decode_int(term[1]),
+    decode_int(term[2])
+  );
+}
+
+export function decode_public_pages_home__server_increment_by(term) {
+  if (!Array.isArray(term) || term.length !== 2 || term[0] !== "10251ccd57") throw new DecodeError("expected 10251ccd57 (ServerIncrementBy @ public/pages/home_), got " + (Array.isArray(term) ? String(term[0]) : typeof term));
+  return new _m_public_pages_home_.ServerIncrementBy(
+    decode_int(term[1])
+  );
 }
 
 export function decode_public_pages_home__model(term) {
@@ -33,6 +52,8 @@ export function decode_public_pages_home__model(term) {
 }
 
 registerAtomDecoder("3adf004bda", "decode_public_pages_home__server_increment", decode_public_pages_home__server_increment);
+registerAtomDecoder("003511dd1c", "decode_public_pages_home__increment_result", decode_public_pages_home__increment_result);
+registerAtomDecoder("10251ccd57", "decode_public_pages_home__server_increment_by", decode_public_pages_home__server_increment_by);
 registerAtomDecoder("e4ff4f2689", "decode_public_pages_home__model", decode_public_pages_home__model);
 
 
@@ -67,4 +88,8 @@ function _decode_response(raw, decode_ok, decode_err) {
 
 export function decode_response_increment(raw) {
   return _decode_response(raw, (t) => decode_int(t), (t) => decode_nil(t));
+}
+
+export function decode_response_increment_by(raw) {
+  return _decode_response(raw, (t) => decode_public_pages_home__increment_result(t), (t) => decode_nil(t));
 }

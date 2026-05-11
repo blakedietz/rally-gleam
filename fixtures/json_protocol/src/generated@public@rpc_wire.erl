@@ -13,13 +13,18 @@
 -export([
     encode_public_pages_home___server_increment/1,
     decode_public_pages_home___server_increment/1,
+    encode_public_pages_home___increment_result/1,
+    decode_public_pages_home___increment_result/1,
+    encode_public_pages_home___server_increment_by/1,
+    decode_public_pages_home___server_increment_by/1,
     encode_public_pages_home___model/1,
     decode_public_pages_home___model/1,
     encode_term/1,
     decode_term/1,
     encode_float/1,
     decode_client_msg/1,
-    encode_response_increment/1
+    encode_response_increment/1,
+    encode_response_increment_by/1
 ]).
 
 %% Ensure whole-number floats stay floats on the wire. JS erases the
@@ -34,6 +39,20 @@ encode_public_pages_home___server_increment(server_increment) ->
 
 decode_public_pages_home___server_increment('3adf004bda') ->
     server_increment.
+
+%% Type: public/pages/home_.IncrementResult
+encode_public_pages_home___increment_result({increment_result, F0, F1}) ->
+    {'003511dd1c', F0, F1}.
+
+decode_public_pages_home___increment_result({'003511dd1c', F0, F1}) ->
+    {increment_result, F0, F1}.
+
+%% Type: public/pages/home_.ServerIncrementBy
+encode_public_pages_home___server_increment_by({server_increment_by, F0}) ->
+    {'10251ccd57', F0}.
+
+decode_public_pages_home___server_increment_by({'10251ccd57', F0}) ->
+    {server_increment_by, F0}.
 
 %% Type: public/pages/home_.Model
 encode_public_pages_home___model({model, F0}) ->
@@ -65,6 +84,8 @@ decode_term(Atom, _Depth) when is_atom(Atom) ->
     end;
 decode_term(Tuple, Depth) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->
     case {element(1, Tuple), tuple_size(Tuple)} of
+        {'003511dd1c', 3} -> decode_public_pages_home___increment_result(Tuple);
+        {'10251ccd57', 2} -> decode_public_pages_home___server_increment_by(Tuple);
         {'e4ff4f2689', 2} -> decode_public_pages_home___model(Tuple);
         _ -> list_to_tuple([decode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)])
     end;
@@ -76,11 +97,18 @@ decode_term(Other, _Depth) -> Other.
 
 decode_client_msg(server_increment) ->
     server_increment;
+decode_client_msg({server_increment_by, F0}) ->
+    {server_increment_by, F0};
 decode_client_msg(Other) ->
     Other.
 
 encode_response_increment({ok, V}) ->
     {ok, V};
 encode_response_increment({error, E}) ->
+    {error, E}.
+
+encode_response_increment_by({ok, V}) ->
+    {ok, encode_public_pages_home___increment_result(V)};
+encode_response_increment_by({error, E}) ->
     {error, E}.
 

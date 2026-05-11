@@ -35,6 +35,69 @@ pub fn json_encode_public_pages_home___server_increment(value) -> json.Json {
   }
 }
 
+pub fn json_encode_public_pages_home___increment_result(value) -> json.Json {
+  case value {
+    home_.IncrementResult(f0, f1) ->
+      json.object([
+        #("type", json.string("public/pages/home_.IncrementResult")),
+        #("variant", json.string("IncrementResult")),
+        #(
+          "fields",
+          json.object([
+            #(
+              "old",
+              json.int(
+                case
+                  f0 >= -9_007_199_254_740_991 && f0 <= 9_007_199_254_740_991
+                {
+                  True -> f0
+                  False -> panic as "Int outside JavaScript safe integer range"
+                },
+              ),
+            ),
+            #(
+              "new",
+              json.int(
+                case
+                  f1 >= -9_007_199_254_740_991 && f1 <= 9_007_199_254_740_991
+                {
+                  True -> f1
+                  False -> panic as "Int outside JavaScript safe integer range"
+                },
+              ),
+            ),
+          ]),
+        ),
+      ])
+  }
+}
+
+pub fn json_encode_public_pages_home___server_increment_by(value) -> json.Json {
+  case value {
+    home_.ServerIncrementBy(f0) ->
+      json.object([
+        #("type", json.string("public/pages/home_.ServerIncrementBy")),
+        #("variant", json.string("ServerIncrementBy")),
+        #(
+          "fields",
+          json.object([
+            #(
+              "amount",
+              json.int(
+                case
+                  f0 >= -9_007_199_254_740_991 && f0 <= 9_007_199_254_740_991
+                {
+                  True -> f0
+                  False -> panic as "Int outside JavaScript safe integer range"
+                },
+              ),
+            ),
+          ]),
+        ),
+      ])
+  }
+}
+
 pub fn json_encode_public_pages_home___model(value) -> json.Json {
   case value {
     home_.Model(f0) ->
@@ -89,6 +152,164 @@ pub fn json_decode_public_pages_home___server_increment(
     )
   {
     Ok("ServerIncrement") -> Ok(home_.ServerIncrement)
+    Error(_) -> Error([JsonError("variant", "missing or not a string")])
+    Ok(s) -> Error([JsonError("variant", "unknown: " <> s)])
+  }
+}
+
+pub fn json_decode_public_pages_home___increment_result(
+  value: dynamic.Dynamic,
+) {
+  use _ <- result.try(
+    case
+      decode.run(
+        value,
+        decode.field("type", decode.string, fn(x) { decode.success(x) }),
+      )
+    {
+      Ok(s) if s == "public/pages/home_.IncrementResult" -> Ok(s)
+      Ok(s) ->
+        Error([
+          JsonError(
+            "type",
+            "expected public/pages/home_.IncrementResult, got " <> s,
+          ),
+        ])
+      Error(_) -> Error([JsonError("type", "missing or not a string")])
+    },
+  )
+  case
+    decode.run(
+      value,
+      decode.field("variant", decode.string, fn(x) { decode.success(x) }),
+    )
+  {
+    Ok("IncrementResult") -> {
+      use fields <- result.try(
+        case
+          decode.run(
+            value,
+            decode.field("fields", decode.dynamic, fn(x) { decode.success(x) }),
+          )
+        {
+          Error(_) -> Error([JsonError("fields", "missing")])
+          Ok(f) -> Ok(f)
+        },
+      )
+      let old_result = case
+        decode.run(
+          fields,
+          decode.field("old", decode.dynamic, fn(x) { decode.success(x) }),
+        )
+      {
+        Ok(raw) ->
+          case decode.run(raw, decode.int) {
+            Ok(v) ->
+              case v >= -9_007_199_254_740_991 && v <= 9_007_199_254_740_991 {
+                True -> Ok(v)
+                False ->
+                  Error([
+                    JsonError("fields.old", "expected Int in safe JSON range"),
+                  ])
+              }
+            Error(_) -> Error([JsonError("fields.old", "expected Int")])
+          }
+        Error(_) -> Error([JsonError("fields.old", "missing")])
+      }
+      use old <- result.try(old_result)
+      let new_result = case
+        decode.run(
+          fields,
+          decode.field("new", decode.dynamic, fn(x) { decode.success(x) }),
+        )
+      {
+        Ok(raw) ->
+          case decode.run(raw, decode.int) {
+            Ok(v) ->
+              case v >= -9_007_199_254_740_991 && v <= 9_007_199_254_740_991 {
+                True -> Ok(v)
+                False ->
+                  Error([
+                    JsonError("fields.new", "expected Int in safe JSON range"),
+                  ])
+              }
+            Error(_) -> Error([JsonError("fields.new", "expected Int")])
+          }
+        Error(_) -> Error([JsonError("fields.new", "missing")])
+      }
+      use new <- result.try(new_result)
+      Ok(home_.IncrementResult(old:, new:))
+    }
+    Error(_) -> Error([JsonError("variant", "missing or not a string")])
+    Ok(s) -> Error([JsonError("variant", "unknown: " <> s)])
+  }
+}
+
+pub fn json_decode_public_pages_home___server_increment_by(
+  value: dynamic.Dynamic,
+) {
+  use _ <- result.try(
+    case
+      decode.run(
+        value,
+        decode.field("type", decode.string, fn(x) { decode.success(x) }),
+      )
+    {
+      Ok(s) if s == "public/pages/home_.ServerIncrementBy" -> Ok(s)
+      Ok(s) ->
+        Error([
+          JsonError(
+            "type",
+            "expected public/pages/home_.ServerIncrementBy, got " <> s,
+          ),
+        ])
+      Error(_) -> Error([JsonError("type", "missing or not a string")])
+    },
+  )
+  case
+    decode.run(
+      value,
+      decode.field("variant", decode.string, fn(x) { decode.success(x) }),
+    )
+  {
+    Ok("ServerIncrementBy") -> {
+      use fields <- result.try(
+        case
+          decode.run(
+            value,
+            decode.field("fields", decode.dynamic, fn(x) { decode.success(x) }),
+          )
+        {
+          Error(_) -> Error([JsonError("fields", "missing")])
+          Ok(f) -> Ok(f)
+        },
+      )
+      let amount_result = case
+        decode.run(
+          fields,
+          decode.field("amount", decode.dynamic, fn(x) { decode.success(x) }),
+        )
+      {
+        Ok(raw) ->
+          case decode.run(raw, decode.int) {
+            Ok(v) ->
+              case v >= -9_007_199_254_740_991 && v <= 9_007_199_254_740_991 {
+                True -> Ok(v)
+                False ->
+                  Error([
+                    JsonError(
+                      "fields.amount",
+                      "expected Int in safe JSON range",
+                    ),
+                  ])
+              }
+            Error(_) -> Error([JsonError("fields.amount", "expected Int")])
+          }
+        Error(_) -> Error([JsonError("fields.amount", "missing")])
+      }
+      use amount <- result.try(amount_result)
+      Ok(home_.ServerIncrementBy(amount:))
+    }
     Error(_) -> Error([JsonError("variant", "missing or not a string")])
     Ok(s) -> Error([JsonError("variant", "unknown: " <> s)])
   }

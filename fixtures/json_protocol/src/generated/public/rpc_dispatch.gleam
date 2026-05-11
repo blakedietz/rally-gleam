@@ -20,8 +20,12 @@ fn wire_decode_client_msg(msg: a) -> b
 @external(erlang, "generated@public@rpc_wire", "encode_response_increment")
 fn wire_encode_response_increment(result: a) -> b
 
+@external(erlang, "generated@public@rpc_wire", "encode_response_increment_by")
+fn wire_encode_response_increment_by(result: a) -> b
+
 pub type ClientMsg {
   ServerIncrement
+  ServerIncrementBy(amount: Int)
 }
 
 pub fn handle(
@@ -33,6 +37,8 @@ pub fn handle(
     Ok(#("rpc", request_id, msg)) -> {
       case wire.variant_tag(msg) {
         Ok("server_increment") ->
+          dispatch_known(msg, request_id, server_context)
+        Ok("server_increment_by") ->
           dispatch_known(msg, request_id, server_context)
         Ok(tag) -> #(
           wire.encode_response(
@@ -84,6 +90,40 @@ fn dispatch_known(msg, request_id, server_context) {
               let trace_id = trace.new_trace_id()
               io.println_error(
                 "[libero] " <> trace_id <> " increment: " <> reason,
+              )
+              #(
+                wire.encode_response(
+                  request_id:,
+                  value: Error(InternalError(
+                    trace_id:,
+                    message: "Something went wrong",
+                  )),
+                ),
+                server_context,
+              )
+            }
+          }
+        }
+        ServerIncrementBy(amount: _) -> {
+          case
+            trace.try_call(fn() {
+              public_pages_home__handler.server_increment_by(
+                msg: wire.coerce(typed_msg),
+                server_context:,
+              )
+            })
+          {
+            Ok(result) -> {
+              let result = wire_encode_response_increment_by(result)
+              #(
+                wire.encode_response(request_id:, value: Ok(result)),
+                server_context,
+              )
+            }
+            Error(reason) -> {
+              let trace_id = trace.new_trace_id()
+              io.println_error(
+                "[libero] " <> trace_id <> " increment_by: " <> reason,
               )
               #(
                 wire.encode_response(

@@ -20,12 +20,16 @@ ensure() ->
 
 do_ensure() ->
     lists:foreach(fun(B) -> binary_to_atom(B) end, [
+        <<"003511dd1c">>,
+        <<"10251ccd57">>,
         <<"3adf004bda">>,
         <<"decode_error">>,
         <<"e4ff4f2689">>,
         <<"error">>,
         <<"false">>,
         <<"increment">>,
+        <<"increment_by">>,
+        <<"increment_result">>,
         <<"internal_error">>,
         <<"malformed_request">>,
         <<"model">>,
@@ -33,6 +37,7 @@ do_ensure() ->
         <<"none">>,
         <<"ok">>,
         <<"server_increment">>,
+        <<"server_increment_by">>,
         <<"some">>,
         <<"true">>,
         <<"unknown_function">>

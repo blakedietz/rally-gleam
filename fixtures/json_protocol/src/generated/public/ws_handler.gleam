@@ -186,6 +186,52 @@ fn json_dispatch(
         }
       }
     }
+    Ok("public/pages/home_.ServerIncrementBy") -> {
+      case
+        json_codecs.json_decode_public_pages_home___server_increment_by(message)
+      {
+        Error(errors) -> {
+          let error_frame = wire.encode_error(Some(request_id), errors)
+          #(error_frame, server_context)
+        }
+        Ok(msg) -> {
+          case
+            trace.try_call(fn() {
+              public_pages_home__handler.server_increment_by(
+                msg: msg,
+                server_context: server_context,
+              )
+            })
+          {
+            Ok(result) -> {
+              let encoded =
+                json_codecs.json_encode_gleam_result__result(
+                  result,
+                  fn(x) {
+                    json_codecs.json_encode_public_pages_home___increment_result(
+                      x,
+                    )
+                  },
+                  fn(x) { json.null() },
+                )
+              let frame = wire.encode_response(request_id, encoded)
+              #(frame, server_context)
+            }
+            Error(reason) -> {
+              let trace_id = trace.new_trace_id()
+              io.println_error(
+                "[libero] " <> trace_id <> " increment_by: " <> reason,
+              )
+              let error_frame =
+                wire.encode_error(Some(request_id), [
+                  JsonError("handler", "Something went wrong"),
+                ])
+              #(error_frame, server_context)
+            }
+          }
+        }
+      }
+    }
     Ok(other) -> {
       let error_frame =
         wire.encode_error(Some(request_id), [

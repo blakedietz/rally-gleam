@@ -5,6 +5,7 @@
 
 pub type ClientMsg {
   ServerIncrement
+  ServerIncrementBy(amount: Int)
 }
 
 import gleam/json
@@ -16,6 +17,12 @@ pub fn json_encode_client_msg(msg: ClientMsg) -> json.Json {
         #("type", json.string("public/pages/home_.ServerIncrement")),
         #("variant", json.string("ServerIncrement")),
         #("fields", json.object([])),
+      ])
+    ServerIncrementBy(amount: amount) ->
+      json.object([
+        #("type", json.string("public/pages/home_.ServerIncrementBy")),
+        #("variant", json.string("ServerIncrementBy")),
+        #("fields", json.object([#("amount", json.int(amount))])),
       ])
   }
 }

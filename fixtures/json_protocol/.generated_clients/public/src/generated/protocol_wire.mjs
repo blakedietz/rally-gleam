@@ -4,7 +4,7 @@ import { Response, Push, Error as FrameError } from "../../libero/libero/frame.m
 import { Ok, Error as ResultError, CustomType, Empty, NonEmpty, BitArray } from "../../gleam_stdlib/gleam.mjs";
 import { Some, None } from "../../gleam_stdlib/gleam/option.mjs";
 
-const contract_hash = "b4dc083569e4dc1b29dade5855fbfc4bc774f2ae2e8a4cf1ac9a9622dae2dc19";
+const contract_hash = "7b9cefd7bb2b6ca7ce3b53e781a93ea5103bb8a55654b3c99507cfc38276d5e5";
 
 // ---------- Libero typed JSON -> Gleam JS value ----------
 //

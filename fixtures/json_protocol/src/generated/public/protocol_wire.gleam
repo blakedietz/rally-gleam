@@ -8,7 +8,7 @@ import libero/frame.{type ServerFrame}
 import libero/json/error.{type JsonError} as json_error
 import libero/json/wire.{type RequestEnvelope} as json_wire
 
-const contract_hash = "b4dc083569e4dc1b29dade5855fbfc4bc774f2ae2e8a4cf1ac9a9622dae2dc19"
+const contract_hash = "7b9cefd7bb2b6ca7ce3b53e781a93ea5103bb8a55654b3c99507cfc38276d5e5"
 
 pub fn page_init_ok() -> json.Json {
   json.null()
