@@ -306,6 +306,14 @@ export function ensureSocket(url) {
             ? frame.errors.map(e => (e && e[1]) || "").join("; ")
             : String(frame.errors))
         : "JSON protocol error";
+      if (frame.requestId != null) {
+        const entry = responseCallbacks.get(frame.requestId);
+        if (entry) {
+          responseCallbacks.delete(frame.requestId);
+          if (entry.timer) clearTimeout(entry.timer);
+        }
+        requestTimestamps.delete(frame.requestId);
+      }
       invokeRpcErrorHandler(makeConnectionError(msg), "JSON protocol error");
       return;
     }
