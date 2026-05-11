@@ -640,13 +640,10 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     }
     _ -> Ok([])
   })
-  let codec_files =
-    list.append(
-      codec_files,
-      list.map(json_codec_files, fn(f: codec.CodecFile) {
-        client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
-      }),
-    )
+  // JSON codec files (json_codecs.gleam, json_decode_dispatch.gleam)
+  // are server-only. The client uses inline encoding in types.gleam
+  // and the JS facade (typedJsonToGleamValue) for decode.
+  // No client-side json_codec files are written.
 
   // Write server-side JSON codecs alongside SSR handler when protocol is JSON
   use _ <- result.try(case config.protocol {

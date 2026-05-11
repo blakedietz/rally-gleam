@@ -6,3 +6,16 @@
 pub type ClientMsg {
   ServerIncrement
 }
+
+import gleam/json
+
+pub fn json_encode_client_msg(msg: ClientMsg) -> json.Json {
+  case msg {
+    ServerIncrement ->
+      json.object([
+        #("type", json.string("public/pages/home_.ServerIncrement")),
+        #("variant", json.string("ServerIncrement")),
+        #("fields", json.object([])),
+      ])
+  }
+}
