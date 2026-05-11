@@ -485,7 +485,7 @@ fn generate_page_auth_policy(
             True -> "rally_auth.Required"
             False -> "rally_auth.Optional"
           }
-          Ok("    \"" <> route.module_path <> "\" -> " <> policy)
+          Ok("    \"" <> route.variant_name <> "\" -> " <> policy)
         }
         False -> Error(Nil)
       }
@@ -509,7 +509,7 @@ fn page_has_authorize_fn(
     list.filter_map(page_contracts, fn(pair) {
       let #(route, contract) = pair
       case contract.has_authorize {
-        True -> Ok("    \"" <> route.module_path <> "\" -> True")
+        True -> Ok("    \"" <> route.variant_name <> "\" -> True")
         False -> Error(Nil)
       }
     })
@@ -536,7 +536,12 @@ fn generate_ws_check_page_authorize(
     list.filter_map(page_contracts, fn(pair) {
       let #(route, contract) = pair
       case contract.has_authorize {
-        True -> Ok(#(route.module_path, module_to_alias(route.module_path)))
+        True ->
+          Ok(#(
+            route.variant_name,
+            route.module_path,
+            module_to_alias(route.module_path),
+          ))
         False -> Error(Nil)
       }
     })
@@ -545,7 +550,7 @@ fn generate_ws_check_page_authorize(
     _ -> {
       let arms =
         list.map(with_auth, fn(pair) {
-          let #(page, alias) = pair
+          let #(page, _, alias) = pair
           "    \""
           <> page
           <> "\" -> "
@@ -557,8 +562,8 @@ fn generate_ws_check_page_authorize(
 
       let imports =
         list.map(with_auth, fn(pair) {
-          let #(page, alias) = pair
-          import_as(page, alias)
+          let #(_, module_path, alias) = pair
+          import_as(module_path, alias)
         })
         |> list.unique
         |> string.join("\n")
@@ -581,11 +586,11 @@ fn generate_handler_page_info(
   page_contracts: List(#(ScannedRoute, PageContract)),
   endpoints: List(HandlerEndpoint),
 ) -> String {
-  // Build a dict from page module path to contract for quick lookup
+  // Build a dict from page module path to route identity and contract for quick lookup.
   let contract_for =
     list.filter_map(page_contracts, fn(pair) {
       let #(route, contract) = pair
-      Ok(#(route.module_path, contract))
+      Ok(#(route.module_path, route.variant_name, contract))
     })
 
   let arms =
@@ -593,25 +598,27 @@ fn generate_handler_page_info(
       let wire_tag = "server_" <> endpoint.fn_name
       case
         list.find_map(contract_for, fn(pair) {
-          let #(module_path, contract) = pair
+          let #(module_path, variant_name, contract) = pair
           case module_path == endpoint.module_path {
-            True -> Ok(contract)
+            True -> Ok(#(variant_name, contract))
             False -> Error(Nil)
           }
         })
       {
-        Ok(contract) ->
+        Ok(page_info) -> {
+          let #(variant_name, contract) = page_info
           Ok(
             "    \""
             <> wire_tag
             <> "\" -> Ok(PageAuthInfo(page: \""
-            <> endpoint.module_path
+            <> variant_name
             <> "\", required: "
             <> bool_str(contract.page_auth_required)
             <> ", has_authorize: "
             <> bool_str(contract.has_authorize)
             <> "))",
           )
+        }
         Error(Nil) -> Error(Nil)
       }
     })

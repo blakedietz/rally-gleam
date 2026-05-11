@@ -347,6 +347,78 @@ pub fn http_auth_optional_page_dispatches_test() {
   let assert True = string.contains(output, "rpc_dispatch.handle(")
 }
 
+pub fn http_auth_optional_page_with_authorize_returns_403_test() {
+  let endpoints = [make_endpoint("public/pages/profile", "update_profile")]
+  let contracts = [
+    #(
+      make_route("public/pages/profile"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: False,
+        has_authorize: True,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints:,
+      rpc_dispatch_module: "generated/public/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "public/auth")),
+      contracts:,
+      from_session_module: "public/client_context_server",
+    )
+
+  // Optional skips redirect-style authentication, but authorize still applies.
+  let assert False = string.contains(output, "auth.is_authenticated(identity)")
+  let assert True = string.contains(output, "fn check_page_authorize(")
+  let assert True =
+    string.contains(
+      output,
+      "public_pages_profile.authorize(server_context, identity)",
+    )
+  let assert True = string.contains(output, "403")
+}
+
+pub fn http_auth_mixed_required_and_optional_pages_keep_per_page_policy_test() {
+  let endpoints = [
+    make_endpoint("admin/pages/dashboard", "load_data"),
+    make_endpoint("public/pages/login", "submit_login"),
+  ]
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+    #(
+      make_route("public/pages/login"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: False,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints:,
+      rpc_dispatch_module: "generated/public/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "public/auth")),
+      contracts:,
+      from_session_module: "public/client_context_server",
+    )
+
+  let assert True = string.contains(output, "\"server_load_data\"")
+  let assert True = string.contains(output, "\"server_submit_login\"")
+  let assert True = string.contains(output, "required: True")
+  let assert True = string.contains(output, "required: False")
+  let assert True =
+    string.contains(output, "case required && !auth.is_authenticated(identity)")
+}
+
 pub fn http_auth_authorize_false_returns_403_test() {
   let endpoints = [make_endpoint("admin/pages/settings", "update_config")]
   let contracts = [
@@ -378,6 +450,33 @@ pub fn http_auth_authorize_false_returns_403_test() {
     )
   // Should return 403 on auth failure
   let assert True = string.contains(output, "403")
+}
+
+pub fn http_auth_authorize_runs_after_from_session_test() {
+  let endpoints = [make_endpoint("admin/pages/settings", "update_config")]
+  let contracts = [
+    #(
+      make_route("admin/pages/settings"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: True,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints:,
+      rpc_dispatch_module: "generated/admin/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      contracts:,
+      from_session_module: "admin/client_context_server",
+    )
+
+  let assert Ok(#(_, after_from_session)) =
+    string.split_once(output, ".from_session(server_context:")
+  let assert True = string.contains(after_from_session, "check_page_authorize(")
+  let assert True = string.contains(after_from_session, "rpc_dispatch.handle(")
 }
 
 pub fn http_auth_unknown_variant_returns_400_test() {

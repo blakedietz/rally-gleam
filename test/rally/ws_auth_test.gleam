@@ -55,9 +55,13 @@ fn endpoints_for(
 }
 
 fn make_route(module: String) -> ScannedRoute {
+  make_route_named("Test", module)
+}
+
+fn make_route_named(name: String, module: String) -> ScannedRoute {
   ScannedRoute(
     segments: [StaticSegment("test")],
-    variant_name: "Test",
+    variant_name: name,
     params: [],
     module_path: module,
     layout_module: None,
@@ -225,7 +229,7 @@ pub fn ws_page_init_required_emits_auth_redirect_error_test() {
 pub fn ws_page_init_authorize_false_emits_forbidden_error_test() {
   let contracts = [
     #(
-      make_route("admin/pages/settings"),
+      make_route_named("AdminSettings", "admin/pages/settings"),
       make_contract(
         has_page_auth: True,
         page_auth_required: True,
@@ -246,13 +250,104 @@ pub fn ws_page_init_authorize_false_emits_forbidden_error_test() {
   // Must include the error response
   let assert True = string.contains(output, "auth:forbidden")
   // page_has_authorize must map the authorized page to True
-  let assert True = string.contains(output, "\"admin/pages/settings\" -> True")
+  let assert True = string.contains(output, "\"AdminSettings\" -> True")
   // check_page_authorize must be generated and call the page module
   let assert True = string.contains(output, "fn check_page_authorize(")
   let assert True =
     string.contains(
       output,
       "admin_pages_settings.authorize(server_context, identity)",
+    )
+}
+
+pub fn ws_page_init_optional_with_authorize_emits_forbidden_error_test() {
+  let contracts = [
+    #(
+      make_route_named("PublicProfile", "public/pages/profile"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: False,
+        has_authorize: True,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "public/auth")),
+      from_session_module: "public/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  // Optional skips auth redirect, but authorize still gates page init.
+  let assert True =
+    string.contains(output, "\"PublicProfile\" -> rally_auth.Optional")
+  let assert True = string.contains(output, "\"PublicProfile\" -> True")
+  let assert True =
+    string.contains(
+      output,
+      "public_pages_profile.authorize(server_context, identity)",
+    )
+  let assert True = string.contains(output, "auth:forbidden")
+}
+
+pub fn ws_auth_page_identifiers_match_page_init_variant_names_test() {
+  let route =
+    make_route_named(
+      "AdminRegistrationEvents",
+      "admin/pages/registration/events",
+    )
+  let contracts = [
+    #(
+      route,
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: True,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  let assert True =
+    string.contains(
+      output,
+      "\"AdminRegistrationEvents\" -> rally_auth.Required",
+    )
+  let assert True =
+    string.contains(output, "\"AdminRegistrationEvents\" -> True")
+  let assert True =
+    string.contains(
+      output,
+      "\"AdminRegistrationEvents\" -> admin_pages_registration_events.authorize(server_context, identity)",
+    )
+  let assert True =
+    string.contains(
+      output,
+      "PageAuthInfo(page: \"AdminRegistrationEvents\", required: True, has_authorize: True)",
+    )
+
+  let assert False =
+    string.contains(
+      output,
+      "\"admin/pages/registration/events\" -> rally_auth.Required",
+    )
+  let assert False =
+    string.contains(output, "\"admin/pages/registration/events\" -> True")
+  let assert False =
+    string.contains(
+      output,
+      "PageAuthInfo(page: \"admin/pages/registration/events\"",
     )
 }
 
@@ -463,6 +558,42 @@ pub fn ws_auth_rpc_enforces_authorize_test() {
     )
 }
 
+pub fn ws_auth_rpc_mixed_required_and_optional_pages_keep_per_page_policy_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+    #(
+      make_route("public/pages/login"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: False,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "public/auth")),
+      from_session_module: "public/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  let assert True = string.contains(output, "required: True")
+  let assert True = string.contains(output, "required: False")
+  let assert True =
+    string.contains(output, "case required && !auth.is_authenticated(identity)")
+  let assert True = string.contains(output, "auth:redirect:")
+}
+
 pub fn ws_auth_rpc_unknown_variant_fails_closed_test() {
   let contracts = [
     #(
@@ -491,6 +622,38 @@ pub fn ws_auth_rpc_unknown_variant_fails_closed_test() {
   let assert True = string.contains(output, "auth:malformed")
   // RPC branch must check page mismatch
   let assert True = string.contains(output, "auth:page_mismatch")
+}
+
+pub fn ws_auth_rpc_missing_identity_fails_before_dispatch_test() {
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      page_contracts: contracts,
+      atoms_module: "generated@rpc_atoms",
+      rpc_dispatch_module: "generated/rpc_dispatch",
+      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints_for(contracts),
+    )
+
+  let assert Ok(#(_, rpc_branch)) =
+    string.split_once(output, "Ok(#(_page, request_id, raw))")
+  let assert Ok(#(_, after_identity_check)) =
+    string.split_once(rpc_branch, "case effect.get_ws_identity()")
+  let assert Ok(#(missing_identity_branch, _)) =
+    string.split_once(after_identity_check, "Ok(identity) ->")
+  let assert True = string.contains(missing_identity_branch, "auth:forbidden")
+  let assert False =
+    string.contains(missing_identity_branch, "rpc_dispatch.handle(")
 }
 
 // -- WS reauth --
