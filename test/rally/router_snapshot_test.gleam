@@ -248,7 +248,7 @@ pub fn ssr_handler_sets_content_type_for_load_pages_test() {
     |> list.length
     |> fn(count) { count - 1 }
 
-  content_type_count |> should.equal(4)
+  content_type_count |> should.equal(3)
 }
 
 pub fn ssr_handler_with_client_context_snapshot_test() {

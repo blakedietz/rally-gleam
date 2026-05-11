@@ -76,20 +76,11 @@ pub fn handle_request(
     router.NotFound(_) ->
       response.new(404)
       |> response.set_body(mist.Bytes(bytes_tree.from_string("Not found")))
-    _ -> serve_html_shell(server_context: server_context, session_id: session_id, hostname: hostname)
   }
 }
 fn context_script(client_context: client_context.ClientContext) -> String {
   let encoded = libero_wire.encode_flags(client_context)
   "<script>window.__RALLY_CLIENT_CONTEXT__='" <> encoded <> "'</script>"
-}
-
-fn serve_html_shell(server_context server_context: ServerContext, session_id session_id: String, hostname hostname: String) -> response.Response(ResponseData) {
-  let #(client_context, _) = server_context.from_session(server_context: server_context, session_id: session_id, hostname: hostname)
-  let html = "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><script>(function(){var c=document.cookie;if(c.includes('__rally_dark_mode=1')||(!c.includes('__rally_dark_mode=')&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})()</script></head>\n<body><div id='app'></div><script type='module' src='/_build/client/generated/app.mjs'></script></body>\n</html>" <> env.browser_env_script() <> context_script(client_context)
-  response.new(200)
-  |> response.set_header("content-type", "text/html")
-  |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
 }
 
 fn shell_html() -> String {
