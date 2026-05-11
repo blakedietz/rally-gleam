@@ -48,13 +48,23 @@ pub fn generate(
       <> " as rpc_dispatch\n"
   }
 
+  // Handler imports for JSON dispatch
+  let handler_modules =
+    endpoints
+    |> list.map(fn(e) { e.module_path })
+    |> list.unique()
+  let handler_imports =
+    list.map(handler_modules, fn(mod) { import_as(mod, handler_alias(mod)) })
+
   let json_codec_module =
     string.replace(wire_import_module, "protocol_wire", "json_codecs")
   let json_imports = case protocol {
     "json" ->
-      "import gleam/dynamic.{type Dynamic}\nimport gleam/dynamic/decode\nimport libero/json/error.{type JsonError, JsonError}\nimport libero/trace\nimport "
+      "import gleam/dynamic.{type Dynamic}\nimport gleam/dynamic/decode\nimport gleam/json\nimport libero/json/error.{type JsonError, JsonError}\nimport libero/trace\nimport "
       <> json_codec_module
       <> " as json_codecs\n"
+      <> string.join(handler_imports, "\n")
+      <> "\n"
     _ -> ""
   }
 
@@ -173,9 +183,12 @@ fn generate_frame_handler_no_auth(protocol: String) -> String {
     "json" ->
       "\n    mist.Text(data) -> {
       debug_log(\"[rally:ws] Text frame: \" <> int.to_string(string.length(data)) <> \" chars\")
+      let assert Ok(server_context) = effect.get_stored_server_context()
       case wire.decode_request(data) {
         Ok(envelope) -> {
-          let #(response_frame, _new_ctx) = json_dispatch(message: envelope.message, request_id: envelope.request_id, server_context:)
+          let #(response_frame, new_ctx) = json_dispatch(message: envelope.message, request_id: envelope.request_id, server_context: server_context)
+          let current_page = effect.get_ws_page()
+          let Nil = effect.put_ws_state(conn, new_ctx, current_page)
           let _send_result = mist.send_text_frame(conn, response_frame)
           send_pending_frames(conn)
           mist.continue(state)
@@ -282,18 +295,31 @@ fn generate_frame_handler_with_auth(
       "
     mist.Text(data) -> {
       debug_log(\"[rally:ws] Text frame: \" <> int.to_string(string.length(data)) <> \" chars\")
-      case wire.decode_request(data) {
-        Ok(envelope) -> {
-          let #(response_frame, _new_ctx) = json_dispatch(message: envelope.message, request_id: envelope.request_id, server_context: server_context, identity:)
-          let _send_result = mist.send_text_frame(conn, response_frame)
-          send_pending_frames(conn)
-          mist.continue(state)
-        }
-        Error(errors) -> {
-          let error_frame = wire.encode_error(None, errors)
+      let assert Ok(server_context) = effect.get_stored_server_context()
+      case effect.get_ws_identity() {
+        Error(Nil) -> {
+          let error_frame = wire.encode_error(None, [JsonError(\"auth\", \"not authenticated\")])
           let _send_result = mist.send_text_frame(conn, error_frame)
           send_pending_frames(conn)
           mist.continue(state)
+        }
+        Ok(identity) -> {
+          case wire.decode_request(data) {
+            Ok(envelope) -> {
+              let #(response_frame, new_ctx) = json_dispatch(message: envelope.message, request_id: envelope.request_id, server_context: server_context, identity: identity)
+              let current_page = effect.get_ws_page()
+              let Nil = effect.put_ws_state(conn, new_ctx, current_page)
+              let _send_result = mist.send_text_frame(conn, response_frame)
+              send_pending_frames(conn)
+              mist.continue(state)
+            }
+            Error(errors) -> {
+              let error_frame = wire.encode_error(None, errors)
+              let _send_result = mist.send_text_frame(conn, error_frame)
+              send_pending_frames(conn)
+              mist.continue(state)
+            }
+          }
         }
       }
     }"
@@ -722,18 +748,11 @@ fn generate_json_dispatch_function(
       let arms =
         list.map(endpoints, fn(e) { json_dispatch_arm(e, has_auth) })
         |> string.join("\n")
-      let catch_all = case has_auth {
-        True ->
-          "      Ok(other) -> {
+      let catch_all =
+        "      Ok(other) -> {
         let error_frame = wire.encode_error(Some(request_id), [JsonError(\"type\", \"unknown: \" <> other)])
         #(error_frame, server_context)
       }"
-        False ->
-          "      Ok(other) -> {
-        let error_frame = wire.encode_error(Some(request_id), [JsonError(\"type\", \"unknown: \" <> other)])
-        #(error_frame, server_context)
-      }"
-      }
 
       "\nfn json_dispatch(
   message message: Dynamic,
@@ -754,16 +773,19 @@ fn generate_json_dispatch_function(
 
 fn json_dispatch_arm(e: HandlerEndpoint, has_auth: Bool) -> String {
   let alias = handler_alias(e.module_path)
-  let type_str = e.module_path <> "." <> e.fn_name
-  // Use walker to build qualified atom name for codec function lookup
-  let msg_decoder = case e.msg_type {
-    Some(#(mod, name)) ->
-      "json_codecs.json_decode_" <> walker.qualified_atom_name(mod, name)
-    None ->
-      "json_codecs.json_decode_"
-      <> walker.qualified_atom_name(e.module_path, to_pascal_case(e.fn_name))
+  let #(type_module, type_name) = case e.msg_type {
+    Some(#(mod, name)) -> #(mod, name)
+    None -> #(e.module_path, to_pascal_case("server_" <> e.fn_name))
   }
+  let type_str = type_module <> "." <> type_name
+  let msg_decoder =
+    "json_codecs.json_decode_"
+    <> walker.qualified_atom_name(type_module, type_name)
   let handler_call = json_handler_call(e, alias, has_auth)
+  let #(ok_destructure, ok_ctx) = case e.mutates_context {
+    True -> #("#(result, new_ctx)", "new_ctx")
+    False -> #("result", "server_context")
+  }
   let response_encode = json_response_encode(e)
 
   "    Ok(\"" <> type_str <> "\") -> {
@@ -774,10 +796,10 @@ fn json_dispatch_arm(e: HandlerEndpoint, has_auth: Bool) -> String {
         }
         Ok(msg) -> {
           case trace.try_call(fn() { " <> handler_call <> " }) {
-            Ok(result) -> {
+            Ok(" <> ok_destructure <> ") -> {
               " <> response_encode <> "
               let frame = wire.encode_response(request_id, encoded)
-              #(frame, server_context)
+              #(frame, " <> ok_ctx <> ")
             }
             Error(reason) -> {
               let trace_id = trace.new_trace_id()
@@ -836,22 +858,38 @@ fn json_response_encode(e: HandlerEndpoint) -> String {
 
 fn json_encoder_for_fieldtype(ft: FieldType, var: String) -> String {
   case ft {
-    StringField -> "json_codecs.json_encode_gleam__string(" <> var <> ")"
-    IntField -> "json_codecs.json_encode_gleam__int(" <> var <> ")"
-    FloatField -> "json_codecs.json_encode_gleam__float(" <> var <> ")"
-    BoolField -> "json_codecs.json_encode_gleam__bool(" <> var <> ")"
-    NilField -> "json_codecs.json_encode_gleam__nil(" <> var <> ")"
-    BitArrayField -> "json_codecs.json_encode_gleam__bit_array(" <> var <> ")"
+    StringField -> "json.string(" <> var <> ")"
+    IntField -> "json.int(" <> var <> ")"
+    FloatField -> "json.float(" <> var <> ")"
+    BoolField -> "json.bool(" <> var <> ")"
+    NilField -> "json.null()"
+    BitArrayField -> "json.string(bit_array.base64_encode(" <> var <> ", True))"
     UserType(module_path:, type_name:, ..) ->
       "json_codecs.json_encode_"
       <> walker.qualified_atom_name(module_path, type_name)
       <> "("
       <> var
       <> ")"
-    ListOf(_) -> "json_codecs.json_encode_gleam__list(" <> var <> ")"
-    OptionOf(_) -> "json_codecs.json_encode_gleam_option__option(" <> var <> ")"
-    ResultOf(_, _) ->
-      "json_codecs.json_encode_gleam_result__result(" <> var <> ")"
+    ListOf(inner) ->
+      "json_codecs.json_encode_gleam__list("
+      <> var
+      <> ", fn(x) { "
+      <> json_encoder_for_fieldtype(inner, "x")
+      <> " })"
+    OptionOf(inner) ->
+      "json_codecs.json_encode_gleam_option__option("
+      <> var
+      <> ", fn(x) { "
+      <> json_encoder_for_fieldtype(inner, "x")
+      <> " })"
+    ResultOf(ok, err) ->
+      "json_codecs.json_encode_gleam_result__result("
+      <> var
+      <> ", fn(x) { "
+      <> json_encoder_for_fieldtype(ok, "x")
+      <> " }, fn(x) { "
+      <> json_encoder_for_fieldtype(err, "x")
+      <> " })"
     DictOf(_, _) -> "json_codecs.json_encode_gleam__dict(" <> var <> ")"
     TupleOf(_) -> "json_codecs.json_encode_gleam__tuple(" <> var <> ")"
     TypeVar(_) -> "panic as \"cannot encode type variable\""
