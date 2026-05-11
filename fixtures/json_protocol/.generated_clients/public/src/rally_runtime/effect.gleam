@@ -18,11 +18,10 @@ pub fn rpc(msg: a, on_response on_response: fn(b) -> msg) -> Effect(msg) {
   })
 }
 
-pub fn send_to_client_context(msg: a) -> Effect(b) {
-  effect.from(fn(_dispatch) {
-    transport.send_to_server("__ClientContext__", transport.coerce(msg))
-    Nil
-  })
+pub fn send_to_client_context(_msg: a) -> Effect(b) {
+  let _ =
+    panic as "send_to_client_context: JSON client context encoding is not yet implemented"
+  effect.none()
 }
 
 pub fn navigate(path: String) -> Effect(a) {

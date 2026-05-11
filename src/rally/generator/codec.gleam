@@ -227,7 +227,7 @@ fn generate_json_page_msg_encoder(
 ) -> String {
   let arms =
     list.map(variants, fn(v) {
-      let type_id = page_module_path <> "." <> v.name
+      let type_id = page_module_path <> ".Msg"
       let fields = case v.fields {
         [] -> "json.object([])"
         _ -> {
@@ -349,9 +349,19 @@ fn emit_rally_effect_shim(protocol: String) -> String {
       <> "}\n"
   }
 
-  let ctx_send_arg = case protocol {
-    "json" -> "transport.coerce(msg)"
-    _ -> "msg"
+  let client_context_fn = case protocol {
+    "json" ->
+      "\npub fn send_to_client_context(_msg: a) -> Effect(b) {\n"
+      <> "  let _ = panic as \"send_to_client_context: JSON client context encoding is not yet implemented\"\n"
+      <> "  effect.none()\n"
+      <> "}\n"
+    _ ->
+      "\npub fn send_to_client_context(msg: a) -> Effect(b) {\n"
+      <> "  effect.from(fn(_dispatch) {\n"
+      <> "    transport.send_to_server(\"__ClientContext__\", msg)\n"
+      <> "    Nil\n"
+      <> "  })\n"
+      <> "}\n"
   }
 
   let imports = case protocol {
@@ -364,14 +374,7 @@ fn emit_rally_effect_shim(protocol: String) -> String {
 //// Client-side effect shim. Provides the same API as
 //// rally_runtime/effect but backed by the client transport.
 
-import lustre/effect.{type Effect}" <> rpc_fn <> "
-pub fn send_to_client_context(msg: a) -> Effect(b) {
-  effect.from(fn(_dispatch) {
-    transport.send_to_server(\"__ClientContext__\", " <> ctx_send_arg <> ")
-    Nil
-  })
-}
-
+import lustre/effect.{type Effect}" <> rpc_fn <> client_context_fn <> "
 pub fn navigate(path: String) -> Effect(a) {
   effect.from(fn(_dispatch) {
     do_navigate(path)
@@ -712,12 +715,15 @@ fn json_client_encoder(ft: FieldType, var: String) -> String {
     NilField -> "json.null()"
     BitArrayField ->
       panic as "client encoder: BitArray not supported in client-side JSON encoding"
-    UserType(module_path:, type_name:, ..) ->
-      panic as "client encoder: user type "
-      <> module_path
-      <> "."
-      <> type_name
-      <> " not supported in client-side JSON encoding — use msg_type endpoint or inline fields"
+    UserType(module_path:, type_name:, ..) -> {
+      let message =
+        "client encoder: user type "
+        <> module_path
+        <> "."
+        <> type_name
+        <> " not supported in client-side JSON encoding"
+      panic as message
+    }
     ListOf(inner) ->
       "json.array("
       <> var
