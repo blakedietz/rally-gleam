@@ -47,9 +47,13 @@ fn make_contract(
 }
 
 fn make_route(module: String) -> ScannedRoute {
+  make_route_named("Test", module)
+}
+
+fn make_route_named(name: String, module: String) -> ScannedRoute {
   ScannedRoute(
     segments: [StaticSegment("test")],
-    variant_name: "Test",
+    variant_name: name,
     params: [],
     module_path: module,
     layout_module: None,
@@ -262,7 +266,7 @@ pub fn http_auth_generates_handler_page_info_test() {
   ]
   let contracts = [
     #(
-      make_route("admin/pages/dashboard"),
+      make_route_named("AdminDashboard", "admin/pages/dashboard"),
       make_contract(
         has_page_auth: True,
         page_auth_required: True,
@@ -270,7 +274,7 @@ pub fn http_auth_generates_handler_page_info_test() {
       ),
     ),
     #(
-      make_route("admin/pages/settings"),
+      make_route_named("AdminSettings", "admin/pages/settings"),
       make_contract(
         has_page_auth: True,
         page_auth_required: False,
@@ -291,6 +295,20 @@ pub fn http_auth_generates_handler_page_info_test() {
   let assert True = string.contains(output, "fn handler_page_info(")
   let assert True = string.contains(output, "\"server_load_data\"")
   let assert True = string.contains(output, "\"server_update_config\"")
+  let assert True =
+    string.contains(
+      output,
+      "PageAuthInfo(page: \"AdminDashboard\", required: True, has_authorize: False)",
+    )
+  let assert True =
+    string.contains(
+      output,
+      "PageAuthInfo(page: \"AdminSettings\", required: False, has_authorize: True)",
+    )
+  let assert False =
+    string.contains(output, "PageAuthInfo(page: \"admin/pages/dashboard\"")
+  let assert False =
+    string.contains(output, "PageAuthInfo(page: \"admin/pages/settings\"")
 }
 
 pub fn http_auth_required_page_returns_401_test() {
@@ -351,7 +369,7 @@ pub fn http_auth_optional_page_with_authorize_returns_403_test() {
   let endpoints = [make_endpoint("public/pages/profile", "update_profile")]
   let contracts = [
     #(
-      make_route("public/pages/profile"),
+      make_route_named("PublicProfile", "public/pages/profile"),
       make_contract(
         has_page_auth: True,
         page_auth_required: False,
@@ -371,6 +389,7 @@ pub fn http_auth_optional_page_with_authorize_returns_403_test() {
   // Optional skips redirect-style authentication, but authorize still applies.
   let assert False = string.contains(output, "auth.is_authenticated(identity)")
   let assert True = string.contains(output, "fn check_page_authorize(")
+  let assert True = string.contains(output, "\"PublicProfile\" ->")
   let assert True =
     string.contains(
       output,

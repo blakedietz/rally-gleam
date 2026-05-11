@@ -10,6 +10,7 @@ import rally/types.{
 type PageAuthInfo {
   PageAuthInfo(
     page: String,
+    module_path: String,
     required: Bool,
     has_authorize: Bool,
     wire_tag: String,
@@ -142,18 +143,21 @@ fn build_page_auth_map(
       list.find_map(contracts, fn(pair) {
         let #(route, contract) = pair
         case route.module_path == endpoint.module_path {
-          True -> Ok(contract)
+          True -> Ok(#(route, contract))
           False -> Error(Nil)
         }
       })
     {
-      Ok(contract) ->
+      Ok(page_contract) -> {
+        let #(route, contract) = page_contract
         Ok(PageAuthInfo(
-          page: endpoint.module_path,
+          page: route.variant_name,
+          module_path: endpoint.module_path,
           required: contract.page_auth_required,
           has_authorize: contract.has_authorize,
           wire_tag: wire_tag,
         ))
+      }
       Error(Nil) -> Error(Nil)
     }
   })
@@ -162,7 +166,9 @@ fn build_page_auth_map(
 fn generate_authorize_imports(map: List(PageAuthInfo)) -> String {
   map
   |> list.filter(fn(info) { info.has_authorize })
-  |> list.map(fn(info) { import_as(info.page, module_to_alias(info.page)) })
+  |> list.map(fn(info) {
+    import_as(info.module_path, module_to_alias(info.module_path))
+  })
   |> list.unique
   |> list.sort(string.compare)
   |> fn(imports) {
@@ -209,7 +215,7 @@ fn generate_check_page_authorize(
           "    \""
           <> info.page
           <> "\" -> "
-          <> module_to_alias(info.page)
+          <> module_to_alias(info.module_path)
           <> ".authorize(server_context, identity)"
         })
         |> string.join("\n")

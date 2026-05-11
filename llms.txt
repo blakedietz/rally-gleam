@@ -325,7 +325,7 @@ For pages with auth, the generated SSR handler runs: `resolve` → `is_authentic
 
 For auth-enabled namespaces, the generated HTTP RPC handler runs per-request: `resolve` → message decode → variant tag extraction → owning-page lookup → `is_authenticated` check (Required pages only) → `from_session(identity:)` → `authorize` check (if page exports it) → dispatch with identity.
 
-Rally generates a `handler_page_info` function mapping each wire variant tag to `PageAuthInfo(page, required, has_authorize)`. Unknown variants return 400. Malformed bodies return 400. Authentication failures return 401. Authorization failures return 403. No-auth namespaces produce the same output as before.
+Rally generates a `handler_page_info` function mapping each wire variant tag to `PageAuthInfo(page, required, has_authorize)`, where `page` is the route variant name. Unknown variants return 400. Malformed bodies return 400. Authentication failures return 401. Authorization failures return 403. No-auth namespaces produce the same output as before.
 
 ### WS auth
 
