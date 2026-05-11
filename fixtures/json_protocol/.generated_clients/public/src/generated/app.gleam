@@ -14,14 +14,17 @@ import modem
 fn ensure_decoders() -> Nil
 
 import public/pages/home_ as public_pages_home_
+import public/pages/notifications_ as public_pages_notifications_
 
 pub type PageModel {
   PublicPageModel(public_pages_home_.Model)
+  PublicNotificationsPageModel(public_pages_notifications_.Model)
   NoPageModel
 }
 
 pub type PageMsg {
   PublicPageMsg(public_pages_home_.Msg)
+  PublicNotificationsPageMsg(public_pages_notifications_.Msg)
 }
 
 pub type Model {
@@ -73,6 +76,26 @@ fn init_transport() -> Effect(Msg) {
         dispatch(TransportDisconnected(reason))
       })
 
+    let _ =
+      transport.register_push_handler("Public", fn(raw) {
+        dispatch(
+          PageMsg(
+            PublicPageMsg(
+              public_pages_home_.BroadcastToAll(transport.coerce(raw)),
+            ),
+          ),
+        )
+      })
+    let _ =
+      transport.register_push_handler("PublicNotifications", fn(raw) {
+        dispatch(
+          PageMsg(
+            PublicNotificationsPageMsg(
+              public_pages_notifications_.BroadcastToAll(transport.coerce(raw)),
+            ),
+          ),
+        )
+      })
     Nil
   })
 }
@@ -85,6 +108,14 @@ fn init_page(route route: router.Route) -> #(PageModel, Effect(Msg)) {
       #(
         PublicPageModel(m),
         effect.map(e, fn(msg) { PageMsg(PublicPageMsg(msg)) }),
+      )
+    }
+    router.PublicNotifications(notifications) -> {
+      transport.send_page_init("PublicNotifications", notifications)
+      let #(m, e) = public_pages_notifications_.init(notifications)
+      #(
+        PublicNotificationsPageModel(m),
+        effect.map(e, fn(msg) { PageMsg(PublicNotificationsPageMsg(msg)) }),
       )
     }
     _ -> #(NoPageModel, effect.none())
@@ -102,6 +133,17 @@ fn hydrate_page(
         Error(_) -> init_page(route: route)
       }
     }
+    router.PublicNotifications(_notifications) -> {
+      case
+        codec.decode_flags_typed(
+          flags,
+          "decode_public_pages_notifications__model",
+        )
+      {
+        Ok(model) -> #(PublicNotificationsPageModel(model), effect.none())
+        Error(_) -> init_page(route: route)
+      }
+    }
     _ -> #(NoPageModel, effect.none())
   }
 }
@@ -110,6 +152,10 @@ fn reinit_server(route: router.Route) -> Effect(Msg) {
   case route {
     router.Public -> {
       transport.send_page_init("Public", Nil)
+      effect.none()
+    }
+    router.PublicNotifications(notifications) -> {
+      transport.send_page_init("PublicNotifications", notifications)
       effect.none()
     }
     _ -> effect.none()
@@ -128,6 +174,13 @@ fn update_page(
         effect.map(e, fn(msg) { PageMsg(PublicPageMsg(msg)) }),
       )
     }
+    PublicNotificationsPageModel(m), PublicNotificationsPageMsg(msg) -> {
+      let #(new_m, e) = public_pages_notifications_.update(m, msg)
+      #(
+        PublicNotificationsPageModel(new_m),
+        effect.map(e, fn(msg) { PageMsg(PublicNotificationsPageMsg(msg)) }),
+      )
+    }
     _, _ -> #(page_model, effect.none())
   }
 }
@@ -137,6 +190,10 @@ fn render_page(page_model: PageModel) -> Element(Msg) {
     PublicPageModel(m) ->
       element.map(public_pages_home_.view(m), fn(msg) {
         PageMsg(PublicPageMsg(msg))
+      })
+    PublicNotificationsPageModel(m) ->
+      element.map(public_pages_notifications_.view(m), fn(msg) {
+        PageMsg(PublicNotificationsPageMsg(msg))
       })
     NoPageModel -> html.div([], [html.text("Page not found")])
   }

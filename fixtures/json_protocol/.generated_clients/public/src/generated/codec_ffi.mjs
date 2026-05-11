@@ -10,6 +10,7 @@ import { registerAtomDecoder } from "../../libero/libero/rpc_ffi.mjs";
 import { Success as _Success, Failure as _Failure, TransportError as _TransportError, DomainError as _DomainError } from "../../libero/libero/remote_data.mjs";
 import { MalformedRequest as _MalformedRequest, UnknownFunction as _UnknownFunction, InternalError as _InternalError } from "../../libero/libero/error.mjs";
 import * as _m_public_pages_home_ from "../../client/public/pages/home_.mjs";
+import * as _m_public_pages_notifications_ from "../../client/public/pages/notifications_.mjs";
 
 setResultCtors(Ok, ResultError);
 setOptionCtors(Some, None);
@@ -23,6 +24,12 @@ _m_public_pages_home_.ServerIncrementBy.__wireAtom = "10251ccd57";
 _m_public_pages_home_.ServerIncrementBy.__fieldTypes = [null];
 _m_public_pages_home_.Model.__wireAtom = "e4ff4f2689";
 _m_public_pages_home_.Model.__fieldTypes = [null];
+_m_public_pages_notifications_.Model.__wireAtom = "42a9f6fcde";
+_m_public_pages_notifications_.Model.__fieldTypes = [null];
+_m_public_pages_home_.Updated.__wireAtom = "19ae752434";
+_m_public_pages_home_.Updated.__fieldTypes = [null];
+_m_public_pages_notifications_.Updated.__wireAtom = "45ac7f3cba";
+_m_public_pages_notifications_.Updated.__fieldTypes = [null];
 
 export function decode_public_pages_home__server_increment(term) {
   if (term === "3adf004bda") return new _m_public_pages_home_.ServerIncrement(); // ServerIncrement @ public/pages/home_
@@ -51,10 +58,34 @@ export function decode_public_pages_home__model(term) {
   );
 }
 
+export function decode_public_pages_notifications__model(term) {
+  if (!Array.isArray(term) || term.length !== 2 || term[0] !== "42a9f6fcde") throw new DecodeError("expected 42a9f6fcde (Model @ public/pages/notifications_), got " + (Array.isArray(term) ? String(term[0]) : typeof term));
+  return new _m_public_pages_notifications_.Model(
+    decode_int(term[1])
+  );
+}
+
+export function decode_public_pages_home__to_client(term) {
+  if (!Array.isArray(term) || term.length !== 2 || term[0] !== "19ae752434") throw new DecodeError("expected 19ae752434 (Updated @ public/pages/home_), got " + (Array.isArray(term) ? String(term[0]) : typeof term));
+  return new _m_public_pages_home_.Updated(
+    decode_int(term[1])
+  );
+}
+
+export function decode_public_pages_notifications__to_client(term) {
+  if (!Array.isArray(term) || term.length !== 2 || term[0] !== "45ac7f3cba") throw new DecodeError("expected 45ac7f3cba (Updated @ public/pages/notifications_), got " + (Array.isArray(term) ? String(term[0]) : typeof term));
+  return new _m_public_pages_notifications_.Updated(
+    decode_string(term[1])
+  );
+}
+
 registerAtomDecoder("3adf004bda", "decode_public_pages_home__server_increment", decode_public_pages_home__server_increment);
 registerAtomDecoder("003511dd1c", "decode_public_pages_home__increment_result", decode_public_pages_home__increment_result);
 registerAtomDecoder("10251ccd57", "decode_public_pages_home__server_increment_by", decode_public_pages_home__server_increment_by);
 registerAtomDecoder("e4ff4f2689", "decode_public_pages_home__model", decode_public_pages_home__model);
+registerAtomDecoder("42a9f6fcde", "decode_public_pages_notifications__model", decode_public_pages_notifications__model);
+registerAtomDecoder("19ae752434", "decode_public_pages_home__to_client", decode_public_pages_home__to_client);
+registerAtomDecoder("45ac7f3cba", "decode_public_pages_notifications__to_client", decode_public_pages_notifications__to_client);
 
 
 export function ensure_decoders() { return true; }

@@ -12,6 +12,7 @@ pub type Msg {
   Increment
   Decrement
   ServerResponded(count: Int)
+  BroadcastToAll(msg: ToClient)
 }
 
 pub fn init() -> #(Model, Effect(Msg)) {
@@ -23,6 +24,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     Increment -> #(Model(model.count + 1), effect.none())
     Decrement -> #(Model(model.count - 1), effect.none())
     ServerResponded(count) -> #(Model(count), effect.none())
+    BroadcastToAll(_msg) -> #(model, effect.none())
   }
 }
 

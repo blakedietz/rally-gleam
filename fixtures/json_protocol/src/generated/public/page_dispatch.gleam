@@ -5,14 +5,17 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import public/pages/home_ as public_pages_home_
+import public/pages/notifications_ as public_pages_notifications_
 
 pub type PageModel {
   PublicPageModel(public_pages_home_.Model)
+  PublicNotificationsPageModel(public_pages_notifications_.Model)
   NoPageModel
 }
 
 pub type PageMsg {
   PublicPageMsg(public_pages_home_.Msg)
+  PublicNotificationsPageMsg(public_pages_notifications_.Msg)
   NoPageMsg
 }
 
@@ -21,6 +24,13 @@ pub fn init_page(route: router.Route) -> #(PageModel, Effect(PageMsg)) {
     router.Public -> {
       let #(model, effects) = public_pages_home_.init()
       #(PublicPageModel(model), effect.map(effects, PublicPageMsg))
+    }
+    router.PublicNotifications(notifications) -> {
+      let #(model, effects) = public_pages_notifications_.init(notifications)
+      #(
+        PublicNotificationsPageModel(model),
+        effect.map(effects, PublicNotificationsPageMsg),
+      )
     }
     _ -> #(NoPageModel, effect.none())
   }
@@ -35,6 +45,13 @@ pub fn update_page(
       let #(new_model, effects) = public_pages_home_.update(model, msg)
       #(PublicPageModel(new_model), effect.map(effects, PublicPageMsg))
     }
+    PublicNotificationsPageModel(model), PublicNotificationsPageMsg(msg) -> {
+      let #(new_model, effects) = public_pages_notifications_.update(model, msg)
+      #(
+        PublicNotificationsPageModel(new_model),
+        effect.map(effects, PublicNotificationsPageMsg),
+      )
+    }
     _, _ -> #(page_model, effect.none())
   }
 }
@@ -43,6 +60,11 @@ pub fn view_page(page_model: PageModel) -> Element(PageMsg) {
   case page_model {
     PublicPageModel(model) ->
       element.map(public_pages_home_.view(model), PublicPageMsg)
+    PublicNotificationsPageModel(model) ->
+      element.map(
+        public_pages_notifications_.view(model),
+        PublicNotificationsPageMsg,
+      )
     NoPageModel -> html.div([], [html.text("Page not found")])
   }
 }

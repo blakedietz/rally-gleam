@@ -4,20 +4,15 @@ import lustre/element.{type Element}
 
 import lustre/effect.{type Effect}
 
-import gleam/int
+import gleam/string
 
 pub type ToClient {
-  Updated(count: Int)
-}
-
-pub type IncrementResult {
-  IncrementResult(old: Int, new: Int)
+  Updated(msg: String)
 }
 
 pub type Msg {
   Increment
   Decrement
-  ServerResponded(count: Int)
   BroadcastToAll(msg: ToClient)
 }
 
@@ -26,18 +21,19 @@ pub type Model {
 }
 
 pub fn view(model: Model) -> Element(Msg) {
-  html.div([], [html.text("Count: " <> int.to_string(model.count))])
+  html.div([], [
+    html.text("Notifications: " <> string.inspect(model.count)),
+  ])
 }
 
 pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     Increment -> #(Model(model.count + 1), effect.none())
     Decrement -> #(Model(model.count - 1), effect.none())
-    ServerResponded(count) -> #(Model(count), effect.none())
     BroadcastToAll(_msg) -> #(model, effect.none())
   }
 }
 
-pub fn init() -> #(Model, Effect(Msg)) {
+pub fn init(_slug: String) -> #(Model, Effect(Msg)) {
   #(Model(0), effect.none())
 }

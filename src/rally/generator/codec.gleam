@@ -317,8 +317,23 @@ fn post_process_page(
 
   let json_msg_encoder = case protocol, contract.msg_variants {
     "json", [] -> ""
-    "json", _ ->
-      generate_json_page_msg_encoder(contract.msg_variants, page_module_path)
+    "json", _ -> {
+      let encoder =
+        generate_json_page_msg_encoder(contract.msg_variants, page_module_path)
+      let has_user_type =
+        list.any(contract.msg_variants, fn(v) {
+          list.any(v.fields, fn(f) {
+            case f.type_ {
+              field_type.UserType(..) -> True
+              _ -> False
+            }
+          })
+        })
+      case has_user_type {
+        True -> "import generated/json_codecs as json_codecs\n\n" <> encoder
+        False -> encoder
+      }
+    }
     _, _ -> ""
   }
 
@@ -850,13 +865,8 @@ fn json_client_encoder(ft: FieldType, var: String) -> String {
     BitArrayField ->
       panic as "client encoder: BitArray not supported in client-side JSON encoding"
     UserType(module_path:, type_name:, ..) -> {
-      let message =
-        "client encoder: user type "
-        <> module_path
-        <> "."
-        <> type_name
-        <> " not supported in client-side JSON encoding"
-      panic as message
+      let qual = qualified_atom_name(module_path, type_name)
+      "json_codecs.json_encode_" <> qual <> "(" <> var <> ")"
     }
     ListOf(inner) ->
       "json.array("

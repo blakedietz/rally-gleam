@@ -475,6 +475,15 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     list.append(page_dispatches, cc_dispatch)
   }
 
+  // Build JSON push dispatches from the same push type data.
+  // Each entry is #(page_tag, type_atom) where page_tag is the
+  // route variant name (e.g. "Home") and type_atom matches the
+  // qualified encoder name (e.g. "public_pages_home___to_client").
+  let json_push_dispatches =
+    list.map(push_dispatches, fn(d: codegen_wire_erl.PushDispatch) {
+      #(d.page_tag, d.type_atom)
+    })
+
   // Compute contract hash for JSON protocol
   let push_contracts =
     list.filter_map(contracts, fn(pair) {
@@ -578,6 +587,70 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       config.atoms_module,
       option.Some(config.wire_module),
     )
+
+  // For JSON protocol, register the json_codecs and protocol_wire modules
+  // so the encode_push_frame FFI can locate them at runtime. Also generate
+  // a json_encode_push_value/2 dispatch function (in Erlang to avoid Gleam
+  // type issues with generic push payloads).
+  let atoms_erl = case config.protocol {
+    "json" -> {
+      let json_codec_mod =
+        string.replace(config.atoms_module, "@rpc_atoms", "@json_codecs")
+      let protocol_wire_mod =
+        string.replace(config.atoms_module, "@rpc_atoms", "@protocol_wire")
+
+      let push_arms = case json_push_dispatches {
+        [] -> "    _Page -> error({no_json_push_encoder, Page});\n"
+        _ ->
+          list.map(json_push_dispatches, fn(d) {
+            let #(page_tag, type_atom) = d
+            "    <<\""
+            <> page_tag
+            <> "\">> -> '"
+            <> json_codec_mod
+            <> "':'json_encode_"
+            <> type_atom
+            <> "'(Msg);\n"
+          })
+          |> string.join("")
+          |> fn(arms) {
+            arms <> "    Page -> error({no_json_push_encoder, Page});\n"
+          }
+      }
+
+      // Insert JSON persistent_term registrations inside do_ensure(),
+      // right before the {?MODULE, done} marker.
+      let atoms_erl = case
+        string.split_once(
+          atoms_erl,
+          "persistent_term:put({?MODULE, done}, true),",
+        )
+      {
+        Ok(#(before, after)) ->
+          before
+          <> "    persistent_term:put({libero, json_push_module}, '"
+          <> config.atoms_module
+          <> "'),\n"
+          <> "    persistent_term:put({libero, json_wire_module}, '"
+          <> protocol_wire_mod
+          <> "'),\n"
+          <> "    persistent_term:put({?MODULE, done}, true),"
+          <> after
+        Error(Nil) -> atoms_erl
+      }
+
+      // Append the push dispatch function at module level (after do_ensure)
+      atoms_erl
+      <> "\n\n"
+      <> "%% JSON push dispatch: route page tag to the correct typed encoder.\n"
+      <> "json_encode_push_value(Page, Msg) ->\n"
+      <> "    case Page of\n"
+      <> push_arms
+      <> "    end.\n"
+    }
+    _ -> atoms_erl
+  }
+
   use _ <- result.try(
     write_file(config.output_server_atoms, atoms_erl)
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),

@@ -8,7 +8,7 @@
 -export([put_ws_state/3, get_ws_conn/0, get_ws_page/0, get_stored_server_context/0,
          push_outgoing_frame/1, drain_outgoing_frames/0,
          put_ws_session/1, get_ws_session/0, decode_rally_push/1, decode_rally_push_json/1,
-         store_system_conn/1, get_system_conn/0, encode_push_payload/2,
+         store_system_conn/1, get_system_conn/0, encode_push_payload/2, encode_push_frame/2,
          put_ws_identity/1, get_ws_identity/0,
          put_ws_hostname/1, get_ws_hostname/0,
          put_ws_auth_timestamp/1, get_ws_auth_timestamp/0,
@@ -85,6 +85,26 @@ get_system_conn() ->
 encode_push_payload(Page, Msg) ->
     Mod = persistent_term:get({libero, wire_module}),
     Mod:encode_push(Page, Msg).
+
+encode_push_frame(Page, Msg) ->
+    case persistent_term:get({libero, json_wire_module}, undefined) of
+        undefined ->
+            %% ETF path: pre-encode via wire module, then tag with binary frame header
+            case persistent_term:get({libero, wire_module}, undefined) of
+                undefined ->
+                    %% No wire module configured (e.g. test environment);
+                    %% produce a best-effort framed binary.
+                    <<1, (term_to_binary({Page, Msg}))/binary>>;
+                Mod ->
+                    Encoded = Mod:encode_push(Page, Msg),
+                    <<1, (term_to_binary({Page, Encoded}))/binary>>
+            end;
+        JsonWireMod ->
+            %% JSON path: dispatch to typed JSON encoder, then wrap in protocol envelope
+            JsonPushMod = persistent_term:get({libero, json_push_module}),
+            JsonValue = JsonPushMod:json_encode_push_value(Page, Msg),
+            JsonWireMod:encode_push(Page, JsonValue)
+    end.
 
 %% --- WS auth state ---
 

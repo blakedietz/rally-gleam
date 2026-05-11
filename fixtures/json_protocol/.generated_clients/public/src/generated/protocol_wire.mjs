@@ -5,7 +5,7 @@ import { Ok, Error as ResultError, Empty, NonEmpty, BitArray } from "../../gleam
 import { Some, None } from "../../gleam_stdlib/gleam/option.mjs";
 import { typeRegistry } from "./type_registry.mjs";
 
-const contract_hash = "7b9cefd7bb2b6ca7ce3b53e781a93ea5103bb8a55654b3c99507cfc38276d5e5";
+const contract_hash = "c506302898c52c437e16480983ed2e4dbc56ba4c08b6ea4f71a4f22090f9a065";
 
 // ---------- Libero typed JSON -> Gleam JS value ----------
 //

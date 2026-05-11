@@ -22,7 +22,10 @@ do_ensure() ->
     lists:foreach(fun(B) -> binary_to_atom(B) end, [
         <<"003511dd1c">>,
         <<"10251ccd57">>,
+        <<"19ae752434">>,
         <<"3adf004bda">>,
+        <<"42a9f6fcde">>,
+        <<"45ac7f3cba">>,
         <<"decode_error">>,
         <<"e4ff4f2689">>,
         <<"error">>,
@@ -40,8 +43,20 @@ do_ensure() ->
         <<"server_increment_by">>,
         <<"some">>,
         <<"true">>,
-        <<"unknown_function">>
+        <<"unknown_function">>,
+        <<"updated">>
     ]),
     persistent_term:put({libero, wire_module}, 'generated@public@rpc_wire'),
+        persistent_term:put({libero, json_push_module}, 'generated@public@rpc_atoms'),
+    persistent_term:put({libero, json_wire_module}, 'generated@public@protocol_wire'),
     persistent_term:put({?MODULE, done}, true),
     nil.
+
+
+%% JSON push dispatch: route page tag to the correct typed encoder.
+json_encode_push_value(Page, Msg) ->
+    case Page of
+    <<"Public">> -> 'generated@public@json_codecs':'json_encode_public_pages_home___to_client'(Msg);
+    <<"PublicNotifications">> -> 'generated@public@json_codecs':'json_encode_public_pages_notifications___to_client'(Msg);
+    Page -> error({no_json_push_encoder, Page});
+    end.

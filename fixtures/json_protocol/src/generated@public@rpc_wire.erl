@@ -19,12 +19,19 @@
     decode_public_pages_home___server_increment_by/1,
     encode_public_pages_home___model/1,
     decode_public_pages_home___model/1,
+    encode_public_pages_notifications___model/1,
+    decode_public_pages_notifications___model/1,
+    encode_public_pages_home___to_client/1,
+    decode_public_pages_home___to_client/1,
+    encode_public_pages_notifications___to_client/1,
+    decode_public_pages_notifications___to_client/1,
     encode_term/1,
     decode_term/1,
     encode_float/1,
     decode_client_msg/1,
     encode_response_increment/1,
-    encode_response_increment_by/1
+    encode_response_increment_by/1,
+    encode_push/2
 ]).
 
 %% Ensure whole-number floats stay floats on the wire. JS erases the
@@ -61,6 +68,27 @@ encode_public_pages_home___model({model, F0}) ->
 decode_public_pages_home___model({'e4ff4f2689', F0}) ->
     {model, F0}.
 
+%% Type: public/pages/notifications_.Model
+encode_public_pages_notifications___model({model, F0}) ->
+    {'42a9f6fcde', F0}.
+
+decode_public_pages_notifications___model({'42a9f6fcde', F0}) ->
+    {model, F0}.
+
+%% Type: public/pages/home_.ToClient
+encode_public_pages_home___to_client({updated, F0}) ->
+    {'19ae752434', F0}.
+
+decode_public_pages_home___to_client({'19ae752434', F0}) ->
+    {updated, F0}.
+
+%% Type: public/pages/notifications_.ToClient
+encode_public_pages_notifications___to_client({updated, F0}) ->
+    {'45ac7f3cba', F0}.
+
+decode_public_pages_notifications___to_client({'45ac7f3cba', F0}) ->
+    {updated, F0}.
+
 encode_term(Term) -> encode_term(Term, 0).
 
 encode_term(_Term, Depth) when Depth >= 512 ->
@@ -87,6 +115,9 @@ decode_term(Tuple, Depth) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->
         {'003511dd1c', 3} -> decode_public_pages_home___increment_result(Tuple);
         {'10251ccd57', 2} -> decode_public_pages_home___server_increment_by(Tuple);
         {'e4ff4f2689', 2} -> decode_public_pages_home___model(Tuple);
+        {'42a9f6fcde', 2} -> decode_public_pages_notifications___model(Tuple);
+        {'19ae752434', 2} -> decode_public_pages_home___to_client(Tuple);
+        {'45ac7f3cba', 2} -> decode_public_pages_notifications___to_client(Tuple);
         _ -> list_to_tuple([decode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)])
     end;
 decode_term(List, Depth) when is_list(List) ->
@@ -111,4 +142,9 @@ encode_response_increment_by({ok, V}) ->
     {ok, encode_public_pages_home___increment_result(V)};
 encode_response_increment_by({error, E}) ->
     {error, E}.
-
+encode_push(<<"Public">>, Msg) ->
+    encode_public_pages_home___to_client(Msg);
+encode_push(<<"PublicNotifications">>, Msg) ->
+    encode_public_pages_notifications___to_client(Msg);
+encode_push(Page, _Msg) ->
+    error({no_push_encoder, Page}).

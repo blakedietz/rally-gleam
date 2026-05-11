@@ -77,7 +77,7 @@ pub fn json_wire_e2e_fixture_scan_test() {
 
   // 1. Scanner discovers route
   let assert Ok(routes) = rally_scanner.scan(config)
-  list.length(routes) |> should.equal(1)
+  list.length(routes) |> should.equal(2)
   let assert Ok(route) = list.first(routes)
   route.variant_name |> should.equal("Home")
   route.params |> should.equal([])
@@ -566,6 +566,41 @@ pub fn json_wire_js_runtime_identity_mismatch_rejected_test() {
         ])
       let msg =
         "JS identity decode test failed (exit "
+        <> int.to_string(status)
+        <> "):\n"
+        <> output
+      case status {
+        0 -> Nil
+        _ -> panic as msg
+      }
+    }
+    None -> panic as "node executable not found on PATH"
+  }
+}
+
+pub fn json_wire_push_decode_preserves_cross_module_identity_test() {
+  // Build the fixture so the JS modules and type registry exist.
+  let #(gen_status, _gen_output) =
+    run_gleam(fixture_root, ["run", "-m", "rally", "--", "gen"])
+  case gen_status {
+    0 -> Nil
+    _ -> panic as "Fixture rally gen failed"
+  }
+  let client_dir = fixture_root <> "/.generated_clients/public"
+  let #(build_status, _build_output) = run_gleam(client_dir, ["build"])
+  case build_status {
+    0 -> Nil
+    _ -> panic as "Client fixture gleam build failed"
+  }
+
+  case find_executable("node") {
+    Some(node) -> {
+      let #(status, output) =
+        run_executable_capturing_ffi(node, [
+          "test/js/push_decode_identity_test.mjs",
+        ])
+      let msg =
+        "JS push decode identity test failed (exit "
         <> int.to_string(status)
         <> "):\n"
         <> output

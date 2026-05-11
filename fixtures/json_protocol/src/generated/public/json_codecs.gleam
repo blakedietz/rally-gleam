@@ -14,6 +14,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import libero/json/error.{type JsonError, JsonError}
 import public/pages/home_
+import public/pages/notifications_
 
 /// Index into a list, returning Error if out of bounds.
 fn list_at(items: List(a), index: Int) -> Result(a, List(JsonError)) {
@@ -120,6 +121,69 @@ pub fn json_encode_public_pages_home___model(value) -> json.Json {
             ),
           ]),
         ),
+      ])
+  }
+}
+
+pub fn json_encode_public_pages_notifications___model(value) -> json.Json {
+  case value {
+    notifications_.Model(f0) ->
+      json.object([
+        #("type", json.string("public/pages/notifications_.Model")),
+        #("variant", json.string("Model")),
+        #(
+          "fields",
+          json.object([
+            #(
+              "count",
+              json.int(
+                case
+                  f0 >= -9_007_199_254_740_991 && f0 <= 9_007_199_254_740_991
+                {
+                  True -> f0
+                  False -> panic as "Int outside JavaScript safe integer range"
+                },
+              ),
+            ),
+          ]),
+        ),
+      ])
+  }
+}
+
+pub fn json_encode_public_pages_home___to_client(value) -> json.Json {
+  case value {
+    home_.Updated(f0) ->
+      json.object([
+        #("type", json.string("public/pages/home_.ToClient")),
+        #("variant", json.string("Updated")),
+        #(
+          "fields",
+          json.object([
+            #(
+              "count",
+              json.int(
+                case
+                  f0 >= -9_007_199_254_740_991 && f0 <= 9_007_199_254_740_991
+                {
+                  True -> f0
+                  False -> panic as "Int outside JavaScript safe integer range"
+                },
+              ),
+            ),
+          ]),
+        ),
+      ])
+  }
+}
+
+pub fn json_encode_public_pages_notifications___to_client(value) -> json.Json {
+  case value {
+    notifications_.Updated(f0) ->
+      json.object([
+        #("type", json.string("public/pages/notifications_.ToClient")),
+        #("variant", json.string("Updated")),
+        #("fields", json.object([#("msg", json.string(f0))])),
       ])
   }
 }
@@ -371,6 +435,193 @@ pub fn json_decode_public_pages_home___model(value: dynamic.Dynamic) {
       }
       use count <- result.try(count_result)
       Ok(home_.Model(count:))
+    }
+    Error(_) -> Error([JsonError("variant", "missing or not a string")])
+    Ok(s) -> Error([JsonError("variant", "unknown: " <> s)])
+  }
+}
+
+pub fn json_decode_public_pages_notifications___model(value: dynamic.Dynamic) {
+  use _ <- result.try(
+    case
+      decode.run(
+        value,
+        decode.field("type", decode.string, fn(x) { decode.success(x) }),
+      )
+    {
+      Ok(s) if s == "public/pages/notifications_.Model" -> Ok(s)
+      Ok(s) ->
+        Error([
+          JsonError(
+            "type",
+            "expected public/pages/notifications_.Model, got " <> s,
+          ),
+        ])
+      Error(_) -> Error([JsonError("type", "missing or not a string")])
+    },
+  )
+  case
+    decode.run(
+      value,
+      decode.field("variant", decode.string, fn(x) { decode.success(x) }),
+    )
+  {
+    Ok("Model") -> {
+      use fields <- result.try(
+        case
+          decode.run(
+            value,
+            decode.field("fields", decode.dynamic, fn(x) { decode.success(x) }),
+          )
+        {
+          Error(_) -> Error([JsonError("fields", "missing")])
+          Ok(f) -> Ok(f)
+        },
+      )
+      let count_result = case
+        decode.run(
+          fields,
+          decode.field("count", decode.dynamic, fn(x) { decode.success(x) }),
+        )
+      {
+        Ok(raw) ->
+          case decode.run(raw, decode.int) {
+            Ok(v) ->
+              case v >= -9_007_199_254_740_991 && v <= 9_007_199_254_740_991 {
+                True -> Ok(v)
+                False ->
+                  Error([
+                    JsonError("fields.count", "expected Int in safe JSON range"),
+                  ])
+              }
+            Error(_) -> Error([JsonError("fields.count", "expected Int")])
+          }
+        Error(_) -> Error([JsonError("fields.count", "missing")])
+      }
+      use count <- result.try(count_result)
+      Ok(notifications_.Model(count:))
+    }
+    Error(_) -> Error([JsonError("variant", "missing or not a string")])
+    Ok(s) -> Error([JsonError("variant", "unknown: " <> s)])
+  }
+}
+
+pub fn json_decode_public_pages_home___to_client(value: dynamic.Dynamic) {
+  use _ <- result.try(
+    case
+      decode.run(
+        value,
+        decode.field("type", decode.string, fn(x) { decode.success(x) }),
+      )
+    {
+      Ok(s) if s == "public/pages/home_.ToClient" -> Ok(s)
+      Ok(s) ->
+        Error([
+          JsonError("type", "expected public/pages/home_.ToClient, got " <> s),
+        ])
+      Error(_) -> Error([JsonError("type", "missing or not a string")])
+    },
+  )
+  case
+    decode.run(
+      value,
+      decode.field("variant", decode.string, fn(x) { decode.success(x) }),
+    )
+  {
+    Ok("Updated") -> {
+      use fields <- result.try(
+        case
+          decode.run(
+            value,
+            decode.field("fields", decode.dynamic, fn(x) { decode.success(x) }),
+          )
+        {
+          Error(_) -> Error([JsonError("fields", "missing")])
+          Ok(f) -> Ok(f)
+        },
+      )
+      let count_result = case
+        decode.run(
+          fields,
+          decode.field("count", decode.dynamic, fn(x) { decode.success(x) }),
+        )
+      {
+        Ok(raw) ->
+          case decode.run(raw, decode.int) {
+            Ok(v) ->
+              case v >= -9_007_199_254_740_991 && v <= 9_007_199_254_740_991 {
+                True -> Ok(v)
+                False ->
+                  Error([
+                    JsonError("fields.count", "expected Int in safe JSON range"),
+                  ])
+              }
+            Error(_) -> Error([JsonError("fields.count", "expected Int")])
+          }
+        Error(_) -> Error([JsonError("fields.count", "missing")])
+      }
+      use count <- result.try(count_result)
+      Ok(home_.Updated(count:))
+    }
+    Error(_) -> Error([JsonError("variant", "missing or not a string")])
+    Ok(s) -> Error([JsonError("variant", "unknown: " <> s)])
+  }
+}
+
+pub fn json_decode_public_pages_notifications___to_client(
+  value: dynamic.Dynamic,
+) {
+  use _ <- result.try(
+    case
+      decode.run(
+        value,
+        decode.field("type", decode.string, fn(x) { decode.success(x) }),
+      )
+    {
+      Ok(s) if s == "public/pages/notifications_.ToClient" -> Ok(s)
+      Ok(s) ->
+        Error([
+          JsonError(
+            "type",
+            "expected public/pages/notifications_.ToClient, got " <> s,
+          ),
+        ])
+      Error(_) -> Error([JsonError("type", "missing or not a string")])
+    },
+  )
+  case
+    decode.run(
+      value,
+      decode.field("variant", decode.string, fn(x) { decode.success(x) }),
+    )
+  {
+    Ok("Updated") -> {
+      use fields <- result.try(
+        case
+          decode.run(
+            value,
+            decode.field("fields", decode.dynamic, fn(x) { decode.success(x) }),
+          )
+        {
+          Error(_) -> Error([JsonError("fields", "missing")])
+          Ok(f) -> Ok(f)
+        },
+      )
+      let msg_result = case
+        decode.run(
+          fields,
+          decode.field("msg", decode.dynamic, fn(x) { decode.success(x) }),
+        )
+      {
+        Ok(raw) ->
+          case decode.run(raw, decode.string) {
+            Ok(v) -> Ok(v)
+            Error(_) -> Error([JsonError("fields.msg", "expected String")])
+          }
+        Error(_) -> Error([JsonError("fields.msg", "missing")])
+      }
+      use msg <- result.try(msg_result)
+      Ok(notifications_.Updated(msg:))
     }
     Error(_) -> Error([JsonError("variant", "missing or not a string")])
     Ok(s) -> Error([JsonError("variant", "unknown: " <> s)])
