@@ -3,10 +3,9 @@ version = "1.0.0"
 
 [dependencies]
 gleam_stdlib = ">= 0.69.0 and < 2.0.0"
-libero = { path = "../../../../libero" }
 lustre = ">= 5.6.0 and < 7.0.0"
 mist = ">= 6.0.0 and < 7.0.0"
-rally = { path = "../../.." }
+rally = { path = "../.." }
 
 [[tools.rally.clients]]
 namespace = "public"

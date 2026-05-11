@@ -1,17 +1,42 @@
 import gleam/dict
+import gleam/int
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import gleeunit/should
+import libero/field_type as libero_field_type
+import libero/scanner.{type HandlerEndpoint, HandlerEndpoint}
 import rally/generator
 import rally/generator/ssr_handler
 import rally/generator/ws_handler
 import rally/parser
-import rally/scanner
+import rally/scanner as rally_scanner
 import rally/types.{type ScanConfig, ScanConfig}
 import simplifile
 
 const fixture_root = "fixtures/json_protocol"
+
+@external(erlang, "libero_ffi", "find_executable")
+fn find_executable(name: String) -> Option(String)
+
+@external(erlang, "libero_ffi", "run_executable_capturing")
+fn run_executable_capturing_ffi(
+  path: String,
+  args: List(String),
+) -> #(Int, String)
+
+fn run_gleam(cwd: String, args: List(String)) -> #(Int, String) {
+  case find_executable("sh"), find_executable("gleam") {
+    Some(sh), Some(gleam) -> {
+      let command =
+        "cd " <> cwd <> " && " <> gleam <> " " <> string.join(args, " ")
+      run_executable_capturing_ffi(sh, ["-c", command])
+    }
+    _, None -> #(-1, "gleam executable not found on PATH")
+    None, _ -> #(-1, "sh executable not found on PATH")
+  }
+}
 
 fn json_config() -> ScanConfig {
   ScanConfig(
@@ -50,7 +75,7 @@ pub fn json_wire_e2e_fixture_scan_test() {
   let config = json_config()
 
   // 1. Scanner discovers route
-  let assert Ok(routes) = scanner.scan(config)
+  let assert Ok(routes) = rally_scanner.scan(config)
   list.length(routes) |> should.equal(1)
   let assert Ok(route) = list.first(routes)
   route.variant_name |> should.equal("Home")
@@ -230,4 +255,133 @@ pub fn json_wire_facade_is_only_wire_import_test() {
     )
   ssr |> string.contains("libero/wire") |> should.be_false()
   ssr |> string.contains("libero/json/wire") |> should.be_false()
+}
+
+// =============================================================================
+// Compile test — proves the generated JSON WS handler actually compiles
+// =============================================================================
+
+pub fn json_ws_handler_with_endpoint_compiles_test() {
+  let endpoint =
+    HandlerEndpoint(
+      module_path: "public/pages/home_",
+      fn_name: "increment",
+      return_ok: libero_field_type.IntField,
+      return_err: libero_field_type.NilField,
+      params: [],
+      mutates_context: False,
+      msg_type: Some(#("public/pages/home_", "ServerIncrement")),
+    )
+
+  let ws_source =
+    ws_handler.generate(
+      [],
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      None,
+      "server_context",
+      [endpoint],
+      "generated/public/protocol_wire",
+      "json",
+    )
+
+  // Set up temp project
+  let root = "build/.test_json_ws"
+  let src = root <> "/src"
+  let _ = simplifile.delete_all([root])
+  let assert Ok(Nil) =
+    simplifile.create_directory_all(src <> "/generated/public")
+    |> result.map_error(string.inspect)
+  let assert Ok(Nil) =
+    simplifile.create_directory_all(src <> "/public/pages")
+    |> result.map_error(string.inspect)
+
+  // Write gleam.toml
+  let assert Ok(Nil) =
+    simplifile.write(root <> "/gleam.toml", json_compile_toml())
+    |> result.map_error(string.inspect)
+
+  // Write server_context
+  let assert Ok(Nil) =
+    simplifile.write(
+      src <> "/server_context.gleam",
+      "pub type ServerContext { ServerContext }\n",
+    )
+    |> result.map_error(string.inspect)
+
+  // Write JSON protocol_wire facade (minimal stub that compiles)
+  let stub_dir = "build/test_json_stubs"
+  let assert Ok(protocol_wire_stub) =
+    simplifile.read(stub_dir <> "/protocol_wire_stub.gleam")
+    |> result.map_error(string.inspect)
+  let assert Ok(Nil) =
+    simplifile.write(
+      src <> "/generated/public/protocol_wire.gleam",
+      protocol_wire_stub,
+    )
+    |> result.map_error(string.inspect)
+
+  // Write JSON codec stub
+  let assert Ok(codec_stub) =
+    simplifile.read(stub_dir <> "/codec_stub.gleam")
+    |> result.map_error(string.inspect)
+  let assert Ok(Nil) =
+    simplifile.write(src <> "/generated/public/json_codecs.gleam", codec_stub)
+    |> result.map_error(string.inspect)
+
+  // Write handler page stub
+  let assert Ok(handler_stub) =
+    simplifile.read(stub_dir <> "/handler_stub.gleam")
+    |> result.map_error(string.inspect)
+  let assert Ok(Nil) =
+    simplifile.write(src <> "/public/pages/home_.gleam", handler_stub)
+    |> result.map_error(string.inspect)
+
+  // Write generated WS handler
+  let assert Ok(Nil) =
+    simplifile.write(src <> "/generated/public/ws_handler.gleam", ws_source)
+    |> result.map_error(string.inspect)
+
+  // Compile
+  let #(status, output) = run_gleam(root, ["build"])
+  let _ = simplifile.delete_all([root])
+  let msg =
+    "JSON WS handler compile failed (exit "
+    <> int.to_string(status)
+    <> "):\n"
+    <> output
+  case status {
+    0 -> Nil
+    _ -> panic as msg
+  }
+
+  // Verify generated code has correct dispatch structure
+  ws_source
+  |> string.contains("public/pages/home_.ServerIncrement")
+  |> should.be_true()
+  ws_source
+  |> string.contains(
+    "json_codecs.json_decode_public_pages_home__server_increment",
+  )
+  |> should.be_true()
+  ws_source
+  |> string.contains("json.encode_gleam_result__result")
+  |> should.be_true()
+  ws_source
+  |> string.contains("fn(x) { json.int(x) }")
+  |> should.be_true()
+  ws_source
+  |> string.contains("fn(x) { json.null() }")
+  |> should.be_true()
+}
+
+fn json_compile_toml() -> String {
+  "name = \"json_ws_compile_test\"
+version = \"1.0.0\"
+
+[dependencies]
+gleam_stdlib = \">= 0.69.0 and < 2.0.0\"
+rally = { path = \"../..\" }
+mist = \">= 6.0.0 and < 7.0.0\"
+"
 }

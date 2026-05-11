@@ -1,3 +1,4 @@
+import gleam/int
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
@@ -36,8 +37,8 @@ pub type ToClient {
 }
 
 pub fn server_increment(
-  msg: ServerIncrement,
-  server_context: ServerContext,
+  msg msg: ServerIncrement,
+  server_context server_context: ServerContext,
 ) -> Result(Int, Nil) {
   Ok(42)
 }
