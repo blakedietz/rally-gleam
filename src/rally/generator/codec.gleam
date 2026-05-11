@@ -165,6 +165,50 @@ pub fn decode_json_typed(
 /// Keys include the parent type name so a mismatched "type" field
 /// (e.g. { type: "some/module.OldType", variant: "Discount" }) never
 /// resolves to the registry entry for "some/module.Discount#Discount".
+/// Build a collision-safe mapping from module_path to JS import alias.
+/// `admin/foo_bar/baz` and `admin/foo/bar_baz` would both produce
+/// `_m_admin_foo_bar_baz` with naive underscore replacement. When a
+/// collision is detected, a numeric suffix is appended (`_1`, `_2`, …).
+fn build_module_aliases(modules: List(String)) -> dict.Dict(String, String) {
+  // Count how many modules share each candidate alias
+  let alias_counts =
+    list.fold(modules, dict.new(), fn(acc, mod) {
+      let candidate = "_m_" <> string.replace(mod, "/", "_")
+      let n = case dict.get(acc, candidate) {
+        Ok(n) -> n + 1
+        Error(Nil) -> 1
+      }
+      dict.insert(acc, candidate, n)
+    })
+  // Assign aliases: unique ones keep the candidate; collisions get a suffix
+  let #(seen, aliases) =
+    list.fold(modules, #(dict.new(), dict.new()), fn(state, mod) {
+      let #(seen, aliases) = state
+      let candidate = "_m_" <> string.replace(mod, "/", "_")
+      let total = case dict.get(alias_counts, candidate) {
+        Ok(n) -> n
+        Error(Nil) -> 1
+      }
+      case total {
+        1 -> {
+          let aliases = dict.insert(aliases, mod, candidate)
+          #(seen, aliases)
+        }
+        _ -> {
+          let nth = case dict.get(seen, candidate) {
+            Ok(n) -> n
+            Error(Nil) -> 0
+          }
+          let alias = candidate <> "_" <> int.to_string(nth)
+          let seen = dict.insert(seen, candidate, nth + 1)
+          let aliases = dict.insert(aliases, mod, alias)
+          #(seen, aliases)
+        }
+      }
+    })
+  aliases
+}
+
 pub fn generate_json_type_registry_js(
   discovered: List(DiscoveredType),
 ) -> CodecFile {
@@ -173,23 +217,27 @@ pub fn generate_json_type_registry_js(
     |> list.map(fn(dt) { dt.module_path })
     |> list.unique
 
+  let aliases = build_module_aliases(modules)
+
   let imports = case modules {
     [] -> ""
     _ ->
       list.map(modules, fn(mod) {
-        let alias = string.replace(mod, "/", "_")
-        "import * as _m_"
-        <> alias
-        <> " from \"../../client/"
-        <> mod
-        <> ".mjs\";"
+        let alias = case dict.get(aliases, mod) {
+          Ok(a) -> a
+          Error(Nil) -> "_m_" <> string.replace(mod, "/", "_")
+        }
+        "import * as " <> alias <> " from \"../../client/" <> mod <> ".mjs\";"
       })
       |> string.join("\n")
   }
 
   let entries =
     list.flat_map(discovered, fn(dt) {
-      let mod_alias = "_m_" <> string.replace(dt.module_path, "/", "_")
+      let mod_alias = case dict.get(aliases, dt.module_path) {
+        Ok(a) -> a
+        Error(Nil) -> "_m_" <> string.replace(dt.module_path, "/", "_")
+      }
       list.map(dt.variants, fn(v) {
         let key = dt.module_path <> "." <> dt.type_name <> "#" <> v.variant_name
         let ctor_expr = case v.fields {

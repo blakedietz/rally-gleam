@@ -303,3 +303,69 @@ pub fn type_registry_rejects_mismatched_type_in_lookup_test() {
   |> string.contains("t.substring(0, lastDot) + \".\" + v")
   |> should.be_false()
 }
+
+pub fn type_registry_aliases_avoid_slash_underscore_collision_test() {
+  // `admin/foo_bar/baz` and `admin/foo/bar_baz` would both produce
+  // `_m_admin_foo_bar_baz` with naive underscore replacement. The
+  // generator must detect the collision and disambiguate with a suffix.
+  let types = [
+    DiscoveredType(
+      module_path: "admin/foo_bar/baz",
+      type_name: "Msg",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "admin/foo_bar/baz",
+          variant_name: "Msg",
+          atom_name: "msg",
+          float_field_indices: [],
+          field_labels: [],
+          fields: [],
+        ),
+      ],
+    ),
+    DiscoveredType(
+      module_path: "admin/foo/bar_baz",
+      type_name: "Msg",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "admin/foo/bar_baz",
+          variant_name: "Msg",
+          atom_name: "msg",
+          float_field_indices: [],
+          field_labels: [option.Some("x")],
+          fields: [IntField],
+        ),
+      ],
+    ),
+  ]
+
+  let registry = generate_json_type_registry_js(types)
+
+  // Must NOT contain a duplicate import binding
+  registry.content
+  |> string.contains("import * as _m_admin_foo_bar_baz from")
+  |> should.be_false()
+
+  // Must contain two distinct import aliases
+  registry.content
+  |> string.contains("import * as _m_admin_foo_bar_baz_0")
+  |> should.be_true()
+
+  registry.content
+  |> string.contains("import * as _m_admin_foo_bar_baz_1")
+  |> should.be_true()
+
+  // Each variant must reference its correct (disambiguated) alias
+  registry.content
+  |> string.contains(
+    "\"admin/foo_bar/baz.Msg#Msg\": () => new _m_admin_foo_bar_baz_0.Msg()",
+  )
+  |> should.be_true()
+  registry.content
+  |> string.contains(
+    "\"admin/foo/bar_baz.Msg#Msg\": (fields) => new _m_admin_foo_bar_baz_1.Msg(fields.x)",
+  )
+  |> should.be_true()
+}
