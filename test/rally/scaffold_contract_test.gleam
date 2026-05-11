@@ -202,6 +202,7 @@ pub fn ws_handler_logs_decoded_rpc_value_test() {
       from_session_module: "client_context_server",
       endpoints: [],
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   output

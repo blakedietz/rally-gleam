@@ -796,6 +796,7 @@ fn do_write_files(
       from_session_module:,
       endpoints: ns_endpoints,
       wire_import_module: protocol_wire_module,
+      protocol: config.protocol,
     )
   use _ <- result.try(
     write_file(config.output_route, route_source)

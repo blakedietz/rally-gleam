@@ -14,6 +14,7 @@ pub fn generate(
   from_session_module from_session_module: String,
   endpoints endpoints: List(HandlerEndpoint),
   wire_import_module wire_import_module: String,
+  protocol protocol: String,
 ) -> String {
   let has_auth = option.is_some(auth_config)
   let auth_module_ref = case auth_config {
@@ -55,8 +56,9 @@ pub fn generate(
         auth_module_ref,
         from_session_ref,
         endpoints,
+        protocol,
       )
-    False -> generate_frame_handler_no_auth()
+    False -> generate_frame_handler_no_auth(protocol)
   }
   string.join([header, init, handler], "\n\n") <> "\n"
 }
@@ -137,7 +139,29 @@ pub fn on_close(_state: Nil) -> Nil {
 
 // -- Frame handler (no auth) --
 
-fn generate_frame_handler_no_auth() -> String {
+fn generate_frame_handler_no_auth(protocol: String) -> String {
+  let text_branch = case protocol {
+    "json" ->
+      "\n    mist.Text(data) -> {
+      debug_log(\"[rally:ws] Text frame: \" <> string.length(data) <> \" chars\")
+      case wire.decode_request(data) {
+        Ok(envelope) -> {
+          let request_id = envelope.request_id
+          let error_frame = wire.encode_error(option.Some(request_id), [])
+          let _send_result = mist.send_text_frame(conn, error_frame)
+          send_pending_frames(conn)
+          mist.continue(state)
+        }
+        Error(errors) -> {
+          let error_frame = wire.encode_error(option.None, errors)
+          let _send_result = mist.send_text_frame(conn, error_frame)
+          send_pending_frames(conn)
+          mist.continue(state)
+        }
+      }
+    }"
+    _ -> ""
+  }
   "pub fn handler(
   state state: Nil,
   msg msg: WebsocketMessage(a),
@@ -187,7 +211,7 @@ fn generate_frame_handler_no_auth() -> String {
           mist.continue(state)
         }
       }
-    }
+    }" <> text_branch <> "
     mist.Custom(msg) -> {
       case effect.decode_rally_push(msg) {
         Ok(frame) -> {
@@ -213,12 +237,37 @@ fn generate_frame_handler_with_auth(
   auth_ref: String,
   from_session_ref: String,
   endpoints: List(HandlerEndpoint),
+  protocol: String,
 ) -> String {
   let page_auth_policy_fn = generate_page_auth_policy(page_contracts)
   let handler_page_info_fn =
     generate_handler_page_info(page_contracts, endpoints)
   let check_page_authorize_fn =
     generate_ws_check_page_authorize(page_contracts, auth_ref)
+
+  let text_branch = case protocol {
+    "json" ->
+      "
+    mist.Text(data) -> {
+      debug_log(\"[rally:ws] Text frame: \" <> string.length(data) <> \" chars\")
+      case wire.decode_request(data) {
+        Ok(envelope) -> {
+          let request_id = envelope.request_id
+          let error_frame = wire.encode_error(option.Some(request_id), [])
+          let _send_result = mist.send_text_frame(conn, error_frame)
+          send_pending_frames(conn)
+          mist.continue(state)
+        }
+        Error(errors) -> {
+          let error_frame = wire.encode_error(option.None, errors)
+          let _send_result = mist.send_text_frame(conn, error_frame)
+          send_pending_frames(conn)
+          mist.continue(state)
+        }
+      }
+    }"
+    _ -> ""
+  }
 
   let handler = "pub fn handler(
   state state: Nil,
@@ -411,7 +460,7 @@ fn generate_frame_handler_with_auth(
           mist.continue(state)
         }
       }
-    }
+    }" <> text_branch <> "
     mist.Custom(msg) -> {
       case effect.decode_rally_push(msg) {
         Ok(frame) -> {

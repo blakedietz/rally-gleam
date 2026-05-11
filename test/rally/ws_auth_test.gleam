@@ -86,6 +86,7 @@ pub fn ws_no_auth_on_init_has_hostname_test() {
       from_session_module: "client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "hostname _hostname: String")
@@ -111,6 +112,7 @@ pub fn ws_no_auth_does_not_call_resolve_test() {
       from_session_module: "client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   let assert False = string.contains(output, "auth.resolve")
@@ -139,6 +141,7 @@ pub fn ws_auth_on_init_resolves_identity_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True =
@@ -165,6 +168,7 @@ pub fn ws_auth_on_init_calls_from_session_with_identity_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "identity: identity")
@@ -190,6 +194,7 @@ pub fn ws_auth_on_init_stores_auth_state_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "effect.put_ws_identity(identity)")
@@ -219,6 +224,7 @@ pub fn ws_page_init_required_emits_auth_redirect_error_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // Must check is_authenticated before updating page state
@@ -248,6 +254,7 @@ pub fn ws_page_init_authorize_false_emits_forbidden_error_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // Must include the error response
@@ -283,6 +290,7 @@ pub fn ws_page_init_no_auth_still_updates_state_test() {
       from_session_module: "client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // No-auth page-init should still update state as before
@@ -312,6 +320,7 @@ pub fn ws_auth_check_page_authorize_always_defined_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "fn check_page_authorize(")
@@ -337,6 +346,7 @@ pub fn ws_auth_rpc_dispatches_with_identity_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // Auth RPC dispatch must pass identity
@@ -373,6 +383,7 @@ pub fn ws_auth_rpc_generates_handler_page_info_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // Must generate handler_page_info mapping variant tags to page modules
@@ -401,6 +412,7 @@ pub fn ws_auth_rpc_extracts_variant_tag_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // RPC branch must extract variant tag from decoded message
@@ -429,6 +441,7 @@ pub fn ws_auth_rpc_enforces_required_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // RPC branch must check is_authenticated for Required pages
@@ -459,6 +472,7 @@ pub fn ws_auth_rpc_enforces_authorize_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // RPC branch must check authorize on owning_page (not "page" from page-init)
@@ -497,6 +511,7 @@ pub fn ws_auth_rpc_unknown_variant_fails_closed_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // handler_page_info returns Error(Nil) for unknown variants
@@ -530,6 +545,7 @@ pub fn ws_auth_checks_reauth_timestamp_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // Must read auth timestamp (in reauth block, not just on_init)
@@ -562,6 +578,7 @@ pub fn ws_auth_reauth_reruns_resolve_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // On stale, must call auth.resolve again
@@ -590,6 +607,7 @@ pub fn ws_auth_reauth_stores_refreshed_state_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // After successful reauth, must store refreshed identity and timestamp
@@ -619,6 +637,7 @@ pub fn ws_auth_reauth_failure_fails_closed_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // On resolve failure during reauth, must clear auth state
@@ -645,6 +664,7 @@ pub fn ws_auth_no_reauth_when_fresh_test() {
       from_session_module: "admin/client_context_server",
       endpoints: endpoints_for(contracts),
       wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   // When not stale, must skip re-resolve and use stored identity
