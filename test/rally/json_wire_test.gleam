@@ -8,11 +8,12 @@ import gleeunit/should
 import libero/field_type as libero_field_type
 import libero/scanner.{type HandlerEndpoint, HandlerEndpoint}
 import rally/generator
+import rally/generator/codec
 import rally/generator/ssr_handler
 import rally/generator/ws_handler
 import rally/parser
 import rally/scanner as rally_scanner
-import rally/types.{type ScanConfig, ScanConfig}
+import rally/types.{type ScanConfig, type ScannedRoute, ScanConfig, ScannedRoute}
 import simplifile
 
 const fixture_root = "fixtures/json_protocol"
@@ -348,9 +349,8 @@ pub fn json_wire_identity_distinct_modules_test() {
   |> should.be_false()
 }
 
-pub fn json_wire_client_encode_uses_qualified_types_test() {
-  // json_encode_client_msg must use fully qualified type names,
-  // not just the variant/constructor name.
+pub fn json_wire_server_dispatch_uses_qualified_types_test() {
+  // Server dispatch must match on fully qualified type, not bare variant name.
   let endpoint =
     HandlerEndpoint(
       module_path: "admin/dashboard/discount",
@@ -374,10 +374,64 @@ pub fn json_wire_client_encode_uses_qualified_types_test() {
       "json",
     )
 
-  // Server dispatch must match on fully qualified type
   ws
   |> string.contains("Ok(\"admin/dashboard/discount.Discount\") -> {")
   |> should.be_true()
+}
+
+pub fn json_wire_client_encoder_uses_qualified_types_test() {
+  // json_encode_client_msg must emit fully qualified type names
+  // (not bare variant names) in the "type" field of the Libero
+  // typed-value shape. This test goes through codec.generate to
+  // verify the generated client types.gleam content.
+  let endpoint =
+    HandlerEndpoint(
+      module_path: "admin/dashboard/discount",
+      fn_name: "create",
+      return_ok: libero_field_type.IntField,
+      return_err: libero_field_type.NilField,
+      params: [#("id", libero_field_type.IntField)],
+      mutates_context: False,
+      msg_type: Some(#("admin/dashboard/discount", "Discount")),
+    )
+
+  // Minimal contract so codec.generate can produce page modules
+  let route =
+    ScannedRoute(
+      segments: [],
+      variant_name: "DashboardDiscount",
+      params: [],
+      layout_module: None,
+      module_path: "admin/dashboard/discount",
+    )
+  let contract =
+    parser.parse_page(
+      "pub type Msg { Increment } pub type Model { Model } pub fn init() { #(Model, effect.none()) } pub fn update(m, _) { #(m, effect.none()) } pub fn view(_) { html.div([], []) }",
+      module_path: "admin/dashboard/discount",
+    )
+  let assert Ok(contract) = contract
+
+  let files =
+    codec.generate(
+      contracts: [#(route, contract)],
+      discovered: [],
+      endpoints: [endpoint],
+      server_symbols: [],
+      protocol: "json",
+    )
+
+  let assert Ok(types_file) =
+    list.find(files, fn(f) { f.path == "src/generated/types.gleam" })
+
+  // Must use the fully qualified type name, not bare variant
+  let content = types_file.content
+  content
+  |> string.contains("\"admin/dashboard/discount.Discount\"")
+  |> should.be_true()
+  // Must NOT match by bare variant name alone
+  content
+  |> string.contains("#(\"type\", json.string(\"Discount\"))")
+  |> should.be_false()
 }
 
 pub fn json_wire_js_decode_reconstructs_correct_core_types_test() {
