@@ -643,7 +643,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
   // JSON codec files (json_codecs.gleam, json_decode_dispatch.gleam)
   // are server-only. The client uses inline encoding in types.gleam
   // and the JS facade (typedJsonToGleamValue) for decode.
-  // No client-side json_codec files are written.
+  // type_registry.mjs is extracted below and written to the client package.
 
   // Write server-side JSON codecs alongside SSR handler when protocol is JSON
   use _ <- result.try(case config.protocol {
@@ -682,6 +682,18 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         generator.generate_protocol_wire_js(config.protocol, contract_hash),
       ),
     ])
+    |> list.append(
+      list.filter_map(json_codec_files, fn(f: codec.CodecFile) {
+        case f.path == "src/generated/type_registry.mjs" {
+          True ->
+            Ok(client.GeneratedFile(
+              config.client_root <> "/src/generated/type_registry.mjs",
+              f.content,
+            ))
+          False -> Error(Nil)
+        }
+      }),
+    )
   let client_context_files = case has_client_context {
     True -> {
       case simplifile.read(client_context_path) {

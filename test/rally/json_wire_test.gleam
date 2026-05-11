@@ -465,6 +465,72 @@ pub fn red_json_wire_js_decode_must_not_use_generic_custom_type_test() {
   js |> string.contains("new CustomType(v, fields)") |> should.be_false()
 }
 
+pub fn json_wire_js_decode_imports_type_registry_test() {
+  let js = generator.generate_protocol_wire_js("json", "test_hash_abc123")
+
+  // protocol_wire.mjs must import the generated type registry
+  js
+  |> string.contains("import { typeRegistry } from \"./type_registry.mjs\"")
+  |> should.be_true()
+}
+
+pub fn json_wire_js_decode_uses_registry_lookup_test() {
+  let js = generator.generate_protocol_wire_js("json", "test_hash_abc123")
+
+  // The decode path must use typeRegistry for user types
+  js |> string.contains("const ctor = typeRegistry[key]") |> should.be_true()
+
+  // Must dispatch by full "type" + "#" + "variant" identity
+  // so mismatched parent type ("OldType" with variant "Discount")
+  // never resolves to a "Discount" type entry.
+  js
+  |> string.contains("const key = t + \"#\" + v")
+  |> should.be_true()
+
+  // Must pass decoded fields to the looked-up constructor
+  js |> string.contains("return ctor(fields)") |> should.be_true()
+}
+
+pub fn json_wire_js_decode_fails_loudly_on_unknown_type_test() {
+  let js = generator.generate_protocol_wire_js("json", "test_hash_abc123")
+
+  // Unknown types must throw, not silently fall back to generic CustomType
+  js
+  |> string.contains(
+    "throw new Error(\"Unknown type in JSON decode: type=\" + t + \" variant=\" + v",
+  )
+  |> should.be_true()
+}
+
+pub fn json_wire_js_response_decode_error_preserves_request_id_test() {
+  let js = generator.generate_protocol_wire_js("json", "test_hash_abc123")
+
+  // When a Response frame's value can't be decoded (unknown user type),
+  // the error must include the requestId so the transport can clear
+  // the pending callback and invoke the RPC error handler.
+  // The generated code wraps typedJsonToGleamValue in a Response-specific
+  // try/catch and returns { kind: "error", requestId, errors } on failure.
+  js
+  |> string.contains(
+    "return new Ok({ kind: \"error\", requestId: frame.request_id, errors: [[\"decode\", e.message",
+  )
+  |> should.be_true()
+
+  // Push decode failures can return ResultError (no callback to clear)
+  js
+  |> string.contains(
+    "return new ResultError(e.message || \"JSON decode error\");",
+  )
+  |> should.be_true()
+}
+
+pub fn json_wire_js_decode_not_import_custom_type_test() {
+  let js = generator.generate_protocol_wire_js("json", "test_hash_abc123")
+
+  // CustomType must not be imported from gleam.mjs
+  js |> string.contains("CustomType") |> should.be_false()
+}
+
 pub fn json_wire_push_via_broadcast_is_generic_test() {
   // topics.broadcast must accept generic frame types, not just BitArray
   let topics_src =
@@ -474,4 +540,40 @@ pub fn json_wire_push_via_broadcast_is_generic_test() {
   topics_src
   |> string.contains("pub fn broadcast(_topic: String, _frame: a)")
   |> should.be_true()
+}
+
+pub fn json_wire_js_runtime_identity_mismatch_rejected_test() {
+  // Build the fixture first so the JS modules exist.
+  let #(gen_status, _gen_output) =
+    run_gleam(fixture_root, ["run", "-m", "rally", "--", "gen"])
+  case gen_status {
+    0 -> Nil
+    _ -> panic as "Fixture rally gen failed"
+  }
+  let client_dir = fixture_root <> "/.generated_clients/public"
+  let #(build_status, _build_output) = run_gleam(client_dir, ["build"])
+  case build_status {
+    0 -> Nil
+    _ -> panic as "Client fixture gleam build failed"
+  }
+
+  // Run the JS identity decode test via Node.js.
+  case find_executable("node") {
+    Some(node) -> {
+      let #(status, output) =
+        run_executable_capturing_ffi(node, [
+          "test/rally/identity_decode_test.mjs",
+        ])
+      let msg =
+        "JS identity decode test failed (exit "
+        <> int.to_string(status)
+        <> "):\n"
+        <> output
+      case status {
+        0 -> Nil
+        _ -> panic as msg
+      }
+    }
+    None -> panic as "node executable not found on PATH"
+  }
 }

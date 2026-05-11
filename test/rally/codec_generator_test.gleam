@@ -4,8 +4,10 @@ import gleam/string
 import gleeunit/should
 import libero/field_type.{IntField}
 import libero/walker.{type DiscoveredType, DiscoveredType, DiscoveredVariant}
+import rally/generator
 import rally/generator/codec.{
   generate_json_codecs, generate_json_decode_dispatch,
+  generate_json_type_registry_js,
 }
 
 fn sample_discovered_types() -> List(DiscoveredType) {
@@ -45,13 +47,17 @@ fn sample_discovered_types() -> List(DiscoveredType) {
 
 pub fn empty_json_codecs_returns_base_files_test() {
   let files = generate_json_codecs([], [])
-  // Even with empty discovered types, the base codecs module and
-  // dispatch module are still produced (just with no type cases)
-  files |> list.length |> should.equal(2)
+  // Even with empty discovered types, the base codecs module,
+  // dispatch module, and type registry are still produced
+  // (just with no type cases)
+  files |> list.length |> should.equal(3)
   let paths = list.map(files, fn(f) { f.path })
   paths |> list.contains("src/generated/json_codecs.gleam") |> should.be_true()
   paths
   |> list.contains("src/generated/json_decode_dispatch.gleam")
+  |> should.be_true()
+  paths
+  |> list.contains("src/generated/type_registry.mjs")
   |> should.be_true()
 }
 
@@ -98,11 +104,14 @@ pub fn dispatch_has_correct_structure_test() {
 
 pub fn generate_json_codecs_includes_dispatch_test() {
   let files = generate_json_codecs(sample_discovered_types(), [])
-  files |> list.length |> should.equal(2)
+  files |> list.length |> should.equal(3)
   let paths = list.map(files, fn(f) { f.path })
   paths |> list.contains("src/generated/json_codecs.gleam") |> should.be_true()
   paths
   |> list.contains("src/generated/json_decode_dispatch.gleam")
+  |> should.be_true()
+  paths
+  |> list.contains("src/generated/type_registry.mjs")
   |> should.be_true()
 }
 
@@ -122,5 +131,175 @@ pub fn empty_dispatch_has_no_type_cases_test() {
   |> should.be_false()
   dispatch.content
   |> string.contains("json_decode_pages_home__model")
+  |> should.be_false()
+}
+
+pub fn type_registry_distinct_cross_module_entries_test() {
+  // Two modules with the same variant name (Discount) must produce
+  // distinct registry keys so identity is preserved through decode.
+  let types = [
+    DiscoveredType(
+      module_path: "admin/dashboard/discount",
+      type_name: "Discount",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "admin/dashboard/discount",
+          variant_name: "Discount",
+          atom_name: "discount",
+          float_field_indices: [],
+          field_labels: [option.Some("id")],
+          fields: [IntField],
+        ),
+      ],
+    ),
+    DiscoveredType(
+      module_path: "admin/discounts/discount",
+      type_name: "Discount",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "admin/discounts/discount",
+          variant_name: "Discount",
+          atom_name: "discount",
+          float_field_indices: [],
+          field_labels: [option.Some("code"), option.Some("cents")],
+          fields: [IntField, IntField],
+        ),
+      ],
+    ),
+  ]
+
+  let registry = generate_json_type_registry_js(types)
+
+  // Each module path produces a distinct import
+  registry.content
+  |> string.contains(
+    "import * as _m_admin_dashboard_discount from \"../../client/admin/dashboard/discount.mjs\"",
+  )
+  |> should.be_true()
+  registry.content
+  |> string.contains(
+    "import * as _m_admin_discounts_discount from \"../../client/admin/discounts/discount.mjs\"",
+  )
+  |> should.be_true()
+
+  // Each variant gets a distinct registry key containing the module path
+  // Single-field variant: (fields) => new Class(fields.label)
+  registry.content
+  |> string.contains(
+    "\"admin/dashboard/discount.Discount#Discount\": (fields) => new _m_admin_dashboard_discount.Discount(fields.id)",
+  )
+  |> should.be_true()
+  // Multi-field variant: (fields) => new Class(fields.a, fields.b)
+  registry.content
+  |> string.contains(
+    "\"admin/discounts/discount.Discount#Discount\": (fields) => new _m_admin_discounts_discount.Discount(fields.code, fields.cents)",
+  )
+  |> should.be_true()
+
+  // Registry is exported as a const
+  registry.content
+  |> string.contains("export const typeRegistry = {")
+  |> should.be_true()
+}
+
+pub fn type_registry_marks_zero_field_constructors_test() {
+  // Zero-field variants should use () => new ... not (fields) => new ...
+  let types = [
+    DiscoveredType(
+      module_path: "pages/home",
+      type_name: "NoArgs",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "pages/home",
+          variant_name: "NoArgs",
+          atom_name: "no_args",
+          float_field_indices: [],
+          field_labels: [],
+          fields: [],
+        ),
+      ],
+    ),
+  ]
+
+  let registry = generate_json_type_registry_js(types)
+
+  registry.content
+  |> string.contains(
+    "\"pages/home.NoArgs#NoArgs\": () => new _m_pages_home.NoArgs()",
+  )
+  |> should.be_true()
+}
+
+pub fn type_registry_keys_include_parent_type_not_just_variant_test() {
+  // A multi-variant type where type_name != variant_name must produce
+  // keys that include the parent type name. This prevents an attacker
+  // from crafting { type: "some/module.HarmlessType", variant: "Discount" }
+  // and having it resolve to the Discount constructor.
+  let types = [
+    DiscoveredType(
+      module_path: "some/module",
+      type_name: "Response",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "some/module",
+          variant_name: "Discount",
+          atom_name: "discount",
+          float_field_indices: [],
+          field_labels: [option.Some("id")],
+          fields: [IntField],
+        ),
+        DiscoveredVariant(
+          module_path: "some/module",
+          variant_name: "Refund",
+          atom_name: "refund",
+          float_field_indices: [],
+          field_labels: [option.Some("amount")],
+          fields: [IntField],
+        ),
+      ],
+    ),
+  ]
+
+  let registry = generate_json_type_registry_js(types)
+
+  // Key includes parent type: module.type_name#variant_name
+  registry.content
+  |> string.contains(
+    "\"some/module.Response#Discount\": (fields) => new _m_some_module.Discount(fields.id)",
+  )
+  |> should.be_true()
+
+  registry.content
+  |> string.contains(
+    "\"some/module.Response#Refund\": (fields) => new _m_some_module.Refund(fields.amount)",
+  )
+  |> should.be_true()
+
+  // Must NOT produce a key keyed by variant alone (the old identity hole)
+  registry.content
+  |> string.contains("\"some/module.Discount\"")
+  |> should.be_false()
+}
+
+pub fn type_registry_rejects_mismatched_type_in_lookup_test() {
+  // Verify the lookup code uses t + "#" + v, not module + "." + variant.
+  // With this format, { type: "some/module.OldType", variant: "Discount" }
+  // produces key "some/module.OldType#Discount", which won't match
+  // "some/module.Response#Discount" from the registry.
+
+  // We verify this at the generator level: the generated protocol_wire.mjs
+  // must not derive the key by stripping the type name off "type".
+  let js = generator.generate_protocol_wire_js("json", "test_hash_abc123")
+
+  // The key derivation must use the full "type" field as-is (t + "#" + v)
+  js |> string.contains("const key = t + \"#\" + v") |> should.be_true()
+
+  // Must NOT strip the type name (no lastIndexOf-based key derivation)
+  js
+  |> string.contains("t.substring(0, lastDot) + \".\" + v")
   |> should.be_false()
 }
