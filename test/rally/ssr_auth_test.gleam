@@ -229,8 +229,34 @@ pub fn auth_shell_resolves_identity_test() {
       page_auth_required: True,
       has_authorize: False,
     )
+  // Add a second route without a load page so the serve_html_shell
+  // fallback is generated (it is only emitted when at least one route
+  // lacks SSR).
+  let no_load_contract =
+    PageContract(
+      model_variants: [], msg_variants: [],
+      has_load: False, has_init: True, has_init_loaded: False,
+      has_model: True, updates_client_context: False,
+      param_names: [],
+      source: "", view_source: "", init_source: "", update_source: "",
+      has_page_auth: False, page_auth_required: False,
+      has_authorize: False,
+    )
   let route = make_route("Dashboard", "admin/pages/dashboard")
-  let output = generate_with_auth(contract, route)
+  let other_route = make_route("Other", "admin/pages/other")
+  let output =
+    ssr_handler.generate(
+      [#(route, contract), #(other_route, no_load_contract)],
+      True,
+      True,
+      "admin/client_context_server",
+      "generated/admin/router",
+      shell,
+      "generated/admin/rpc_atoms",
+      None,
+      Some("admin/client_context"),
+      Some(AuthConfig(auth_module: "admin/auth")),
+    )
 
   let assert True = string.contains(output, "fn serve_html_shell(")
   let assert True = {

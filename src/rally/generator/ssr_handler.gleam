@@ -37,6 +37,11 @@ pub fn generate(
     )
   let has_load_pages = load_arms != ""
 
+  let all_routes_have_load = list.all(page_contracts, fn(pair) {
+    let #(_, contract) = pair
+    contract.has_load && contract.has_model
+  })
+
   let layout_imports = generate_layout_imports(page_contracts)
   let page_imports = generate_page_imports(page_contracts)
 
@@ -139,15 +144,20 @@ fn context_script(client_context: client_context.ClientContext) -> String {
   }
 
   let fn_body = case has_load_pages {
-    True -> fn_params <> "
+    True -> {
+      let fallback = case all_routes_have_load {
+        True -> ""
+        False -> "\n    _ -> " <> shell_call
+      }
+      fn_params <> "
   ensure_atoms()
   case route {\n" <> load_arms <> "
     router.NotFound(_) ->
       response.new(404)
-      |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not found\")))
-    _ -> " <> shell_call <> "
+      |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not found\")))" <> fallback <> "
   }
 }"
+    }
     False -> fn_params <> "
   ensure_atoms()
   " <> shell_call <> "
@@ -164,7 +174,14 @@ fn context_script(client_context: client_context.ClientContext) -> String {
     |> string.replace("\"", "\\\"")
     |> string.replace("\n", "\\n")
 
-  let shell_fn = case use_session, has_auth {
+  let needs_shell_fn = case has_load_pages {
+    True -> !all_routes_have_load
+    False -> True
+  }
+
+  let shell_fn = case needs_shell_fn {
+    False -> ""
+    True -> case use_session, has_auth {
     True, True -> "
 fn serve_html_shell(server_context server_context: ServerContext, session_id session_id: String, hostname hostname: String) -> response.Response(ResponseData) {
   case " <> auth_module_ref <> ".resolve(server_context, session_id) {
@@ -198,6 +215,7 @@ fn serve_html_shell() -> response.Response(ResponseData) {
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))
 }
 "
+  }
   }
 
   let shell_html_fn = case has_load_pages {

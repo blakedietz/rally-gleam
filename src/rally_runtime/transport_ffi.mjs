@@ -197,6 +197,79 @@ function invokeRpcErrorHandler(error, context = "RPC framework error") {
   if (debugEnabled()) console.error("[rally] " + context + ":", message);
 }
 
+/**
+ * Pure detection of auth protocol error strings from the server.
+ *
+ * The server sends Error("auth:redirect:<url>") when a Required page
+ * blocks unauthenticated access, and Error("auth:forbidden") when
+ * authorize fails.
+ *
+ * Unknown auth:* values, non-string errors, and non-Error values
+ * return null and fall through to the existing response path.
+ *
+ * @param {any} value - decoded frame value (may be Ok, ResultError, or other)
+ * @returns {{ kind: "redirect", url: string } | { kind: "forbidden" } | null}
+ */
+export function detectAuthError(value) {
+  if (!(value instanceof ResultError)) return null;
+  const errValue = value[0];
+  if (typeof errValue !== "string") return null;
+
+  if (errValue.startsWith("auth:redirect:")) {
+    return { kind: "redirect", url: errValue.slice("auth:redirect:".length) };
+  }
+  if (errValue === "auth:forbidden") {
+    return { kind: "forbidden" };
+  }
+  return null;
+}
+
+/**
+ * Handle auth protocol errors from the server with side effects.
+ *
+ * For page-init (request_id 0), there is no registered callback so
+ * this is the only path that catches auth failures.
+ *
+ * For RPC, pending callbacks are cleaned up without being invoked
+ * (callbacks only handle success values). The app is notified via
+ * the registered RPC error handler or a console error.
+ *
+ * @param {{ kind: string, requestId: number, value: any }} frame
+ * @returns {boolean} true if the frame was handled as an auth error
+ */
+function handleAuthError(frame) {
+  const detected = detectAuthError(frame.value);
+  if (!detected) return false;
+
+  // Clean up pending RPC state so callers don't hang
+  const entry = responseCallbacks.get(frame.requestId);
+  if (entry) {
+    responseCallbacks.delete(frame.requestId);
+    if (entry.timer) clearTimeout(entry.timer);
+  }
+  requestTimestamps.delete(frame.requestId);
+
+  if (detected.kind === "redirect") {
+    if (typeof window !== "undefined" && window.location) {
+      window.location.href = detected.url;
+    }
+    return true;
+  }
+
+  // forbidden
+  const message = "auth:forbidden";
+  if (rpcErrorHandler) {
+    try {
+      rpcErrorHandler(message);
+    } catch (e) {
+      if (debugEnabled()) console.error("[rally] rpc error handler threw:", e);
+    }
+  } else if (debugEnabled()) {
+    console.error("[rally] Auth error:", message);
+  }
+  return true;
+}
+
 function clearAllPending(reason) {
   const error = makeConnectionError(reason);
   for (const entry of pendingSends) {
@@ -298,6 +371,12 @@ export function ensureSocket(url) {
       if (handler) handler(frame.value);
       return;
     }
+
+    // Auth error detection: runs for all response frames (page-init and RPC).
+    // The server sends Error("auth:redirect:<url>") and Error("auth:forbidden")
+    // as wire error responses for auth policy failures. Page-init (request_id 0)
+    // has no registered callback, so this must run before the callback lookup.
+    if (handleAuthError(frame)) return;
 
     // Response frame
     const entry = responseCallbacks.get(frame.requestId);

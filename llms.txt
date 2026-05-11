@@ -333,6 +333,14 @@ WebSocket auth resolves identity on upgrade (`on_init`), stores identity/hostnam
 
 Auth-enabled pages return `LoadResult(data)` instead of bare `data`, supporting `Page(data, cookies)` and `Redirect(url, cookies)` variants. Types live in `rally_runtime/auth.gleam`.
 
+### Client auth error handling
+
+The transport FFI (`transport_ffi.mjs`) detects auth protocol errors in WebSocket response frames before user callbacks. The server sends `Error("auth:redirect:<url>")` when a Required page blocks unauthenticated access, and `Error("auth:forbidden")` when authorize fails.
+
+On `auth:redirect:<url>` the browser navigates to the given URL. On `auth:forbidden` the registered RPC error handler is called (or the error is logged to console if no handler is registered). Pending RPC callbacks and debug timestamps are cleaned up so callers don't hang. Page-init responses (request_id 0) have no registered callback; the auth check runs before the callback lookup so these aren't silently dropped.
+
+Unknown `auth:*` values and non-string errors fall through to the existing response handling path. The detection function (`detectAuthError`) is exported for testing.
+
 ### Identity threading
 
 When auth is enabled, Libero dispatch gains an `identity` parameter via `ExtraParam`, and all server handlers receive `identity: auth.Identity` as their last argument.
@@ -351,6 +359,7 @@ gleam test                       # 264 tests: scanner, generator, parser, wire, 
 gleam run -m birdie accept       # accept all new snapshots
 gleam run -m birdie              # review snapshot changes interactively
 bin/check-auth-codegen           # on-demand auth codegen compile check
+test/js/run_auth_error_test.sh   # client auth error detection (JS, not part of gleam test)
 ```
 
 ## Links
