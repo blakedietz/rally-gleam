@@ -95,6 +95,7 @@ pub fn http_auth_imports_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "import admin/auth")
@@ -120,6 +121,7 @@ pub fn http_auth_resolve_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True =
@@ -146,6 +148,7 @@ pub fn http_auth_500_on_error_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "Error(Nil)")
@@ -172,6 +175,7 @@ pub fn http_auth_from_session_identity_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "identity: identity")
@@ -197,6 +201,7 @@ pub fn http_auth_dispatch_gets_identity_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True =
@@ -226,6 +231,7 @@ pub fn http_auth_hostname_in_signature_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "hostname hostname: String")
@@ -253,6 +259,7 @@ pub fn http_no_auth_unchanged_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   let assert False = string.contains(output, "auth.resolve")
@@ -310,6 +317,7 @@ pub fn http_auth_generates_handler_page_info_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   // Should contain handler_page_info mapping both endpoints
@@ -362,6 +370,7 @@ pub fn http_auth_required_page_returns_401_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   // Required pages must check is_authenticated before dispatch
@@ -389,6 +398,7 @@ pub fn http_auth_optional_page_dispatches_test() {
       contracts,
       from_session_module: "public/client_context_server",
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   // Optional pages should NOT check is_authenticated
@@ -418,6 +428,7 @@ pub fn http_auth_optional_page_with_authorize_returns_403_test() {
       contracts,
       from_session_module: "public/client_context_server",
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   // Optional skips redirect-style authentication, but authorize still applies.
@@ -463,6 +474,7 @@ pub fn http_auth_mixed_required_and_optional_pages_keep_per_page_policy_test() {
       contracts,
       from_session_module: "public/client_context_server",
       wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "\"server_load_data\"")
@@ -493,6 +505,7 @@ pub fn http_auth_authorize_false_returns_403_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   // Should generate check_page_authorize function
@@ -527,6 +540,7 @@ pub fn http_auth_unknown_variant_returns_400_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   // handler_page_info returns Error(Nil) for unknown variants
@@ -557,6 +571,7 @@ pub fn http_auth_malformed_body_returns_400_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   // decode_call failure should return 400
@@ -584,6 +599,7 @@ pub fn http_auth_decode_request_converts_body_to_string_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "case bit_array.to_string(body)")
@@ -616,6 +632,7 @@ pub fn http_auth_imports_protocol_wire_facade_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   // Must import the protocol_wire facade, not rally_runtime/wire
@@ -649,6 +666,7 @@ pub fn http_handler_no_auth_snapshot_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
   birdie.snap(output, "http_handler_no_auth")
 }
@@ -673,6 +691,7 @@ pub fn http_handler_with_auth_required_snapshot_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
   birdie.snap(output, "http_handler_with_auth_required")
 }
@@ -708,6 +727,7 @@ pub fn http_handler_with_auth_and_authorize_snapshot_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
   birdie.snap(output, "http_handler_with_auth_and_authorize")
 }
@@ -777,6 +797,7 @@ pub fn http_auth_distinct_hashes_for_same_name_different_modules_test() {
       contracts,
       from_session_module: "admin/client_context_server",
       wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
   let #(_, hash_a) =
     wire_identity.wire_identity(

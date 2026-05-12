@@ -24,6 +24,7 @@ pub fn generate(
   contracts: List(#(ScannedRoute, PageContract)),
   from_session_module from_session_module: String,
   wire_import_module wire_import_module: String,
+  protocol protocol: String,
 ) -> String {
   case auth_config {
     Some(AuthConfig(auth_module:)) ->
@@ -34,14 +35,16 @@ pub fn generate(
         endpoints,
         contracts,
         wire_import_module,
+        protocol,
       )
-    None -> generate_no_auth(rpc_dispatch_module, wire_import_module)
+    None -> generate_no_auth(rpc_dispatch_module, wire_import_module, protocol)
   }
 }
 
 fn generate_no_auth(
   rpc_dispatch_module: String,
   _wire_import_module: String,
+  _protocol: String,
 ) -> String {
   // wire_import_module is unused: the no-auth HTTP handler delegates
   // frame decoding to rpc_dispatch and never imports the wire module directly.
@@ -83,6 +86,7 @@ fn generate_with_auth(
   endpoints: List(HandlerEndpoint),
   contracts: List(#(ScannedRoute, PageContract)),
   wire_import_module: String,
+  _protocol: String,
 ) -> String {
   let auth_ref = last_segment(auth_module)
   let from_session_ref = last_segment(from_session_module)

@@ -954,6 +954,7 @@ fn do_write_files(
           contracts,
           from_session_module:,
           wire_import_module: protocol_wire_module,
+          protocol: config.protocol,
         )
       write_file(config.output_http, http_source)
       |> result.map_error(fn(msg) { RallyError("write error: " <> msg) })
