@@ -35,6 +35,7 @@ pub fn handle(
   ensure_atoms()
   case wire.decode_call(data) {
     Ok(#("rpc", request_id, msg)) -> {
+      let msg = wire_decode_client_msg(msg)
       case wire.variant_tag(msg) {
         Ok("server_increment") ->
           dispatch_known(msg, request_id, server_context)
@@ -67,7 +68,6 @@ pub fn handle(
 fn dispatch_known(msg, request_id, server_context) {
   case
     trace.try_call(fn() {
-      let msg = wire_decode_client_msg(msg)
       let typed_msg: ClientMsg = wire.coerce(msg)
       case typed_msg {
         ServerIncrement -> {

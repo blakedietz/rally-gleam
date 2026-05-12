@@ -126,8 +126,12 @@ decode_term(Map, Depth) when is_map(Map) ->
     maps:map(fun(_K, V) -> decode_term(V, Depth + 1) end, Map);
 decode_term(Other, _Depth) -> Other.
 
+decode_client_msg('3adf004bda') ->
+    server_increment;
 decode_client_msg(server_increment) ->
     server_increment;
+decode_client_msg({'10251ccd57', F0}) ->
+    {server_increment_by, F0};
 decode_client_msg({server_increment_by, F0}) ->
     {server_increment_by, F0};
 decode_client_msg(Other) ->

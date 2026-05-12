@@ -1,9 +1,11 @@
 import birdie
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import libero
 import libero/field_type
 import libero/scanner
+import libero/wire_identity
 import rally/generator/http_handler
 import rally/types.{
   type PageContract, type ScannedRoute, AuthConfig, PageContract, ScannedRoute,
@@ -18,8 +20,19 @@ fn make_endpoint(module: String, fn_name: String) -> scanner.HandlerEndpoint {
     return_err: field_type.NilField,
     params: [],
     mutates_context: False,
-    msg_type: None,
+    msg_type: Some(#(module, server_msg_type(fn_name))),
   )
+}
+
+fn server_msg_type(fn_name: String) -> String {
+  fn_name
+  |> string.split("_")
+  |> list.map(fn(part) {
+    string.uppercase(string.slice(part, at_index: 0, length: 1))
+    <> string.slice(part, at_index: 1, length: string.length(part) - 1)
+  })
+  |> string.join("")
+  |> fn(name) { "Server" <> name }
 }
 
 fn make_contract(
@@ -303,6 +316,16 @@ pub fn http_auth_generates_handler_page_info_test() {
   let assert True = string.contains(output, "fn handler_page_info(")
   let assert True = string.contains(output, "\"server_load_data\"")
   let assert True = string.contains(output, "\"server_update_config\"")
+  let #(_, load_hash) =
+    wire_identity.wire_identity("admin/pages/dashboard", "ServerLoadData", [])
+  let #(_, update_hash) =
+    wire_identity.wire_identity(
+      "admin/pages/settings",
+      "ServerUpdateConfig",
+      [],
+    )
+  let assert True = string.contains(output, "\"" <> load_hash <> "\"")
+  let assert True = string.contains(output, "\"" <> update_hash <> "\"")
   let assert True =
     string.contains(
       output,
@@ -539,6 +562,34 @@ pub fn http_auth_malformed_body_returns_400_test() {
   // decode_call failure should return 400
   let assert True = string.contains(output, "wire.decode_call(body)")
   let assert True = string.contains(output, "Error(_)")
+}
+
+pub fn http_auth_decode_request_converts_body_to_string_test() {
+  let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
+    )
+
+  let assert True = string.contains(output, "case bit_array.to_string(body)")
+  let assert True = string.contains(output, "wire.decode_request(text_body)")
+  let assert False =
+    string.contains(output, "wire.decode_request(bit_array.to_string(body))")
 }
 
 // Missing-contract case is not tested here because it panics at codegen

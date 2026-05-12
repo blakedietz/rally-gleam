@@ -2,6 +2,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import libero/scanner.{type HandlerEndpoint}
+import libero/wire_identity
 import rally/types.{
   type AuthConfig, type PageContract, type ScannedRoute, AuthConfig,
 }
@@ -144,8 +145,7 @@ fn build_page_auth_map(
   endpoints: List(HandlerEndpoint),
   contracts: List(#(ScannedRoute, PageContract)),
 ) -> List(PageAuthInfo) {
-  list.filter_map(endpoints, fn(endpoint) {
-    let wire_tag = "server_" <> endpoint.fn_name
+  list.flat_map(endpoints, fn(endpoint) {
     // Find the contract whose route module_path matches the endpoint's module_path
     case
       list.find_map(contracts, fn(pair) {
@@ -158,18 +158,34 @@ fn build_page_auth_map(
     {
       Ok(page_contract) -> {
         let #(route, contract) = page_contract
-        Ok(PageAuthInfo(
-          page: route.variant_name,
-          module_path: endpoint.module_path,
-          required: contract.page_auth_required,
-          has_authorize: contract.has_authorize,
-          wire_tag: wire_tag,
-        ))
+        endpoint_wire_tags(endpoint)
+        |> list.map(fn(wire_tag) {
+          PageAuthInfo(
+            page: route.variant_name,
+            module_path: endpoint.module_path,
+            required: contract.page_auth_required,
+            has_authorize: contract.has_authorize,
+            wire_tag: wire_tag,
+          )
+        })
       }
       Error(Nil) ->
         panic as "rally codegen: handler has no matching page contract"
     }
   })
+}
+
+fn endpoint_wire_tags(endpoint: HandlerEndpoint) -> List(String) {
+  let function_tag = "server_" <> endpoint.fn_name
+  let hash_tags = case endpoint.msg_type {
+    Some(#(module_path, type_name)) -> {
+      let fields = list.map(endpoint.params, fn(param) { param.1 })
+      let #(_, hash) = wire_identity.wire_identity(module_path, type_name, fields)
+      [hash]
+    }
+    None -> []
+  }
+  list.append([function_tag], hash_tags)
 }
 
 fn generate_authorize_imports(map: List(PageAuthInfo)) -> String {
@@ -215,16 +231,21 @@ fn generate_check_page_authorize(
   map: List(PageAuthInfo),
   auth_ref: String,
 ) -> String {
-  let with_auth = list.filter(map, fn(info) { info.has_authorize })
+  let with_auth =
+    map
+    |> list.filter(fn(info) { info.has_authorize })
+    |> list.map(fn(info) { #(info.page, info.module_path) })
+    |> list.unique
   case with_auth {
     [] -> ""
     _ -> {
       let arms =
         list.map(with_auth, fn(info) {
+          let #(page, module_path) = info
           "    \""
-          <> info.page
+          <> page
           <> "\" -> "
-          <> module_to_alias(info.module_path)
+          <> module_to_alias(module_path)
           <> ".authorize(server_context, identity)"
         })
         |> string.join("\n")
@@ -294,11 +315,17 @@ fn generate_auth_flow(
           }
         }
         Error(_) ->
-          case wire.decode_request(bit_array.to_string(body)) {
-            Ok(envelope) ->
-              response.new(200)
-              |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not implemented\")))
-            Error(errors) ->
+          case bit_array.to_string(body) {
+            Ok(text_body) ->
+              case wire.decode_request(text_body) {
+                Ok(envelope) ->
+                  response.new(200)
+                  |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not implemented\")))
+                Error(errors) ->
+                  response.new(400)
+                  |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Bad request\")))
+              }
+            Error(_) ->
               response.new(400)
               |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Bad request\")))
           }

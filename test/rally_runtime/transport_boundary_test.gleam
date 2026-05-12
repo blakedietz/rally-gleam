@@ -40,3 +40,22 @@ pub fn transport_ffi_has_no_byte_level_frame_awareness_test() {
   // Must import from the protocol_wire facade
   let assert True = string.contains(content, "./protocol_wire.mjs")
 }
+
+pub fn transport_ffi_sends_gleam_bit_array_as_browser_binary_test() {
+  let assert Ok(content) =
+    simplifile.read("src/rally_runtime/transport_ffi.mjs")
+
+  let assert True =
+    string.contains(content, "function toWebSocketPayload(payload)")
+  let assert True =
+    string.contains(
+      content,
+      "const payload = toWebSocketPayload(encode_request(module, requestId, msg));",
+    )
+  let assert True =
+    string.contains(
+      content,
+      "const payload = toWebSocketPayload(encode_request(module, 0, params));",
+    )
+  let assert True = string.contains(content, "return payload.rawBuffer;")
+}

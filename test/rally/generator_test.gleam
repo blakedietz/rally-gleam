@@ -281,6 +281,39 @@ pub fn generate_json_protocol_wire_js_facade_test() {
     )
 }
 
+pub fn generate_etf_protocol_wire_js_facade_uses_browser_safe_boundaries_test() {
+  let output = generator.generate_protocol_wire_js("etf", "test_hash_abc123")
+
+  let assert True =
+    string.contains(
+      output,
+      "export { encode_request, decode_server_frame, identity } from \"../../libero/libero/rpc_ffi.mjs\";",
+    )
+  let assert True =
+    string.contains(
+      output,
+      "export { encode_flags, decode_flags_typed } from \"../../libero/libero/wire.mjs\";",
+    )
+  let assert False =
+    string.contains(output, "decode_server_frame, encode_flags")
+}
+
+pub fn generate_etf_protocol_wire_tuple_element_uses_external_stub_test() {
+  let output =
+    generator.generate_protocol_wire("etf", "generated@rpc_atoms", "hash")
+
+  let assert True = string.contains(output, "dynamic.nil()")
+  let assert False = string.contains(output, "libero_wire.tuple_element")
+}
+
+pub fn generate_etf_protocol_wire_includes_decode_request_stub_test() {
+  let output =
+    generator.generate_protocol_wire("etf", "generated@rpc_atoms", "hash")
+
+  let assert True =
+    string.contains(output, "pub fn decode_request(_data: String)")
+}
+
 pub fn scan_config_protocol_can_be_json_test() {
   let config =
     ScanConfig(

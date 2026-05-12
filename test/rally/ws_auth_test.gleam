@@ -3,6 +3,7 @@ import gleam/option.{None, Some}
 import gleam/string
 import libero/field_type
 import libero/scanner
+import libero/wire_identity
 import rally/generator/ws_handler
 import rally/types.{
   type PageContract, type ScannedRoute, AuthConfig, PageContract, ScannedRoute,
@@ -17,8 +18,19 @@ fn make_endpoint(module: String, fn_name: String) -> scanner.HandlerEndpoint {
     return_err: field_type.NilField,
     params: [],
     mutates_context: False,
-    msg_type: None,
+    msg_type: Some(#(module, server_msg_type(fn_name))),
   )
+}
+
+fn server_msg_type(fn_name: String) -> String {
+  fn_name
+  |> string.split("_")
+  |> list.map(fn(part) {
+    string.uppercase(string.slice(part, at_index: 0, length: 1))
+    <> string.slice(part, at_index: 1, length: string.length(part) - 1)
+  })
+  |> string.join("")
+  |> fn(name) { "Server" <> name }
 }
 
 fn make_contract(
@@ -488,6 +500,13 @@ pub fn ws_auth_rpc_generates_handler_page_info_test() {
   // Must generate handler_page_info mapping variant tags to page modules
   let assert True = string.contains(output, "fn handler_page_info(")
   let assert True = string.contains(output, "\"server_")
+  let #(_, wire_hash) =
+    wire_identity.wire_identity(
+      "admin/pages/dashboard",
+      "ServerStubHandler",
+      [],
+    )
+  let assert True = string.contains(output, "\"" <> wire_hash <> "\"")
   let assert True = string.contains(output, "Error(Nil)")
 }
 

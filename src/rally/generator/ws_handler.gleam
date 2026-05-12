@@ -6,6 +6,7 @@ import libero/field_type.{
   NilField, OptionOf, ResultOf, StringField, TupleOf, TypeVar, UserType,
 }
 import libero/scanner.{type HandlerEndpoint}
+import libero/wire_identity
 import libero/walker
 import rally/types.{
   type AuthConfig, type PageContract, type ScannedRoute, AuthConfig,
@@ -752,8 +753,7 @@ fn generate_handler_page_info(
     })
 
   let arms =
-    list.filter_map(endpoints, fn(endpoint) {
-      let wire_tag = "server_" <> endpoint.fn_name
+    list.flat_map(endpoints, fn(endpoint) {
       case
         list.find_map(contract_for, fn(pair) {
           let #(module_path, variant_name, contract) = pair
@@ -765,7 +765,8 @@ fn generate_handler_page_info(
       {
         Ok(page_info) -> {
           let #(variant_name, contract) = page_info
-          Ok(
+          endpoint_wire_tags(endpoint)
+          |> list.map(fn(wire_tag) {
             "    \""
             <> wire_tag
             <> "\" -> Ok(PageAuthInfo(page: \""
@@ -774,8 +775,8 @@ fn generate_handler_page_info(
             <> bool_str(contract.page_auth_required)
             <> ", has_authorize: "
             <> bool_str(contract.has_authorize)
-            <> "))",
-          )
+            <> "))"
+          })
         }
         Error(Nil) ->
           panic as "rally codegen: WS handler has no matching page contract"
@@ -793,6 +794,19 @@ fn handler_page_info(variant: String) -> Result(PageAuthInfo, Nil) {
 " <> arms <> "
   }
 }"
+}
+
+fn endpoint_wire_tags(endpoint: HandlerEndpoint) -> List(String) {
+  let function_tag = "server_" <> endpoint.fn_name
+  let hash_tags = case endpoint.msg_type {
+    Some(#(module_path, type_name)) -> {
+      let fields = list.map(endpoint.params, fn(param) { param.1 })
+      let #(_, hash) = wire_identity.wire_identity(module_path, type_name, fields)
+      [hash]
+    }
+    None -> []
+  }
+  list.append([function_tag], hash_tags)
 }
 
 fn stub_check_page_authorize(auth_ref: String) -> String {

@@ -198,6 +198,13 @@ function invokeRpcErrorHandler(error, context = "RPC framework error") {
   if (debugEnabled()) console.error("[rally] " + context + ":", message);
 }
 
+function toWebSocketPayload(payload) {
+  if (payload && payload.rawBuffer instanceof Uint8Array) {
+    return payload.rawBuffer;
+  }
+  return payload;
+}
+
 /**
  * Pure detection of auth protocol error strings from the server.
  *
@@ -487,7 +494,7 @@ export function registerOnDisconnect(callback) {
 export function send(url, module, msg, callback) {
   ensureSocket(url);
   const requestId = nextRequestId++;
-  const payload = encode_request(module, requestId, msg);
+  const payload = toWebSocketPayload(encode_request(module, requestId, msg));
   if (debugEnabled()) requestTimestamps.set(requestId, performance.now());
   logRpc("->", `rpc #${requestId}`, msg, { module });
 
@@ -521,7 +528,7 @@ export function send(url, module, msg, callback) {
  */
 export function send_page_init(url, module, params) {
   ensureSocket(url);
-  const payload = encode_request(module, 0, params);
+  const payload = toWebSocketPayload(encode_request(module, 0, params));
   logRpc("->", `page_init ${module}`, params);
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(payload);
