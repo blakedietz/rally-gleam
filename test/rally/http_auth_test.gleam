@@ -350,6 +350,34 @@ pub fn http_auth_generates_handler_page_info_test() {
     string.contains(output, "PageAuthInfo(page: \"admin/pages/settings\"")
 }
 
+pub fn http_auth_json_handler_page_info_uses_type_string_test() {
+  let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
+  let contracts = [
+    #(
+      make_route_named("AdminDashboard", "admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
+      protocol: "json",
+    )
+
+  let assert True =
+    string.contains(output, "\"admin/pages/dashboard.ServerLoadData\"")
+  let assert False = string.contains(output, "\"server_load_data\"")
+}
+
 pub fn http_auth_required_page_returns_401_test() {
   let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
   let contracts = [

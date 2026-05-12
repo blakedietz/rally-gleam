@@ -6,8 +6,8 @@ import libero/field_type.{
   NilField, OptionOf, ResultOf, StringField, TupleOf, TypeVar, UserType,
 }
 import libero/scanner.{type HandlerEndpoint}
-import libero/wire_identity
 import libero/walker
+import libero/wire_identity
 import rally/types.{
   type AuthConfig, type PageContract, type ScannedRoute, AuthConfig,
 }
@@ -327,7 +327,7 @@ fn generate_frame_handler_with_auth(
   let has_endpoints = !list.is_empty(endpoints)
   let page_auth_policy_fn = generate_page_auth_policy(page_contracts)
   let handler_page_info_fn = case has_endpoints {
-    True -> generate_handler_page_info(page_contracts, endpoints)
+    True -> generate_handler_page_info(page_contracts, endpoints, protocol)
     False -> ""
   }
   let check_page_authorize_fn =
@@ -744,6 +744,7 @@ fn generate_ws_check_page_authorize(
 fn generate_handler_page_info(
   page_contracts: List(#(ScannedRoute, PageContract)),
   endpoints: List(HandlerEndpoint),
+  protocol: String,
 ) -> String {
   // Build a dict from page module path to route identity and contract for quick lookup.
   let contract_for =
@@ -765,7 +766,7 @@ fn generate_handler_page_info(
       {
         Ok(page_info) -> {
           let #(variant_name, contract) = page_info
-          endpoint_wire_tags(endpoint)
+          endpoint_wire_tags(endpoint, protocol)
           |> list.map(fn(wire_tag) {
             "    \""
             <> wire_tag
@@ -796,17 +797,37 @@ fn handler_page_info(variant: String) -> Result(PageAuthInfo, Nil) {
 }"
 }
 
-fn endpoint_wire_tags(endpoint: HandlerEndpoint) -> List(String) {
-  let function_tag = "server_" <> endpoint.fn_name
-  let hash_tags = case endpoint.msg_type {
-    Some(#(module_path, type_name)) -> {
-      let fields = list.map(endpoint.params, fn(param) { param.1 })
-      let #(_, hash) = wire_identity.wire_identity(module_path, type_name, fields)
-      [hash]
+fn endpoint_wire_tags(
+  endpoint: HandlerEndpoint,
+  protocol: String,
+) -> List(String) {
+  case protocol {
+    "json" -> [endpoint_json_tag(endpoint)]
+    _ -> {
+      let function_tag = "server_" <> endpoint.fn_name
+      let hash_tags = case endpoint.msg_type {
+        Some(#(module_path, type_name)) -> {
+          let fields = list.map(endpoint.params, fn(param) { param.1 })
+          let #(_, hash) =
+            wire_identity.wire_identity(module_path, type_name, fields)
+          [hash]
+        }
+        None -> []
+      }
+      list.append([function_tag], hash_tags)
     }
-    None -> []
   }
-  list.append([function_tag], hash_tags)
+}
+
+fn endpoint_json_tag(endpoint: HandlerEndpoint) -> String {
+  let #(module_path, type_name) = case endpoint.msg_type {
+    Some(#(module_path, type_name)) -> #(module_path, type_name)
+    None -> #(
+      endpoint.module_path,
+      to_pascal_case("server_" <> endpoint.fn_name),
+    )
+  }
+  module_path <> "." <> type_name
 }
 
 fn stub_check_page_authorize(auth_ref: String) -> String {

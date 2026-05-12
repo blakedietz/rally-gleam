@@ -86,13 +86,13 @@ fn generate_with_auth(
   endpoints: List(HandlerEndpoint),
   contracts: List(#(ScannedRoute, PageContract)),
   wire_import_module: String,
-  _protocol: String,
+  protocol: String,
 ) -> String {
   let auth_ref = last_segment(auth_module)
   let from_session_ref = last_segment(from_session_module)
 
   // Build the mapping from wire variant tag to PageAuthInfo
-  let page_auth_map = build_page_auth_map(endpoints, contracts)
+  let page_auth_map = build_page_auth_map(endpoints, contracts, protocol)
 
   // Build imports
   let auth_import = import_as(auth_module, auth_ref)
@@ -148,6 +148,7 @@ pub fn handle(
 fn build_page_auth_map(
   endpoints: List(HandlerEndpoint),
   contracts: List(#(ScannedRoute, PageContract)),
+  protocol: String,
 ) -> List(PageAuthInfo) {
   list.flat_map(endpoints, fn(endpoint) {
     // Find the contract whose route module_path matches the endpoint's module_path
@@ -162,7 +163,7 @@ fn build_page_auth_map(
     {
       Ok(page_contract) -> {
         let #(route, contract) = page_contract
-        endpoint_wire_tags(endpoint)
+        endpoint_wire_tags(endpoint, protocol)
         |> list.map(fn(wire_tag) {
           PageAuthInfo(
             page: route.variant_name,
@@ -179,17 +180,49 @@ fn build_page_auth_map(
   })
 }
 
-fn endpoint_wire_tags(endpoint: HandlerEndpoint) -> List(String) {
-  let function_tag = "server_" <> endpoint.fn_name
-  let hash_tags = case endpoint.msg_type {
-    Some(#(module_path, type_name)) -> {
-      let fields = list.map(endpoint.params, fn(param) { param.1 })
-      let #(_, hash) = wire_identity.wire_identity(module_path, type_name, fields)
-      [hash]
+fn endpoint_wire_tags(
+  endpoint: HandlerEndpoint,
+  protocol: String,
+) -> List(String) {
+  case protocol {
+    "json" -> [endpoint_json_tag(endpoint)]
+    _ -> {
+      let function_tag = "server_" <> endpoint.fn_name
+      let hash_tags = case endpoint.msg_type {
+        Some(#(module_path, type_name)) -> {
+          let fields = list.map(endpoint.params, fn(param) { param.1 })
+          let #(_, hash) =
+            wire_identity.wire_identity(module_path, type_name, fields)
+          [hash]
+        }
+        None -> []
+      }
+      list.append([function_tag], hash_tags)
     }
-    None -> []
   }
-  list.append([function_tag], hash_tags)
+}
+
+fn endpoint_json_tag(endpoint: HandlerEndpoint) -> String {
+  let #(module_path, type_name) = case endpoint.msg_type {
+    Some(#(module_path, type_name)) -> #(module_path, type_name)
+    None -> #(
+      endpoint.module_path,
+      to_pascal_case("server_" <> endpoint.fn_name),
+    )
+  }
+  module_path <> "." <> type_name
+}
+
+fn to_pascal_case(name: String) -> String {
+  name
+  |> string.split("_")
+  |> list.map(fn(word) {
+    case string.pop_grapheme(word) {
+      Ok(#(first, rest)) -> string.uppercase(first) <> rest
+      Error(Nil) -> word
+    }
+  })
+  |> string.join("")
 }
 
 fn generate_authorize_imports(map: List(PageAuthInfo)) -> String {

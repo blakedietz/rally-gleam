@@ -510,6 +510,34 @@ pub fn ws_auth_rpc_generates_handler_page_info_test() {
   let assert True = string.contains(output, "Error(Nil)")
 }
 
+pub fn ws_auth_json_handler_page_info_uses_type_string_test() {
+  let contracts = [
+    #(
+      make_route_named("AdminDashboard", "admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: [make_endpoint("admin/pages/dashboard", "load_data")],
+      wire_import_module: "generated/protocol_wire",
+      protocol: "json",
+    )
+
+  let assert True =
+    string.contains(output, "\"admin/pages/dashboard.ServerLoadData\"")
+  let assert False = string.contains(output, "\"server_load_data\"")
+}
+
 pub fn ws_auth_rpc_extracts_variant_tag_test() {
   let contracts = [
     #(
