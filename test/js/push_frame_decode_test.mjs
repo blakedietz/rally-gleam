@@ -6,7 +6,7 @@
 // The server encode path is covered by the Erlang escript probe.
 //
 // Run from the project root with:
-//   node test/js/server_push_encode_test.mjs
+//   node test/js/push_frame_decode_test.mjs
 
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
