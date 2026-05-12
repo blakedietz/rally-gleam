@@ -54,6 +54,8 @@ fn generate_with_auth(contract: PageContract, route: ScannedRoute) -> String {
     None,
     Some("admin/client_context"),
     Some(AuthConfig(auth_module: "admin/auth")),
+    wire_import_module: "generated/admin/protocol_wire",
+    protocol: "etf",
   )
 }
 
@@ -72,6 +74,8 @@ fn generate_without_auth(
     None,
     Some("admin/client_context"),
     None,
+    wire_import_module: "generated/admin/protocol_wire",
+    protocol: "etf",
   )
 }
 
@@ -264,6 +268,8 @@ pub fn auth_shell_resolves_identity_test() {
       None,
       Some("admin/client_context"),
       Some(AuthConfig(auth_module: "admin/auth")),
+      wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   let assert True = string.contains(output, "fn serve_html_shell(")
@@ -320,6 +326,8 @@ pub fn auth_from_session_without_client_context_test() {
       None,
       None,
       Some(AuthConfig(auth_module: "admin/auth")),
+      wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
     )
 
   // Must call from_session with identity, discarding ClientContext

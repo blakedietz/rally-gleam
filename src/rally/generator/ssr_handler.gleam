@@ -16,8 +16,15 @@ pub fn generate(
   wire_module wire_module: Option(String),
   client_context_module client_context_module: Option(String),
   auth_config auth_config: Option(AuthConfig),
+  wire_import_module wire_import_module: String,
+  protocol protocol: String,
 ) -> String {
   let use_session = has_client_context && has_from_session
+  let is_json = protocol == "json"
+  let json_codecs_module = case is_json {
+    True -> string.replace(wire_import_module, "/protocol_wire", "/json_codecs")
+    False -> ""
+  }
   let from_session_ref = last_segment(from_session_module)
   let has_auth = option.is_some(auth_config)
   let auth_module_ref = case auth_config {
@@ -34,6 +41,7 @@ pub fn generate(
       from_session_module: from_session_ref,
       wire_module: wire_module,
       auth_config: auth_config,
+      is_json:,
     )
   let has_load_pages = load_arms != ""
 
@@ -74,7 +82,11 @@ pub fn generate(
     _, _ -> ""
   }
   let codec_imports = case needs_codec {
-    True -> "import libero/wire as libero_wire\n"
+    True -> import_as(wire_import_module, "libero_wire") <> "\n"
+    False -> ""
+  }
+  let json_codec_imports = case is_json && needs_codec {
+    True -> import_as(json_codecs_module, "json_codecs") <> "\n"
     False -> ""
   }
   let load_page_imports = case has_load_pages {
@@ -99,6 +111,7 @@ pub fn generate(
       client_context_module:,
       has_client_context:,
       page_contracts:,
+      is_json:,
     )
 
   let header =
@@ -106,6 +119,7 @@ pub fn generate(
     <> server_imports
     <> client_context_imports
     <> codec_imports
+    <> json_codec_imports
     <> load_page_imports
     <> auth_imports
     <> layout_imports
@@ -128,12 +142,18 @@ pub fn handle_request(
 ) -> response.Response(ResponseData) {"
   }
 
-  let cc_encode_line = case wire_module, client_context_module {
-    Some(_), Some(cc_mod) -> {
+  let cc_encode_line = case wire_module, client_context_module, is_json {
+    Some(_), Some(cc_mod), False -> {
       let qual = qualified_wire_name(cc_mod, "ClientContext")
       "  let client_context = wire_encode_" <> qual <> "(client_context)\n"
     }
-    _, _ -> ""
+    _, Some(cc_mod), True -> {
+      let qual = qualified_wire_name(cc_mod, "ClientContext")
+      "  let client_context = json_codecs.json_encode_"
+      <> qual
+      <> "(client_context)\n"
+    }
+    _, _, _ -> ""
   }
   let ctx_script = case use_session {
     True -> "
@@ -381,6 +401,7 @@ fn generate_load_arms(
   from_session_module from_session_module: String,
   wire_module wire_module: Option(String),
   auth_config auth_config: Option(AuthConfig),
+  is_json is_json: Bool,
 ) -> String {
   let auth_module_ref = case auth_config {
     Some(AuthConfig(auth_module:)) -> last_segment(auth_module)
@@ -475,8 +496,8 @@ fn generate_load_arms(
           True -> "data"
           False -> "model"
         }
-        let wire_encode_flags = case wire_module {
-          Some(_) -> {
+        let wire_encode_flags = case wire_module, is_json {
+          Some(_), False -> {
             let qual = qualified_wire_name(route.module_path, "Model")
             "      let "
             <> flags_target
@@ -486,7 +507,17 @@ fn generate_load_arms(
             <> flags_target
             <> ")\n"
           }
-          None -> ""
+          Some(_), True -> {
+            let qual = qualified_wire_name(route.module_path, "Model")
+            "      let "
+            <> flags_target
+            <> " = json_codecs.json_encode_"
+            <> qual
+            <> "("
+            <> flags_target
+            <> ")\n"
+          }
+          None, _ -> ""
         }
         let flags_line =
           wire_encode_flags
@@ -599,8 +630,8 @@ fn generate_load_arms(
                 <> view_call_auth
                 <> ")\n"
             }
-            let wire_encode_flags_auth = case wire_module {
-              Some(_) -> {
+            let wire_encode_flags_auth = case wire_module, is_json {
+              Some(_), False -> {
                 let qual = qualified_wire_name(route.module_path, "Model")
                 "      let "
                 <> model_var
@@ -610,7 +641,17 @@ fn generate_load_arms(
                 <> model_var
                 <> ")\n"
               }
-              None -> ""
+              Some(_), True -> {
+                let qual = qualified_wire_name(route.module_path, "Model")
+                "      let "
+                <> model_var
+                <> " = json_codecs.json_encode_"
+                <> qual
+                <> "("
+                <> model_var
+                <> ")\n"
+              }
+              None, _ -> ""
             }
             let flags_line_auth =
               wire_encode_flags_auth
@@ -710,10 +751,12 @@ fn generate_wire_externals(
   client_context_module client_context_module: Option(String),
   has_client_context has_client_context: Bool,
   page_contracts page_contracts: List(#(ScannedRoute, PageContract)),
+  is_json is_json: Bool,
 ) -> String {
-  case wire_module {
-    None -> ""
-    Some(mod) -> {
+  case wire_module, is_json {
+    None, _ -> ""
+    _, True -> ""
+    Some(mod), False -> {
       let cc_ext = case has_client_context, client_context_module {
         True, Some(cc_mod) -> {
           let qual = qualified_wire_name(cc_mod, "ClientContext")

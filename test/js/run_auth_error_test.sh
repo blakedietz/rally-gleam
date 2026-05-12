@@ -4,9 +4,9 @@ set -eu
 #
 # Creates a self-contained temp directory under tmp/ (already gitignored
 # and used by other test tooling) with minimal gleam_stdlib and libero
-# shims, plus a copy of transport_ffi.mjs positioned so its relative
-# imports resolve inside the temp tree. No files outside tmp/ are
-# created or deleted.
+# shims, plus a copy of transport_ffi.mjs and its generated protocol facade
+# positioned so relative imports resolve inside the temp tree. No files outside
+# tmp/ are created or deleted.
 #
 # Run: test/js/run_auth_error_test.sh
 
@@ -20,8 +20,8 @@ trap cleanup EXIT
 
 # Lay out the tree so transport_ffi.mjs's relative imports resolve:
 #   ../../gleam_stdlib/gleam.mjs  ->  tmp/auth_error_test/gleam_stdlib/gleam.mjs
-#   ../../libero/libero/rpc_ffi.mjs -> tmp/auth_error_test/libero/libero/rpc_ffi.mjs
 #   ../../libero/libero/error.mjs   -> tmp/auth_error_test/libero/libero/error.mjs
+#   ./protocol_wire.mjs             -> tmp/auth_error_test/src/generated/protocol_wire.mjs
 mkdir -p "$TEST_DIR/src/generated"
 mkdir -p "$TEST_DIR/gleam_stdlib/gleam"
 mkdir -p "$TEST_DIR/libero/libero"
@@ -68,6 +68,12 @@ export class UnknownFunction extends CustomType {
 export class InternalError extends CustomType {
   constructor(trace_id, message) { super(); this.trace_id = trace_id; this.message = message; }
 }
+MODEOF
+
+# --- generated protocol facade shim ---
+
+cat > "$TEST_DIR/src/generated/protocol_wire.mjs" << 'MODEOF'
+export { encode_request, decode_server_frame } from "../../libero/libero/rpc_ffi.mjs";
 MODEOF
 
 node "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/auth_error_handling_test.mjs"

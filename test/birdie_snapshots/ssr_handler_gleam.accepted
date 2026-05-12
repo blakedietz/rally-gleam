@@ -15,7 +15,7 @@ import rally_runtime/env
 @external(erlang, "generated/public/rpc_atoms", "ensure")
 fn ensure_atoms() -> Nil
 import server_context.{type ServerContext}
-import libero/wire as libero_wire
+import generated/public/protocol_wire as libero_wire
 import gleam/result
 import gleam/string
 import lustre/element

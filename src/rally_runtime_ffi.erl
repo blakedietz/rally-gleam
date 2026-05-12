@@ -7,8 +7,8 @@
 -module(rally_runtime_ffi).
 -export([put_ws_state/3, get_ws_conn/0, get_ws_page/0, get_stored_server_context/0,
          push_outgoing_frame/1, drain_outgoing_frames/0,
-         put_ws_session/1, get_ws_session/0, decode_rally_push/1,
-         store_system_conn/1, get_system_conn/0, encode_push_payload/2,
+         put_ws_session/1, get_ws_session/0, decode_rally_push/1, decode_rally_push_json/1,
+         store_system_conn/1, get_system_conn/0, encode_push_payload/2, encode_push_frame/2,
          put_ws_identity/1, get_ws_identity/0,
          put_ws_hostname/1, get_ws_hostname/0,
          put_ws_auth_timestamp/1, get_ws_auth_timestamp/0,
@@ -66,6 +66,12 @@ decode_rally_push(Msg) ->
         _ -> {error, nil}
     end.
 
+decode_rally_push_json(Msg) ->
+    case Msg of
+        {rally_push, Frame} -> {ok, Frame};
+        _ -> {error, nil}
+    end.
+
 store_system_conn(Conn) ->
     persistent_term:put({rally, system_conn}, Conn),
     nil.
@@ -79,6 +85,22 @@ get_system_conn() ->
 encode_push_payload(Page, Msg) ->
     Mod = persistent_term:get({libero, wire_module}),
     Mod:encode_push(Page, Msg).
+
+encode_push_frame(Page, Msg) ->
+    case persistent_term:get({libero, push_frame_module}, undefined) of
+        undefined ->
+            %% No push frame facade registered; fall back to ETF via Libero boundary.
+            case persistent_term:get({libero, wire_module}, undefined) of
+                undefined ->
+                    'libero@wire':encode_push(Page, Msg);
+                Mod ->
+                    Encoded = Mod:encode_push(Page, Msg),
+                    'libero@wire':encode_push(Page, Encoded)
+            end;
+        PushMod ->
+            %% Single facade: protocol-specific encode + frame in one call.
+            PushMod:encode_push_frame(Page, Msg)
+    end.
 
 %% --- WS auth state ---
 

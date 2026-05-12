@@ -33,6 +33,7 @@ fn test_config(pages_root: String) -> ScanConfig {
     rally_package_path: "",
     shell_file: "",
     server_deps: dict.new(),
+    protocol: "etf",
   )
 }
 

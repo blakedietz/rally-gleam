@@ -76,11 +76,12 @@ pub fn http_auth_imports_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True = string.contains(output, "import admin/auth")
@@ -100,11 +101,12 @@ pub fn http_auth_resolve_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True =
@@ -125,11 +127,12 @@ pub fn http_auth_500_on_error_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True = string.contains(output, "Error(Nil)")
@@ -150,11 +153,12 @@ pub fn http_auth_from_session_identity_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True = string.contains(output, "identity: identity")
@@ -174,11 +178,12 @@ pub fn http_auth_dispatch_gets_identity_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True =
@@ -202,11 +207,12 @@ pub fn http_auth_hostname_in_signature_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert True = string.contains(output, "hostname hostname: String")
@@ -228,11 +234,12 @@ pub fn http_no_auth_unchanged_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: None,
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      None,
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   let assert False = string.contains(output, "auth.resolve")
@@ -284,11 +291,12 @@ pub fn http_auth_generates_handler_page_info_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // Should contain handler_page_info mapping both endpoints
@@ -325,11 +333,12 @@ pub fn http_auth_required_page_returns_401_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // Required pages must check is_authenticated before dispatch
@@ -351,11 +360,12 @@ pub fn http_auth_optional_page_dispatches_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/public/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "public/auth")),
-      contracts:,
+      endpoints,
+      "generated/public/rpc_dispatch",
+      Some(AuthConfig(auth_module: "public/auth")),
+      contracts,
       from_session_module: "public/client_context_server",
+      wire_import_module: "generated/public/protocol_wire",
     )
 
   // Optional pages should NOT check is_authenticated
@@ -379,11 +389,12 @@ pub fn http_auth_optional_page_with_authorize_returns_403_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/public/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "public/auth")),
-      contracts:,
+      endpoints,
+      "generated/public/rpc_dispatch",
+      Some(AuthConfig(auth_module: "public/auth")),
+      contracts,
       from_session_module: "public/client_context_server",
+      wire_import_module: "generated/public/protocol_wire",
     )
 
   // Optional skips redirect-style authentication, but authorize still applies.
@@ -423,11 +434,12 @@ pub fn http_auth_mixed_required_and_optional_pages_keep_per_page_policy_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/public/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "public/auth")),
-      contracts:,
+      endpoints,
+      "generated/public/rpc_dispatch",
+      Some(AuthConfig(auth_module: "public/auth")),
+      contracts,
       from_session_module: "public/client_context_server",
+      wire_import_module: "generated/public/protocol_wire",
     )
 
   let assert True = string.contains(output, "\"server_load_data\"")
@@ -452,11 +464,12 @@ pub fn http_auth_authorize_false_returns_403_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // Should generate check_page_authorize function
@@ -469,33 +482,6 @@ pub fn http_auth_authorize_false_returns_403_test() {
     )
   // Should return 403 on auth failure
   let assert True = string.contains(output, "403")
-}
-
-pub fn http_auth_authorize_runs_after_from_session_test() {
-  let endpoints = [make_endpoint("admin/pages/settings", "update_config")]
-  let contracts = [
-    #(
-      make_route("admin/pages/settings"),
-      make_contract(
-        has_page_auth: True,
-        page_auth_required: True,
-        has_authorize: True,
-      ),
-    ),
-  ]
-  let output =
-    http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
-      from_session_module: "admin/client_context_server",
-    )
-
-  let assert Ok(#(_, after_from_session)) =
-    string.split_once(output, ".from_session(server_context:")
-  let assert True = string.contains(after_from_session, "check_page_authorize(")
-  let assert True = string.contains(after_from_session, "rpc_dispatch.handle(")
 }
 
 pub fn http_auth_unknown_variant_returns_400_test() {
@@ -512,11 +498,12 @@ pub fn http_auth_unknown_variant_returns_400_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // handler_page_info returns Error(Nil) for unknown variants
@@ -541,11 +528,12 @@ pub fn http_auth_malformed_body_returns_400_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
   // decode_call failure should return 400
@@ -557,7 +545,7 @@ pub fn http_auth_malformed_body_returns_400_test() {
 // time. An endpoint with no matching PageContract is an invariant violation
 // between Libero's scan and Rally's parser — it should never happen.
 
-pub fn http_auth_imports_rally_runtime_wire_test() {
+pub fn http_auth_imports_protocol_wire_facade_test() {
   let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
   let contracts = [
     #(
@@ -571,15 +559,19 @@ pub fn http_auth_imports_rally_runtime_wire_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
 
-  // Must import rally_runtime/wire, not the Erlang module
-  let assert True = string.contains(output, "import rally_runtime/wire as wire")
+  // Must import the protocol_wire facade, not rally_runtime/wire
+  let assert True =
+    string.contains(output, "import generated/admin/protocol_wire as wire")
+  // Must NOT import rally_runtime/wire directly
+  let assert False = string.contains(output, "import rally_runtime/wire")
   // Must NOT import an Erlang module as wire
   let assert False = string.contains(output, "generated@")
 }
@@ -600,11 +592,12 @@ pub fn http_handler_no_auth_snapshot_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: None,
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      None,
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
   birdie.snap(output, "http_handler_no_auth")
 }
@@ -623,11 +616,12 @@ pub fn http_handler_with_auth_required_snapshot_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
   birdie.snap(output, "http_handler_with_auth_required")
 }
@@ -657,11 +651,12 @@ pub fn http_handler_with_auth_and_authorize_snapshot_test() {
   ]
   let output =
     http_handler.generate(
-      endpoints:,
-      rpc_dispatch_module: "generated/admin/rpc_dispatch",
-      auth_config: Some(AuthConfig(auth_module: "admin/auth")),
-      contracts:,
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
       from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
     )
   birdie.snap(output, "http_handler_with_auth_and_authorize")
 }

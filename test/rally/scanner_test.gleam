@@ -27,6 +27,7 @@ fn test_config(dir: String) -> ScanConfig {
     rally_package_path: "",
     shell_file: "",
     server_deps: dict.new(),
+    protocol: "etf",
   )
 }
 

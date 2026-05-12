@@ -1,0 +1,12 @@
+name = "json_protocol_fixture"
+version = "1.0.0"
+
+[dependencies]
+gleam_stdlib = ">= 0.69.0 and < 2.0.0"
+lustre = ">= 5.6.0 and < 7.0.0"
+mist = ">= 6.0.0 and < 7.0.0"
+rally = { path = "../.." }
+
+[[tools.rally.clients]]
+namespace = "public"
+protocol = "json"

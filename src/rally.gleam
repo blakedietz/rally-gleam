@@ -10,6 +10,7 @@ import libero/codegen_dispatch.{ExtraParam}
 import libero/codegen_wire_erl
 import libero/field_type
 import libero/gen_error
+import libero/json/contract as json_contract
 import libero/scanner as libero_scanner
 import rally/dependency_resolver
 import rally/format
@@ -124,6 +125,21 @@ fn read_client_config(
   let route_root =
     tom.get_string(client_config, ["route_root"])
     |> result.unwrap("/" <> namespace)
+  let protocol =
+    tom.get_string(client_config, ["protocol"])
+    |> result.unwrap("etf")
+  let protocol = case protocol {
+    "etf" -> protocol
+    "json" -> protocol
+    other -> {
+      io.println_error(
+        "warning: unknown protocol \""
+        <> other
+        <> "\" in [[tools.rally.clients]], defaulting to \"etf\"",
+      )
+      "etf"
+    }
+  }
   Ok(ScanConfig(
     pages_root: "src/" <> namespace <> "/pages",
     output_route: "src/generated/" <> namespace <> "/router.gleam",
@@ -143,6 +159,7 @@ fn read_client_config(
     rally_package_path:,
     shell_file: "src/" <> namespace <> "/shell.html",
     server_deps:,
+    protocol:,
   ))
 }
 
@@ -186,6 +203,7 @@ fn read_legacy_config(
   let shell_file =
     tom.get_string(rally_config, ["shell_file"])
     |> result.unwrap("src/shell.html")
+  let protocol = "etf"
 
   ScanConfig(
     pages_root:,
@@ -204,6 +222,7 @@ fn read_legacy_config(
     rally_package_path:,
     shell_file:,
     server_deps:,
+    protocol:,
   )
 }
 
@@ -345,8 +364,8 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
   let sd_source = case ns_endpoints {
     [] ->
       generator.generate_empty_rpc_dispatch(
-        atoms_module: config.atoms_module,
-        extra_params: extra_dispatch_params,
+        config.atoms_module,
+        extra_dispatch_params,
       )
     _ ->
       case extra_dispatch_params {
@@ -375,53 +394,9 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     _ ->
       "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/client.js'></script></body>\n</html>"
   }
-  let ssr_source =
-    ssr_handler.generate(
-      contracts,
-      has_client_context,
-      has_from_session,
-      from_session_module,
-      router_module,
-      shell_html,
-      config.atoms_module,
-      option.Some(config.wire_module),
-      case has_client_context {
-        True -> option.Some(client_context_module)
-        False -> option.None
-      },
-      auth_config,
-    )
 
-  // Write generated files, aborting on first failure
-  let result =
-    do_write_files(
-      config:,
-      route_source:,
-      dispatch_source:,
-      sd_source:,
-      ssr_source:,
-      contracts:,
-      handler_endpoints:,
-      rpc_dispatch_module:,
-      auth_config:,
-      from_session_module:,
-    )
-  use _ <- result.try(result)
-
-  let transport_ffi_path =
-    config.rally_package_path <> "/src/rally_runtime/transport_ffi.mjs"
-  use transport_ffi_content <- result.try(
-    simplifile.read(transport_ffi_path)
-    |> result.map_error(fn(e) {
-      RallyError(
-        "Cannot read transport_ffi.mjs from rally package at "
-        <> transport_ffi_path
-        <> ": "
-        <> simplifile.describe_error(e),
-      )
-    }),
-  )
-
+  // Read client context source and walk discovered types early
+  // (needed for contract hash computation before writing protocol_wire)
   let client_context_source = case has_client_context {
     True ->
       case simplifile.read(client_context_path) {
@@ -500,6 +475,111 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     list.append(page_dispatches, cc_dispatch)
   }
 
+  // Build JSON push dispatches from the same push type data.
+  // Each entry is #(page_tag, type_atom) where page_tag is the
+  // route variant name (e.g. "Home") and type_atom matches the
+  // qualified encoder name (e.g. "public_pages_home___to_client").
+  let json_push_dispatches =
+    list.map(push_dispatches, fn(d: codegen_wire_erl.PushDispatch) {
+      #(d.page_tag, d.type_atom)
+    })
+
+  // Compute contract hash for JSON protocol
+  let push_contracts =
+    list.filter_map(contracts, fn(pair) {
+      let #(route, contract) = pair
+      case has_to_client_type(route, contract) {
+        True ->
+          Ok(json_contract.PushContract(
+            module: route.module_path,
+            type_module: route.module_path,
+            type_name: "ToClient",
+          ))
+        False -> Error(Nil)
+      }
+    })
+  let ssr_model_contracts =
+    list.filter_map(contracts, fn(pair) {
+      let #(route, contract) = pair
+      case contract.has_load && contract.has_model {
+        True ->
+          Ok(json_contract.SsrModelContract(
+            route_module: route.module_path,
+            type_module: route.module_path,
+            type_name: "Model",
+          ))
+        False -> Error(Nil)
+      }
+    })
+  let contract_hash = case config.protocol {
+    "json" ->
+      json_contract.generate_hash(
+        ns_endpoints,
+        discovered,
+        push_contracts,
+        ssr_model_contracts,
+      )
+    _ -> ""
+  }
+
+  let protocol_wire_output =
+    string.replace(config.output_ws, "ws_handler.gleam", "protocol_wire.gleam")
+  let protocol_wire_module =
+    protocol_wire_output
+    |> string.drop_start(4)
+    |> string.drop_end(6)
+
+  let ssr_source =
+    ssr_handler.generate(
+      contracts,
+      has_client_context,
+      has_from_session,
+      from_session_module,
+      router_module,
+      shell_html,
+      config.atoms_module,
+      option.Some(config.wire_module),
+      case has_client_context {
+        True -> option.Some(client_context_module)
+        False -> option.None
+      },
+      auth_config,
+      wire_import_module: protocol_wire_module,
+      protocol: config.protocol,
+    )
+
+  // Write generated files, aborting on first failure
+  let result =
+    do_write_files(
+      config:,
+      route_source:,
+      dispatch_source:,
+      sd_source:,
+      ssr_source:,
+      contracts:,
+      handler_endpoints:,
+      rpc_dispatch_module:,
+      auth_config:,
+      from_session_module:,
+      protocol_wire_module:,
+      contract_hash:,
+    )
+  use _ <- result.try(result)
+
+  let transport_ffi_path =
+    config.rally_package_path <> "/src/rally_runtime/transport_ffi.mjs"
+  use transport_ffi_content <- result.try(
+    simplifile.read(transport_ffi_path)
+    |> result.map_error(fn(e) {
+      RallyError(
+        "Cannot read transport_ffi.mjs from rally package at "
+        <> transport_ffi_path
+        <> ": "
+        <> simplifile.describe_error(e),
+      )
+    }),
+  )
+
   let atoms_erl =
     libero.generate_atoms(
       ns_endpoints,
@@ -507,6 +587,88 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       config.atoms_module,
       option.Some(config.wire_module),
     )
+
+  // For JSON protocol, register the json_codecs and protocol_wire modules
+  // so the encode_push_frame FFI can locate them at runtime. Also generate
+  // a json_encode_push_value/2 dispatch function (in Erlang to avoid Gleam
+  // type issues with generic push payloads).
+  let atoms_erl = case config.protocol {
+    "json" -> {
+      let json_codec_mod =
+        string.replace(config.atoms_module, "@rpc_atoms", "@json_codecs")
+      let protocol_wire_mod =
+        string.replace(config.atoms_module, "@rpc_atoms", "@protocol_wire")
+
+      let push_arms = case json_push_dispatches {
+        [] -> "    _Page -> error({no_json_push_encoder, Page})\n"
+        _ ->
+          list.map(json_push_dispatches, fn(d) {
+            let #(page_tag, type_atom) = d
+            "    <<\""
+            <> page_tag
+            <> "\">> -> '"
+            <> json_codec_mod
+            <> "':'json_encode_"
+            <> type_atom
+            <> "'(Msg);\n"
+          })
+          |> string.join("")
+          |> fn(arms) {
+            arms <> "    Page -> error({no_json_push_encoder, Page})\n"
+          }
+      }
+
+      // Add encode_push_frame/2 + json_encode_push_value/2 to the export list.
+      let atoms_erl =
+        string.replace(
+          atoms_erl,
+          "-export([ensure/0]).",
+          "-export([ensure/0, encode_push_frame/2, json_encode_push_value/2]).",
+        )
+
+      // Insert persistent_term registrations inside do_ensure(),
+      // right before the {?MODULE, done} marker.
+      // {libero, push_frame_module} is the single facade the FFI calls.
+      // {libero, json_wire_module} is used internally by encode_push_frame/2.
+      let atoms_erl = case
+        string.split_once(
+          atoms_erl,
+          "persistent_term:put({?MODULE, done}, true),",
+        )
+      {
+        Ok(#(before, after)) ->
+          before
+          <> "    persistent_term:put({libero, push_frame_module}, '"
+          <> config.atoms_module
+          <> "'),\n"
+          <> "    persistent_term:put({libero, json_wire_module}, '"
+          <> protocol_wire_mod
+          <> "'),\n"
+          <> "    persistent_term:put({?MODULE, done}, true),"
+          <> after
+        Error(Nil) -> atoms_erl
+      }
+
+      // Append push dispatch functions at module level (after do_ensure).
+      // json_encode_push_value/2 routes page tag -> typed encoder.
+      // encode_push_frame/2 is the single facade: encode + frame.
+      atoms_erl
+      <> "\n\n"
+      <> "%% Push dispatch: route page tag to the correct typed encoder.\n"
+      <> "json_encode_push_value(Page, Msg) ->\n"
+      <> "    case Page of\n"
+      <> push_arms
+      <> "    end.\n"
+      <> "\n"
+      <> "%% Single push-frame facade called by rally_runtime_ffi.\n"
+      <> "encode_push_frame(Page, Msg) ->\n"
+      <> "    JsonValue = json_encode_push_value(Page, Msg),\n"
+      <> "    JsonWireMod = persistent_term:get({libero, json_wire_module}),\n"
+      <> "    JsonWireMod:encode_push(Page, JsonValue).\n"
+    }
+    _ -> atoms_erl
+  }
+
   use _ <- result.try(
     write_file(config.output_server_atoms, atoms_erl)
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
@@ -543,11 +705,56 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     option.None -> Ok(option.None)
   })
   let raw_codec_files =
-    codec.generate(contracts, discovered, ns_endpoints, server_symbols)
+    codec.generate(
+      contracts,
+      discovered,
+      ns_endpoints,
+      server_symbols,
+      config.protocol,
+    )
   let codec_files =
     list.map(raw_codec_files, fn(f: codec.CodecFile) {
       client.GeneratedFile(config.client_root <> "/" <> f.path, f.content)
     })
+
+  // Add JSON typed codecs when protocol is json
+  use json_codec_files <- result.try(case config.protocol {
+    "json" -> {
+      let files = codec.generate_json_codecs(discovered, ns_endpoints)
+      case files {
+        [] ->
+          Error(RallyError(
+            "JSON codec generation failed - no codec files produced",
+          ))
+        _ -> Ok(files)
+      }
+    }
+    _ -> Ok([])
+  })
+  // JSON codec files (json_codecs.gleam, json_decode_dispatch.gleam)
+  // are server-only. The client uses inline encoding in types.gleam
+  // and the JS facade (typedJsonToGleamValue) for decode.
+  // type_registry.mjs is extracted below and written to the client package.
+
+  // Write server-side JSON codecs alongside SSR handler when protocol is JSON
+  use _ <- result.try(case config.protocol {
+    "json" -> {
+      case json_codec_files {
+        [] -> Ok(Nil)
+        [first, ..] -> {
+          let server_path =
+            string.replace(
+              config.output_ssr,
+              "ssr_handler.gleam",
+              "json_codecs.gleam",
+            )
+          write_file(server_path, first.content)
+          |> result.map_error(fn(msg) { RallyError("write error: " <> msg) })
+        }
+      }
+    }
+    _ -> Ok(Nil)
+  })
 
   let client_files =
     client.generate_package_with_client_context_contract(
@@ -558,6 +765,25 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       transport_ffi_content,
       client_context_contract,
       client_context_module,
+      config.protocol,
+    )
+    |> list.append([
+      client.GeneratedFile(
+        config.client_root <> "/src/generated/protocol_wire.mjs",
+        generator.generate_protocol_wire_js(config.protocol, contract_hash),
+      ),
+    ])
+    |> list.append(
+      list.filter_map(json_codec_files, fn(f: codec.CodecFile) {
+        case f.path == "src/generated/type_registry.mjs" {
+          True ->
+            Ok(client.GeneratedFile(
+              config.client_root <> "/src/generated/type_registry.mjs",
+              f.content,
+            ))
+          False -> Error(Nil)
+        }
+      }),
     )
   let client_context_files = case has_client_context {
     True -> {
@@ -675,6 +901,8 @@ fn do_write_files(
   rpc_dispatch_module rpc_dispatch_module: String,
   auth_config auth_config: option.Option(types.AuthConfig),
   from_session_module from_session_module: String,
+  protocol_wire_module protocol_wire_module: String,
+  contract_hash contract_hash: String,
 ) -> Result(Nil, RallyError) {
   let namespace_prefix =
     config.pages_root
@@ -686,12 +914,14 @@ fn do_write_files(
     })
   let ws_source =
     ws_handler.generate(
-      page_contracts: contracts,
-      atoms_module: config.atoms_module,
-      rpc_dispatch_module:,
-      auth_config:,
+      contracts,
+      config.atoms_module,
+      rpc_dispatch_module,
+      auth_config,
       from_session_module:,
       endpoints: ns_endpoints,
+      wire_import_module: protocol_wire_module,
+      protocol: config.protocol,
     )
   use _ <- result.try(
     write_file(config.output_route, route_source)
@@ -718,16 +948,32 @@ fn do_write_files(
     _ -> {
       let http_source =
         http_handler.generate(
-          endpoints: ns_endpoints,
-          rpc_dispatch_module:,
-          auth_config:,
-          contracts:,
+          ns_endpoints,
+          rpc_dispatch_module,
+          auth_config,
+          contracts,
           from_session_module:,
+          wire_import_module: protocol_wire_module,
         )
       write_file(config.output_http, http_source)
       |> result.map_error(fn(msg) { RallyError("write error: " <> msg) })
     }
   })
+
+  // Write protocol_wire facade (Gleam)
+  let protocol_wire_output =
+    string.replace(config.output_ws, "ws_handler.gleam", "protocol_wire.gleam")
+  let protocol_wire_source =
+    generator.generate_protocol_wire(
+      config.protocol,
+      config.atoms_module,
+      contract_hash,
+    )
+  use _ <- result.try(
+    write_file(protocol_wire_output, protocol_wire_source)
+    |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
+  )
+
   Ok(Nil)
 }
 

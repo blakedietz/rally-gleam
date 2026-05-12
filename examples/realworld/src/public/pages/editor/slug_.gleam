@@ -304,43 +304,40 @@ pub fn server_update(
 ) -> #(ServerModel, Effect(ToClient)) {
   let UpdateArticle(title, description, body, tags) = msg
   case model {
-        ServerModelEmpty -> #(
-          ServerModelEmpty,
-          rally_effect.send_to_client(EditorErrors(["No article loaded"])),
-        )
-        ServerModel(article_id, _author_id) -> {
-          let errors = validate_article(title, body)
-          case errors {
-            [] -> {
-              let now = datetime.now_unix()
-              let new_slug =
-                slug.unique_from_title_excluding(
-                  server_context.db,
-                  title,
-                  article_id,
-                )
-              let assert Ok(_) =
-                articles_sql.update(
-                  db: server_context.db,
-                  slug: new_slug,
-                  title:,
-                  description:,
-                  body:,
-                  now:,
-                  article_id:,
-                )
-              let assert Ok(_) =
-                tags_sql.unlink_from_article(db: server_context.db, article_id:)
-              save_tags(server_context.db, article_id, tags)
-              #(
-                model,
-                rally_effect.send_to_client(ArticleUpdated(slug: new_slug)),
-              )
-            }
-            _ -> #(model, rally_effect.send_to_client(EditorErrors(errors)))
-          }
+    ServerModelEmpty -> #(
+      ServerModelEmpty,
+      rally_effect.send_to_client(EditorErrors(["No article loaded"])),
+    )
+    ServerModel(article_id, _author_id) -> {
+      let errors = validate_article(title, body)
+      case errors {
+        [] -> {
+          let now = datetime.now_unix()
+          let new_slug =
+            slug.unique_from_title_excluding(
+              server_context.db,
+              title,
+              article_id,
+            )
+          let assert Ok(_) =
+            articles_sql.update(
+              db: server_context.db,
+              slug: new_slug,
+              title:,
+              description:,
+              body:,
+              now:,
+              article_id:,
+            )
+          let assert Ok(_) =
+            tags_sql.unlink_from_article(db: server_context.db, article_id:)
+          save_tags(server_context.db, article_id, tags)
+          #(model, rally_effect.send_to_client(ArticleUpdated(slug: new_slug)))
         }
+        _ -> #(model, rally_effect.send_to_client(EditorErrors(errors)))
+      }
     }
+  }
 }
 
 fn validate_article(title: String, body: String) -> List(String) {

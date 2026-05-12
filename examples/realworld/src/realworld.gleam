@@ -25,10 +25,9 @@ const client_build_root = ".generated_clients/public/build/dev/javascript"
 fn session_id(req: Request(Connection)) -> String {
   request.get_header(req, "cookie")
   |> result.map(fn(cookie) {
-    result.lazy_unwrap(
-      session.extract_session_id(cookie),
-      or: fn() { session.generate_id() },
-    )
+    result.lazy_unwrap(session.extract_session_id(cookie), or: fn() {
+      session.generate_id()
+    })
   })
   |> result.lazy_unwrap(or: fn() { session.generate_id() })
 }
@@ -46,7 +45,13 @@ pub fn main() -> Nil {
         mist.websocket(
           req,
           ws_handler.handler,
-          fn(conn) { ws_handler.on_init(conn: conn, server_context: server_context, session_id: session_id) },
+          fn(conn) {
+            ws_handler.on_init(
+              conn: conn,
+              server_context: server_context,
+              session_id: session_id,
+            )
+          },
           ws_handler.on_close,
         )
       }
@@ -56,7 +61,12 @@ pub fn main() -> Nil {
             let session_id = session_id(req)
             case mist.read_body(req, max_body_limit: 16_000_000) {
               Ok(Request(body: body, ..)) -> {
-                let resp = http_handler.handle(body: body, server_context: server_context, session_id: session_id)
+                let resp =
+                  http_handler.handle(
+                    body: body,
+                    server_context: server_context,
+                    session_id: session_id,
+                  )
                 case request.get_header(req, "cookie") {
                   Ok(cookie) ->
                     case session.extract_session_id(cookie) {
@@ -65,14 +75,20 @@ pub fn main() -> Nil {
                         response.set_header(
                           resp,
                           "set-cookie",
-                          session.set_cookie_header(session_id:, secure: env.secure_cookies()),
+                          session.set_cookie_header(
+                            session_id:,
+                            secure: env.secure_cookies(),
+                          ),
                         )
                     }
                   Error(_error) ->
                     response.set_header(
                       resp,
                       "set-cookie",
-                      session.set_cookie_header(session_id:, secure: env.secure_cookies()),
+                      session.set_cookie_header(
+                        session_id:,
+                        secure: env.secure_cookies(),
+                      ),
                     )
                 }
               }

@@ -15,8 +15,8 @@ pub type DecodeError {
 @external(javascript, "./transport_ffi.mjs", "ensureSocket")
 pub fn init(url: String) -> Nil
 
-/// Send a message to the server. msg is encoded as ETF and wrapped
-/// in the call envelope {page, request_id, msg}.
+/// Send a message to the server. The protocol_wire facade encodes
+/// the message according to the configured protocol (ETF binary or JSON).
 @external(javascript, "./transport_ffi.mjs", "send")
 fn send_raw(
   url: String,
@@ -86,6 +86,6 @@ pub fn read_client_context() -> String
 /// Type-level identity cast. The JS runtime representation is unchanged;
 /// this lets generated code bridge between Dynamic/generic and concrete types
 /// where the value is already the correct shape (decoded ETF, SSR flags).
-@external(javascript, "../../libero/libero/rpc_ffi.mjs", "identity")
+@external(javascript, "./protocol_wire.mjs", "identity")
 pub fn coerce(value: a) -> b
 

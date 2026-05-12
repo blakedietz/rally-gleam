@@ -15,11 +15,7 @@ import simplifile
 import tom
 
 pub fn empty_rpc_dispatch_handles_bad_variant_tags_test() {
-  let output =
-    generator.generate_empty_rpc_dispatch(
-      atoms_module: "generated@rpc_atoms",
-      extra_params: [],
-    )
+  let output = generator.generate_empty_rpc_dispatch("generated@rpc_atoms", [])
 
   output
   |> string.contains("Error(_) ->")
@@ -32,16 +28,13 @@ pub fn empty_rpc_dispatch_handles_bad_variant_tags_test() {
 
 pub fn empty_rpc_dispatch_with_identity_extra_param_test() {
   let output =
-    generator.generate_empty_rpc_dispatch(
-      atoms_module: "generated@rpc_atoms",
-      extra_params: [
-        codegen_dispatch.ExtraParam(
-          name: "identity",
-          type_ref: "auth.Identity",
-          import_line: "import admin/auth",
-        ),
-      ],
-    )
+    generator.generate_empty_rpc_dispatch("generated@rpc_atoms", [
+      codegen_dispatch.ExtraParam(
+        name: "identity",
+        type_ref: "auth.Identity",
+        import_line: "import admin/auth",
+      ),
+    ])
 
   // Must import the auth module
   output
@@ -193,21 +186,21 @@ pub fn realworld_routes_http_rpc_test() {
   |> should.equal(True)
 
   source
-  |> string.contains(
-    "http_handler.handle(body: body, server_context: server_context, session_id: session_id)",
-  )
+  |> string.contains("http_handler.handle")
   |> should.equal(True)
 }
 
 pub fn ws_handler_logs_decoded_rpc_value_test() {
   let output =
     ws_handler.generate(
-      page_contracts: [],
-      atoms_module: "generated@rpc_atoms",
-      rpc_dispatch_module: "generated/rpc_dispatch",
-      auth_config: option.None,
+      [],
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      option.None,
       from_session_module: "client_context_server",
       endpoints: [],
+      wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
     )
 
   output
@@ -320,6 +313,8 @@ pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
       option.None,
       option.None,
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   output
@@ -379,6 +374,8 @@ pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
       option.None,
       option.None,
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   output
@@ -426,6 +423,8 @@ pub fn ssr_app_marker_preserves_tag_order_test() {
       option.None,
       option.None,
       option.None,
+      wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
     )
 
   output
@@ -455,5 +454,6 @@ fn test_scan_config() -> ScanConfig {
     rally_package_path: "",
     shell_file: "",
     server_deps: dict.new(),
+    protocol: "etf",
   )
 }

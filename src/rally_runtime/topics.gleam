@@ -23,11 +23,11 @@ pub fn members(_topic: String) -> List(a) {
 }
 
 @external(erlang, "rally_runtime_topics_ffi", "broadcast")
-pub fn broadcast(_topic: String, _frame: BitArray) -> Nil {
+pub fn broadcast(_topic: String, _frame: a) -> Nil {
   Nil
 }
 
 @external(erlang, "rally_runtime_topics_ffi", "receive_frame")
-pub fn receive_frame(_timeout_ms: Int) -> Result(BitArray, Nil) {
+pub fn receive_frame(_timeout_ms: Int) -> Result(a, Nil) {
   Error(Nil)
 }

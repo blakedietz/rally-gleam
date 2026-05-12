@@ -1,9 +1,10 @@
+import gleam/dict
 import gleam/option.{None}
 import gleam/string
 import rally/generator
 import rally/types.{
   type PageContract, type ScannedRoute, DynamicSegment, IntParam, PageContract,
-  ScannedRoute, StaticSegment, StringParam,
+  ScanConfig, ScannedRoute, StaticSegment, StringParam,
 }
 
 fn sample_routes() -> List(ScannedRoute) {
@@ -232,4 +233,75 @@ fn page_contract(has_model: Bool) -> PageContract {
     page_auth_required: False,
     has_authorize: False,
   )
+}
+
+pub fn scan_config_protocol_defaults_to_etf_test() {
+  let config =
+    ScanConfig(
+      pages_root: "src/pages",
+      output_route: "",
+      output_dispatch: "",
+      output_server_dispatch: "",
+      output_server_atoms: "",
+      atoms_module: "",
+      output_server_wire: "",
+      wire_module: "",
+      output_ssr: "",
+      output_ws: "",
+      output_http: "",
+      client_root: "",
+      route_root: "/",
+      rally_package_path: "",
+      shell_file: "",
+      server_deps: dict.new(),
+      protocol: "etf",
+    )
+  let ScanConfig(protocol:, ..) = config
+  let assert "etf" = protocol
+}
+
+pub fn generate_json_protocol_wire_js_facade_test() {
+  let output = generator.generate_protocol_wire_js("json", "test_hash_abc123")
+  let assert True = string.contains(output, "test_hash_abc123")
+  let assert True = string.contains(output, "encode_request")
+  let assert True =
+    string.contains(
+      output,
+      "{ kind: \"response\", requestId: frame.request_id, value: typedJsonToGleamValue(frame.value) }",
+    )
+  let assert True =
+    string.contains(
+      output,
+      "{ kind: \"push\", module: frame.module, value: typedJsonToGleamValue(frame.value) }",
+    )
+  let assert True =
+    string.contains(
+      output,
+      "{ kind: \"error\", requestId: rid instanceof Some ? rid[0] : null, errors: frame.errors }",
+    )
+}
+
+pub fn scan_config_protocol_can_be_json_test() {
+  let config =
+    ScanConfig(
+      pages_root: "src/pages",
+      output_route: "",
+      output_dispatch: "",
+      output_server_dispatch: "",
+      output_server_atoms: "",
+      atoms_module: "",
+      output_server_wire: "",
+      wire_module: "",
+      output_ssr: "",
+      output_ws: "",
+      output_http: "",
+      client_root: "",
+      route_root: "/",
+      rally_package_path: "",
+      shell_file: "",
+      server_deps: dict.new(),
+      protocol: "json",
+    )
+  let ScanConfig(protocol:, ..) = config
+  let assert "json" = protocol
 }
