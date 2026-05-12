@@ -207,8 +207,9 @@ pub fn http_auth_dispatch_gets_identity_test() {
   let assert True =
     string.contains(
       output,
-      "rpc_dispatch.handle(server_context:, data: body, identity:)",
+      "wire.dispatch_rpc(envelope, server_context, identity)",
     )
+  let assert False = string.contains(output, "rpc_dispatch.handle(")
 }
 
 pub fn http_auth_hostname_in_signature_test() {
@@ -266,7 +267,20 @@ pub fn http_no_auth_unchanged_test() {
   let assert False = string.contains(output, "identity")
   let assert False = string.contains(output, "hostname")
   let assert True =
-    string.contains(output, "rpc_dispatch.handle(server_context:, data: body)")
+    string.contains(output, "import generated/admin/protocol_wire as wire")
+  let assert True = string.contains(output, "wire.decode_rpc_envelope(body)")
+  let assert True =
+    string.contains(output, "wire.dispatch_rpc(envelope, server_context)")
+  let assert True =
+    string.contains(
+      output,
+      "response.set_header(\"content-type\", wire.rpc_content_type())",
+    )
+  let assert True =
+    string.contains(output, "mist.Bytes(wire.rpc_result_body(result))")
+  let assert False =
+    string.contains(output, "import generated/admin/rpc_dispatch")
+  let assert False = string.contains(output, "rpc_dispatch.handle(")
 }
 
 // -- Wire tag derivation test --
@@ -433,7 +447,8 @@ pub fn http_auth_optional_page_dispatches_test() {
   let assert False = string.contains(output, "auth.is_authenticated(identity)")
   // But should still resolve and dispatch
   let assert True = string.contains(output, "auth.resolve(")
-  let assert True = string.contains(output, "rpc_dispatch.handle(")
+  let assert True = string.contains(output, "wire.dispatch_rpc(")
+  let assert False = string.contains(output, "rpc_dispatch.handle(")
 }
 
 pub fn http_auth_optional_page_with_authorize_returns_403_test() {
@@ -602,12 +617,12 @@ pub fn http_auth_malformed_body_returns_400_test() {
       protocol: "etf",
     )
 
-  // decode_call failure should return 400
-  let assert True = string.contains(output, "wire.decode_call(body)")
-  let assert True = string.contains(output, "Error(_)")
+  // decode_rpc_envelope failure should return 400
+  let assert True = string.contains(output, "wire.decode_rpc_envelope(body)")
+  let assert True = string.contains(output, "Error(Nil)")
 }
 
-pub fn http_auth_decode_request_converts_body_to_string_test() {
+pub fn http_auth_uses_rpc_identity_from_protocol_wire_test() {
   let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
   let contracts = [
     #(
@@ -630,10 +645,54 @@ pub fn http_auth_decode_request_converts_body_to_string_test() {
       protocol: "etf",
     )
 
-  let assert True = string.contains(output, "case bit_array.to_string(body)")
-  let assert True = string.contains(output, "wire.decode_request(text_body)")
-  let assert False =
-    string.contains(output, "wire.decode_request(bit_array.to_string(body))")
+  let assert True =
+    string.contains(output, "handler_page_info(wire.rpc_identity(envelope))")
+  let assert False = string.contains(output, "wire.decode_call")
+  let assert False = string.contains(output, "wire.variant_tag")
+  let assert False = string.contains(output, "wire.decode_request")
+}
+
+pub fn http_auth_json_dispatches_through_protocol_wire_test() {
+  let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
+  let contracts = [
+    #(
+      make_route("admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      endpoints,
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
+      protocol: "json",
+    )
+
+  let assert True = string.contains(output, "wire.decode_rpc_envelope(body)")
+  let assert True =
+    string.contains(output, "handler_page_info(wire.rpc_identity(envelope))")
+  let assert True =
+    string.contains(
+      output,
+      "wire.dispatch_rpc(envelope, server_context, identity)",
+    )
+  let assert True =
+    string.contains(
+      output,
+      "response.set_header(\"content-type\", wire.rpc_content_type())",
+    )
+  let assert True =
+    string.contains(output, "mist.Bytes(wire.rpc_result_body(result))")
+  let assert False = string.contains(output, "Not implemented")
+  let assert False = string.contains(output, "rpc_dispatch.handle(")
+  let assert False = string.contains(output, "wire.decode_request")
 }
 
 // Missing-contract case is not tested here because it panics at codegen
@@ -764,11 +823,9 @@ pub fn http_handler_with_auth_and_authorize_snapshot_test() {
 
 pub fn http_auth_wire_hash_regression_test() {
   let #(_, hash) =
-    wire_identity.wire_identity(
-      "admin/pages/settings",
-      "ServerSetDarkMode",
-      [field_type.BoolField],
-    )
+    wire_identity.wire_identity("admin/pages/settings", "ServerSetDarkMode", [
+      field_type.BoolField,
+    ])
   let assert "0418533ae1" = hash
 }
 
@@ -781,10 +838,7 @@ pub fn http_auth_distinct_hashes_for_same_name_different_modules_test() {
       return_err: field_type.NilField,
       params: [#("enabled", field_type.BoolField)],
       mutates_context: False,
-      msg_type: Some(#(
-        "admin/pages/dashboard",
-        "ServerSetDarkMode",
-      )),
+      msg_type: Some(#("admin/pages/dashboard", "ServerSetDarkMode")),
     )
   let ep_b =
     scanner.HandlerEndpoint(
@@ -794,10 +848,7 @@ pub fn http_auth_distinct_hashes_for_same_name_different_modules_test() {
       return_err: field_type.NilField,
       params: [#("enabled", field_type.BoolField)],
       mutates_context: False,
-      msg_type: Some(#(
-        "admin/pages/settings",
-        "ServerSetDarkMode",
-      )),
+      msg_type: Some(#("admin/pages/settings", "ServerSetDarkMode")),
     )
   let contracts = [
     #(
@@ -828,17 +879,13 @@ pub fn http_auth_distinct_hashes_for_same_name_different_modules_test() {
       protocol: "etf",
     )
   let #(_, hash_a) =
-    wire_identity.wire_identity(
-      "admin/pages/dashboard",
-      "ServerSetDarkMode",
-      [field_type.BoolField],
-    )
+    wire_identity.wire_identity("admin/pages/dashboard", "ServerSetDarkMode", [
+      field_type.BoolField,
+    ])
   let #(_, hash_b) =
-    wire_identity.wire_identity(
-      "admin/pages/settings",
-      "ServerSetDarkMode",
-      [field_type.BoolField],
-    )
+    wire_identity.wire_identity("admin/pages/settings", "ServerSetDarkMode", [
+      field_type.BoolField,
+    ])
   let assert True = hash_a != hash_b
   let assert True = string.contains(output, "\"" <> hash_a <> "\"")
   let assert True = string.contains(output, "\"" <> hash_b <> "\"")
