@@ -4,14 +4,13 @@
 //// and function presence (server_update, server_init, load, etc.).
 
 import glance
-import gleam/dict.{type Dict}
 import gleam/int
 import gleam/io
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
-import libero/field_type.{type FieldType}
+import libero/glance_type_resolver.{RejectUnsupported}
 import rally/types.{
   type ClientContextContract, type PageContract, type VariantInfo,
   ClientContextContract, PageContract, VariantField, VariantInfo,
@@ -31,24 +30,20 @@ pub fn parse_page(
     }),
   )
 
-  let type_imports = build_type_import_map(ast.imports)
-  let alias_map = build_alias_resolution_map(ast.imports)
-  let type_alias_originals = build_type_alias_originals(ast.imports)
+  use resolver <- result.try(
+    glance_type_resolver.resolver_from_imports(ast.imports),
+  )
 
   use model_variants <- result.try(extract_variants(
     ast: ast,
     type_name: "Model",
-    type_imports: type_imports,
-    alias_map: alias_map,
-    type_alias_originals: type_alias_originals,
+    resolver: resolver,
     module_path: module_path,
   ))
   use msg_variants <- result.try(extract_variants(
     ast: ast,
     type_name: "Msg",
-    type_imports: type_imports,
-    alias_map: alias_map,
-    type_alias_originals: type_alias_originals,
+    resolver: resolver,
     module_path: module_path,
   ))
 
@@ -116,24 +111,20 @@ pub fn parse_client_context(
     }),
   )
 
-  let type_imports = build_type_import_map(ast.imports)
-  let alias_map = build_alias_resolution_map(ast.imports)
-  let type_alias_originals = build_type_alias_originals(ast.imports)
+  use resolver <- result.try(
+    glance_type_resolver.resolver_from_imports(ast.imports),
+  )
 
   use context_variants <- result.try(extract_variants(
     ast: ast,
     type_name: "ClientContext",
-    type_imports: type_imports,
-    alias_map: alias_map,
-    type_alias_originals: type_alias_originals,
+    resolver: resolver,
     module_path: "client_context",
   ))
   use msg_variants <- result.try(extract_variants(
     ast: ast,
     type_name: "ClientContextMsg",
-    type_imports: type_imports,
-    alias_map: alias_map,
-    type_alias_originals: type_alias_originals,
+    resolver: resolver,
     module_path: "client_context",
   ))
 
@@ -155,9 +146,7 @@ pub fn parse_client_context(
 fn extract_variants(
   ast ast: glance.Module,
   type_name type_name: String,
-  type_imports type_imports: Dict(String, String),
-  alias_map alias_map: Dict(String, String),
-  type_alias_originals type_alias_originals: Dict(String, String),
+  resolver resolver: glance_type_resolver.TypeResolver,
   module_path module_path: String,
 ) -> Result(List(VariantInfo), String) {
   case list.find(ast.custom_types, fn(d) { d.definition.name == type_name }) {
@@ -171,15 +160,14 @@ fn extract_variants(
               glance.LabelledVariantField(item:, label:) -> #(label, item)
               glance.UnlabelledVariantField(item:) -> #("value", item)
             }
-            use field_type <- result.try(glance_type_to_field_type(
-              type_:,
-              type_imports:,
-              alias_map:,
-              type_alias_originals:,
-              module_path:,
-              path: module_path <> "." <> type_name <> "." <> label,
+            let path = module_path <> "." <> type_name <> "." <> label
+            use ft <- result.try(glance_type_resolver.type_to_field_type(
+              type_: type_,
+              resolver:,
+              current_module: module_path,
+              policy: RejectUnsupported(path),
             ))
-            Ok(VariantField(label:, type_: field_type))
+            Ok(VariantField(label:, type_: ft))
           }),
         )
         Ok(VariantInfo(name: variant.name, fields:))
@@ -188,171 +176,6 @@ fn extract_variants(
   }
 }
 
-/// Convert a glance.Type to a FieldType, resolving named types via import maps.
-fn glance_type_to_field_type(
-  type_ t: glance.Type,
-  type_imports type_imports: Dict(String, String),
-  alias_map alias_map: Dict(String, String),
-  type_alias_originals type_alias_originals: Dict(String, String),
-  module_path module_path: String,
-  path path: String,
-) -> Result(FieldType, String) {
-  let recurse = fn(t) {
-    glance_type_to_field_type(
-      type_: t,
-      type_imports:,
-      alias_map:,
-      type_alias_originals:,
-      module_path:,
-      path:,
-    )
-  }
-  case t {
-    glance.NamedType(name:, module: None, parameters: [], ..) ->
-      resolve_named_type(
-        name:,
-        params: [],
-        type_imports:,
-        alias_map:,
-        type_alias_originals:,
-        module_path:,
-        path:,
-      )
-    glance.NamedType(name:, module: None, parameters: params, ..) ->
-      resolve_named_type(
-        name:,
-        params:,
-        type_imports:,
-        alias_map:,
-        type_alias_originals:,
-        module_path:,
-        path:,
-      )
-    glance.NamedType(name:, module: Some(m), parameters: params, ..) -> {
-      let resolved_module = dict.get(alias_map, m) |> result.unwrap(or: m)
-      let original_name =
-        dict.get(type_alias_originals, name) |> result.unwrap(or: name)
-      use args <- result.try(list.try_map(params, recurse))
-      Ok(field_type.UserType(
-        module_path: resolved_module,
-        type_name: original_name,
-        args:,
-      ))
-    }
-    glance.TupleType(elements:, ..) -> {
-      use elements <- result.try(list.try_map(elements, recurse))
-      Ok(field_type.TupleOf(elements:))
-    }
-    glance.VariableType(name:, ..) -> Ok(field_type.TypeVar(name:))
-    glance.FunctionType(..) -> Error("Unsupported function type in " <> path)
-    glance.HoleType(..) -> Error("Unsupported hole type in " <> path)
-  }
-}
-
-/// Resolve an unqualified named type. Builtins return their FieldType directly.
-/// Other names look up the module path from imports.
-fn resolve_named_type(
-  name name: String,
-  params params: List(glance.Type),
-  type_imports type_imports: Dict(String, String),
-  alias_map alias_map: Dict(String, String),
-  type_alias_originals type_alias_originals: Dict(String, String),
-  module_path module_path: String,
-  path path: String,
-) -> Result(FieldType, String) {
-  let recurse = fn(t) {
-    glance_type_to_field_type(
-      type_: t,
-      type_imports:,
-      alias_map:,
-      type_alias_originals:,
-      module_path:,
-      path:,
-    )
-  }
-  case name, params {
-    "Int", [] -> Ok(field_type.IntField)
-    "Float", [] -> Ok(field_type.FloatField)
-    "String", [] -> Ok(field_type.StringField)
-    "Bool", [] -> Ok(field_type.BoolField)
-    "BitArray", [] -> Ok(field_type.BitArrayField)
-    "Nil", [] -> Ok(field_type.NilField)
-    "List", [elem] -> {
-      use elem <- result.try(recurse(elem))
-      Ok(field_type.ListOf(element: elem))
-    }
-    "Option", [inner] -> {
-      use inner <- result.try(recurse(inner))
-      Ok(field_type.OptionOf(inner:))
-    }
-    "Result", [ok, err] -> {
-      use ok <- result.try(recurse(ok))
-      use err <- result.try(recurse(err))
-      Ok(field_type.ResultOf(ok:, err:))
-    }
-    "Dict", [key, value] -> {
-      use key <- result.try(recurse(key))
-      use value <- result.try(recurse(value))
-      Ok(field_type.DictOf(key:, value:))
-    }
-    _, _ -> {
-      let resolved_module =
-        dict.get(type_imports, name) |> result.unwrap(or: module_path)
-      let type_name =
-        dict.get(type_alias_originals, name) |> result.unwrap(or: name)
-      use args <- result.try(list.try_map(params, recurse))
-      Ok(field_type.UserType(module_path: resolved_module, type_name:, args:))
-    }
-  }
-}
-
-// ---------- Import maps (from libero scanner) ----------
-
-/// Build a map from unqualified type names to their full module paths.
-fn build_type_import_map(
-  imports: List(glance.Definition(glance.Import)),
-) -> Dict(String, String) {
-  list.fold(imports, dict.new(), fn(acc, def) {
-    let glance.Definition(_, imp) = def
-    list.fold(imp.unqualified_types, acc, fn(inner_acc, uq) {
-      let key = case uq.alias {
-        Some(alias) -> alias
-        None -> uq.name
-      }
-      dict.insert(inner_acc, key, imp.module)
-    })
-  })
-}
-
-/// Build a map from module aliases to full paths.
-fn build_alias_resolution_map(
-  imports: List(glance.Definition(glance.Import)),
-) -> Dict(String, String) {
-  list.fold(imports, dict.new(), fn(acc, def) {
-    let glance.Definition(_, imp) = def
-    let last_seg = field_type.last_segment(imp.module)
-    let alias = case imp.alias {
-      Some(glance.Named(name)) -> name
-      _ -> last_seg
-    }
-    dict.insert(acc, alias, imp.module)
-  })
-}
-
-/// Build a map from aliased type names to original names.
-fn build_type_alias_originals(
-  imports: List(glance.Definition(glance.Import)),
-) -> Dict(String, String) {
-  list.fold(imports, dict.new(), fn(acc, def) {
-    let glance.Definition(_, imp) = def
-    list.fold(imp.unqualified_types, acc, fn(inner_acc, uq) {
-      case uq.alias {
-        Some(alias) -> dict.insert(inner_acc, alias, uq.name)
-        None -> inner_acc
-      }
-    })
-  })
-}
 
 // ---------- Function detection ----------
 
