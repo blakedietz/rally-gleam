@@ -711,3 +711,90 @@ pub fn http_handler_with_auth_and_authorize_snapshot_test() {
     )
   birdie.snap(output, "http_handler_with_auth_and_authorize")
 }
+
+// -- Hardcoded hash regression ------------------------------------------------
+
+pub fn http_auth_wire_hash_regression_test() {
+  let #(_, hash) =
+    wire_identity.wire_identity(
+      "admin/pages/settings",
+      "ServerSetDarkMode",
+      [field_type.BoolField],
+    )
+  let assert "0418533ae1" = hash
+}
+
+pub fn http_auth_distinct_hashes_for_same_name_different_modules_test() {
+  let ep_a =
+    scanner.HandlerEndpoint(
+      module_path: "admin/pages/dashboard",
+      fn_name: "set_dark_mode",
+      return_ok: field_type.NilField,
+      return_err: field_type.NilField,
+      params: [#("enabled", field_type.BoolField)],
+      mutates_context: False,
+      msg_type: Some(#(
+        "admin/pages/dashboard",
+        "ServerSetDarkMode",
+      )),
+    )
+  let ep_b =
+    scanner.HandlerEndpoint(
+      module_path: "admin/pages/settings",
+      fn_name: "set_dark_mode_settings",
+      return_ok: field_type.NilField,
+      return_err: field_type.NilField,
+      params: [#("enabled", field_type.BoolField)],
+      mutates_context: False,
+      msg_type: Some(#(
+        "admin/pages/settings",
+        "ServerSetDarkMode",
+      )),
+    )
+  let contracts = [
+    #(
+      make_route_named("AdminDashboard", "admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+    #(
+      make_route_named("AdminSettings", "admin/pages/settings"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    http_handler.generate(
+      [ep_a, ep_b],
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      contracts,
+      from_session_module: "admin/client_context_server",
+      wire_import_module: "generated/admin/protocol_wire",
+    )
+  let #(_, hash_a) =
+    wire_identity.wire_identity(
+      "admin/pages/dashboard",
+      "ServerSetDarkMode",
+      [field_type.BoolField],
+    )
+  let #(_, hash_b) =
+    wire_identity.wire_identity(
+      "admin/pages/settings",
+      "ServerSetDarkMode",
+      [field_type.BoolField],
+    )
+  let assert True = hash_a != hash_b
+  let assert True = string.contains(output, "\"" <> hash_a <> "\"")
+  let assert True = string.contains(output, "\"" <> hash_b <> "\"")
+  let assert True =
+    string.contains(output, "PageAuthInfo(page: \"AdminDashboard\"")
+  let assert True =
+    string.contains(output, "PageAuthInfo(page: \"AdminSettings\"")
+}

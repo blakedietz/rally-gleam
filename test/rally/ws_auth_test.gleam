@@ -896,3 +896,92 @@ pub fn etf_protocol_does_not_generate_send_text_frame_test() {
   let assert False = string.contains(output, "send_text_frame")
   let assert True = string.contains(output, "send_binary_frame")
 }
+
+// -- Hardcoded hash regression ------------------------------------------------
+
+pub fn ws_auth_wire_hash_regression_test() {
+  let #(_, hash) =
+    wire_identity.wire_identity(
+      "admin/pages/settings",
+      "ServerSetDarkMode",
+      [field_type.BoolField],
+    )
+  let assert "0418533ae1" = hash
+}
+
+pub fn ws_auth_distinct_hashes_for_same_name_different_modules_test() {
+  let ep_a =
+    scanner.HandlerEndpoint(
+      module_path: "admin/pages/dashboard",
+      fn_name: "set_dark_mode",
+      return_ok: field_type.NilField,
+      return_err: field_type.NilField,
+      params: [#("enabled", field_type.BoolField)],
+      mutates_context: False,
+      msg_type: Some(#(
+        "admin/pages/dashboard",
+        "ServerSetDarkMode",
+      )),
+    )
+  let ep_b =
+    scanner.HandlerEndpoint(
+      module_path: "admin/pages/settings",
+      fn_name: "set_dark_mode_settings",
+      return_ok: field_type.NilField,
+      return_err: field_type.NilField,
+      params: [#("enabled", field_type.BoolField)],
+      mutates_context: False,
+      msg_type: Some(#(
+        "admin/pages/settings",
+        "ServerSetDarkMode",
+      )),
+    )
+  let contracts = [
+    #(
+      make_route_named("AdminDashboard", "admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+    #(
+      make_route_named("AdminSettings", "admin/pages/settings"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated/admin/atoms",
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: [ep_a, ep_b],
+      wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
+    )
+  let #(_, hash_a) =
+    wire_identity.wire_identity(
+      "admin/pages/dashboard",
+      "ServerSetDarkMode",
+      [field_type.BoolField],
+    )
+  let #(_, hash_b) =
+    wire_identity.wire_identity(
+      "admin/pages/settings",
+      "ServerSetDarkMode",
+      [field_type.BoolField],
+    )
+  let assert True = hash_a != hash_b
+  let assert True = string.contains(output, "\"" <> hash_a <> "\"")
+  let assert True = string.contains(output, "\"" <> hash_b <> "\"")
+  let assert True =
+    string.contains(output, "PageAuthInfo(page: \"AdminDashboard\"")
+  let assert True =
+    string.contains(output, "PageAuthInfo(page: \"AdminSettings\"")
+}
