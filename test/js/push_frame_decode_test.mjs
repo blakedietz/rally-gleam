@@ -1,8 +1,9 @@
-// Runtime probe: verify that the server push encoding produces a
-// JSON frame with full typed identity.
+// Push frame decode probe: verify that a hand-built JSON push frame
+// (matching what the server Erlang facade produces) decodes through
+// decode_server_frame + typedJsonToGleamValue into correct typed instances.
 //
-// Builds the fixture, then runs a Node.js script that loads the
-// generated JS modules and verifies the full push decode path.
+// This tests the JS client decode path, not the server encode path.
+// The server encode path is covered by the Erlang escript probe.
 //
 // Run from the project root with:
 //   node test/js/server_push_encode_test.mjs

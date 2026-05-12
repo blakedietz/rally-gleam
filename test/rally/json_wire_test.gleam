@@ -624,7 +624,7 @@ pub fn json_wire_server_push_encoder_in_atoms_test() {
   |> should.be_true()
 }
 
-pub fn json_wire_server_push_encode_runtime_probe_test() {
+pub fn json_wire_push_frame_decode_runtime_probe_test() {
   // Build the fixture, then run a JS test that verifies the full
   // push frame round-trip: typed JSON encode -> decode -> concrete instance.
   let #(gen_status, _gen_output) =
@@ -644,7 +644,7 @@ pub fn json_wire_server_push_encode_runtime_probe_test() {
     Some(node) -> {
       let #(status, output) =
         run_executable_capturing_ffi(node, [
-          "test/js/server_push_encode_test.mjs",
+          "test/js/push_frame_decode_test.mjs",
         ])
       let msg =
         "JS server push encode probe failed (exit "
@@ -657,6 +657,50 @@ pub fn json_wire_server_push_encode_runtime_probe_test() {
       }
     }
     None -> panic as "node executable not found on PATH"
+  }
+}
+
+pub fn json_wire_server_push_encode_erlang_probe_test() {
+  // Build the fixture so the Erlang atoms module and rally_runtime_ffi
+  // are compiled and available.
+  let #(gen_status, _gen_output) =
+    run_gleam(fixture_root, ["run", "-m", "rally", "--", "gen"])
+  case gen_status {
+    0 -> Nil
+    _ -> panic as "Fixture rally gen failed"
+  }
+  let #(build_status, _build_output) = run_gleam(fixture_root, ["build"])
+  case build_status {
+    0 -> Nil
+    _ -> panic as "Fixture gleam build failed"
+  }
+
+  case find_executable("sh"), find_executable("erl") {
+    Some(sh), Some(erl) -> {
+      // Run inside the fixture build directory so all dependency
+      // ebin dirs are on the code path via wildcard expansion.
+      let command =
+        "cd "
+        <> fixture_root
+        <> " && "
+        <> erl
+        <> " -noshell"
+        <> " -pa build/dev/erlang/*/ebin"
+        <> " -s push_encode_probe main -s init stop"
+
+      let #(status, output) = run_executable_capturing_ffi(sh, ["-c", command])
+
+      let msg =
+        "Erlang push encode probe failed (exit "
+        <> int.to_string(status)
+        <> "):\n"
+        <> output
+      case status {
+        0 -> Nil
+        _ -> panic as msg
+      }
+    }
+    _, _ -> panic as "sh or erl not found on PATH"
   }
 }
 
