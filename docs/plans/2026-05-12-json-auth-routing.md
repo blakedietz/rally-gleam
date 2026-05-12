@@ -70,9 +70,10 @@ pub opaque type RpcResult {
 // Decode an inbound RPC from HTTP body (BitArray)
 pub fn decode_rpc_envelope(data: BitArray) -> Result(RpcEnvelope, Nil)
 
-// Decode an inbound RPC from WS text frame (String) — JSON only.
-// ETF version returns Error(Nil).
-pub fn decode_rpc_envelope_text(data: String) -> Result(RpcEnvelope, Nil)
+// Decode an inbound RPC from a WebSocket message (Binary or Text frame).
+// ETF decodes Binary frames, JSON decodes Text frames, both ignore the other.
+// Handlers call this one function for any frame type.
+pub fn decode_ws_rpc_envelope(msg: WebsocketMessage) -> Result(RpcEnvelope, Nil)
 
 // Dispatch after auth checks pass. Calls the handler, encodes the response.
 pub fn dispatch_rpc(
@@ -98,7 +99,19 @@ pub fn auth_error_result(request_id: Int, message: String) -> RpcResult
 
 // Build a decode/protocol error response
 pub fn error_result(request_id: Int, message: String) -> RpcResult
+
+// Identity string from envelope (for handler_page_info lookup)
+pub fn rpc_identity(envelope: RpcEnvelope) -> String
+
+// Request ID from envelope (for error response framing)
+pub fn rpc_request_id(envelope: RpcEnvelope) -> Int
 ```
+
+The `decode_ws_rpc_envelope` function eliminates the text-vs-binary split
+from the handler. The ETF facade decodes `mist.Binary(data)` and ignores
+`mist.Text(_)`; the JSON facade decodes `mist.Text(data)` and ignores
+`mist.Binary(_)`. The handler calls one function and gets back an envelope
+or `Error(Nil)`.
 
 ### Identity in handler_page_info
 
@@ -113,11 +126,12 @@ through the same generated `handler_page_info` function.
 
 | Current location | Destination | Why |
 |---|---|---|
-| `ws_handler` `json_dispatch` function | `protocol_wire` JSON facade | Protocol dispatch belongs in the protocol layer |
-| `ws_handler` JSON text branch auth bypass | Shared auth flow using `decode_rpc_envelope_text` | Bug fix |
-| `http_handler` "Not implemented" stub | Shared auth flow using `decode_rpc_envelope` | Bug fix |
+| `ws_handler` `json_dispatch` generation | `protocol_wire` JSON facade (via `generator/json_rpc_dispatch.gleam`) | Protocol dispatch belongs in the protocol layer |
+| `ws_handler` JSON dispatch helpers (`json_dispatch_arm`, `json_handler_call`, `json_response_encode`, `json_encoder_for_fieldtype`, `closure_param_for_fieldtype`) | `src/rally/generator/json_rpc_dispatch.gleam` | Shared by ws_handler (no-auth non-facade paths) and generator.gleam (facade generation). Avoids `generator.gleam` depending on `ws_handler.gleam`. |
+| `ws_handler` JSON text branch auth bypass | Shared auth flow using `wire.decode_ws_rpc_envelope` | Bug fix |
+| `http_handler` "Not implemented" stub | Shared auth flow using `wire.decode_rpc_envelope` | Bug fix |
 | `http_handler` ETF-specific `decode_call` + `variant_tag` | `wire.decode_rpc_envelope` | Protocol agnosticism |
-| `ws_handler` ETF-specific `decode_call` + `variant_tag` | `wire.decode_rpc_envelope` | Protocol agnosticism |
+| `ws_handler` ETF-specific `decode_call` + `variant_tag` | `wire.decode_ws_rpc_envelope` | Protocol agnosticism |
 
 ### What stays put
 
@@ -125,9 +139,29 @@ through the same generated `handler_page_info` function.
 - `handler_page_info` stays generated in each handler (HTTP/WS have different
   endpoint sets in multi-namespace setups)
 - `check_page_authorize` stays in each handler
-- Server message logging stays in the handler (can log timing, identity, page
-  around the dispatch call without the facade knowing about the system DB)
 - Push frame handling stays in WS handler
+
+### Logging decision
+
+Server message logging (`system.log_to_server`) currently takes `value:
+Dynamic` (the decoded ETF value) and `raw_payload: BitArray`. Once
+`RpcEnvelope` is opaque, the handler cannot access these directly.
+
+Decision: add facade accessors for logging:
+
+```gleam
+// Return the raw payload for message logging (BitArray for ETF, String-as-BitArray for JSON)
+pub fn rpc_raw_payload(envelope: RpcEnvelope) -> BitArray
+
+// Return the identity string (already exposed via rpc_identity)
+pub fn rpc_identity(envelope: RpcEnvelope) -> String
+```
+
+For `system.log_to_server`, change the `value: Dynamic` parameter: pass the
+identity string instead of the raw decoded value. The identity string is
+what the message inspector needs for variant name display. The raw payload
+is preserved via `rpc_raw_payload` for debugging. Update `system.log_to_server`
+call sites in Task 6.
 
 ## Non-Goals
 
@@ -355,20 +389,24 @@ git commit -m "Make handler_page_info protocol-aware with JSON type strings"
 - Modify: `src/rally/generator.gleam` (etf and json protocol_wire generation)
 - Test: verify via `bin/check-auth-codegen` (generated code compiles)
 
-Add `RpcEnvelope`, `decode_rpc_envelope`, `decode_rpc_envelope_text`,
-`rpc_request_id`, and `rpc_identity` to both facade versions.
+Add `RpcEnvelope`, `decode_rpc_envelope`, `decode_ws_rpc_envelope`,
+`rpc_request_id`, `rpc_identity`, and `rpc_raw_payload` to both facade versions.
 
 - [ ] **Step 1: Add to ETF facade (`etf_protocol_wire_source`)**
 
-Add these to the generated source:
+The ETF facade needs new imports for `mist` (for `WebsocketMessage` type).
+Add these to the generated source string:
 
 ```gleam
+import mist
+
 pub opaque type RpcEnvelope {
   RpcEnvelope(request_id: Int, identity: String, raw: BitArray)
 }
 
 pub fn rpc_request_id(envelope: RpcEnvelope) -> Int { envelope.request_id }
 pub fn rpc_identity(envelope: RpcEnvelope) -> String { envelope.identity }
+pub fn rpc_raw_payload(envelope: RpcEnvelope) -> BitArray { envelope.raw }
 
 pub fn decode_rpc_envelope(data: BitArray) -> Result(RpcEnvelope, Nil) {
   case libero_wire.decode_call(data) {
@@ -381,8 +419,11 @@ pub fn decode_rpc_envelope(data: BitArray) -> Result(RpcEnvelope, Nil) {
   }
 }
 
-pub fn decode_rpc_envelope_text(_data: String) -> Result(RpcEnvelope, Nil) {
-  Error(Nil)
+pub fn decode_ws_rpc_envelope(msg: mist.WebsocketMessage(a)) -> Result(RpcEnvelope, Nil) {
+  case msg {
+    mist.Binary(data) -> decode_rpc_envelope(data)
+    _ -> Error(Nil)
+  }
 }
 ```
 
@@ -391,16 +432,21 @@ Note: `raw: data` stores the original body for dispatch (ETF's
 
 - [ ] **Step 2: Add to JSON facade (`json_protocol_wire_source`)**
 
+The JSON facade needs new imports for `bit_array`, `gleam/dynamic/decode`,
+and `mist`:
+
 ```gleam
 import gleam/bit_array
 import gleam/dynamic/decode as gleam_decode
+import mist
 
 pub opaque type RpcEnvelope {
-  RpcEnvelope(request_id: Int, identity: String, message: Dynamic)
+  RpcEnvelope(request_id: Int, identity: String, message: Dynamic, raw_text: String)
 }
 
 pub fn rpc_request_id(envelope: RpcEnvelope) -> Int { envelope.request_id }
 pub fn rpc_identity(envelope: RpcEnvelope) -> String { envelope.identity }
+pub fn rpc_raw_payload(envelope: RpcEnvelope) -> BitArray { bit_array.from_string(envelope.raw_text) }
 
 pub fn decode_rpc_envelope(data: BitArray) -> Result(RpcEnvelope, Nil) {
   case bit_array.to_string(data) {
@@ -409,7 +455,14 @@ pub fn decode_rpc_envelope(data: BitArray) -> Result(RpcEnvelope, Nil) {
   }
 }
 
-pub fn decode_rpc_envelope_text(data: String) -> Result(RpcEnvelope, Nil) {
+pub fn decode_ws_rpc_envelope(msg: mist.WebsocketMessage(a)) -> Result(RpcEnvelope, Nil) {
+  case msg {
+    mist.Text(data) -> decode_rpc_envelope_text(data)
+    _ -> Error(Nil)
+  }
+}
+
+fn decode_rpc_envelope_text(data: String) -> Result(RpcEnvelope, Nil) {
   case json_wire.decode_request(data, contract_hash) {
     Error(_) -> Error(Nil)
     Ok(envelope) ->
@@ -420,18 +473,29 @@ pub fn decode_rpc_envelope_text(data: String) -> Result(RpcEnvelope, Nil) {
             request_id: envelope.request_id,
             identity: type_str,
             message: envelope.message,
+            raw_text: data,
           ))
       }
   }
 }
 
 fn extract_message_type(message: Dynamic) -> Result(String, Nil) {
-  case gleam_decode.run(message, gleam_decode.field("type", gleam_decode.string, fn(x) { gleam_decode.success(x) })) {
+  case gleam_decode.run(
+    message,
+    gleam_decode.field("type", gleam_decode.string, fn(x) {
+      gleam_decode.success(x)
+    }),
+  ) {
     Ok(type_str) -> Ok(type_str)
     Error(_) -> Error(Nil)
   }
 }
 ```
+
+Note: `raw_text` preserves the original JSON string for logging via
+`rpc_raw_payload`. `decode_rpc_envelope_text` is private; external callers
+use `decode_rpc_envelope` (for HTTP BitArray bodies) or
+`decode_ws_rpc_envelope` (for WS frames).
 
 - [ ] **Step 3: Run auth codegen check**
 
@@ -439,7 +503,8 @@ fn extract_message_type(message: Dynamic) -> Result(String, Nil) {
 cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
 ```
 
-Expected: generated code compiles.
+Expected: generated code compiles. The new functions exist but are not
+called yet; no behavior change.
 
 - [ ] **Step 4: Run tests**
 
@@ -454,62 +519,386 @@ git add src/rally/generator.gleam
 git commit -m "Add protocol-neutral decode_rpc_envelope to protocol_wire facade"
 ```
 
-### Task 4: Add dispatch and response to protocol_wire facade
+**Review checkpoint:** `decode_rpc_envelope` and `decode_ws_rpc_envelope`
+compile in both facade variants. No callers yet; handler rewrites depend
+on dispatch being available first.
+
+### Task 4a: Extract JSON dispatch generator into shared module
+
+**Files:**
+- Create: `src/rally/generator/json_rpc_dispatch.gleam`
+- Modify: `src/rally/generator/ws_handler.gleam` (import from new module)
+- Test: existing tests pass (no behavior change)
+
+The following functions are currently private in `ws_handler.gleam` and are
+pure string-building helpers with no WS-specific logic:
+
+- `json_dispatch_arm` (line 857)
+- `json_handler_call` (line 899)
+- `json_response_encode` (line 932)
+- `json_encoder_for_fieldtype` (line 955)
+- `closure_param_for_fieldtype` (line 948)
+- `to_pascal_case` (line 995)
+- `handler_alias` (line 1007)
+
+Move them to `src/rally/generator/json_rpc_dispatch.gleam` and make them
+`pub`. Then have `ws_handler.gleam` import and call the public versions.
+
+Also add a new public function `generate_json_dispatch_body` that produces
+just the dispatch function body (the arms and catch-all), which both
+ws_handler and generator.gleam will use to generate the full function.
+
+- [ ] **Step 1: Create `src/rally/generator/json_rpc_dispatch.gleam`**
+
+```gleam
+import gleam/list
+import gleam/option.{Some}
+import gleam/string
+import libero/field_type.{
+  type FieldType, BitArrayField, BoolField, DictOf, FloatField, IntField,
+  ListOf, NilField, OptionOf, ResultOf, StringField, TupleOf, TypeVar,
+  UserType,
+}
+import libero/scanner.{type HandlerEndpoint}
+import libero/walker
+
+pub fn to_pascal_case(name: String) -> String {
+  name
+  |> string.split("_")
+  |> list.map(fn(word) {
+    case string.pop_grapheme(word) {
+      Ok(#(first, rest)) -> string.uppercase(first) <> rest
+      Error(Nil) -> word
+    }
+  })
+  |> string.join("")
+}
+
+pub fn handler_alias(module_path: String) -> String {
+  string.replace(module_path, "/", "_") <> "_handler"
+}
+
+pub fn endpoint_json_tag(endpoint: HandlerEndpoint) -> String {
+  case endpoint.msg_type {
+    Some(#(module_path, type_name)) -> module_path <> "." <> type_name
+    _ ->
+      endpoint.module_path
+      <> "."
+      <> to_pascal_case("server_" <> endpoint.fn_name)
+  }
+}
+
+pub fn generate_json_dispatch_function(
+  endpoints: List(HandlerEndpoint),
+  has_auth: Bool,
+) -> String {
+  case endpoints {
+    [] -> ""
+    _ -> {
+      let arms =
+        list.map(endpoints, fn(e) { json_dispatch_arm(e, has_auth) })
+        |> string.join("\n")
+      let catch_all =
+        "      Ok(other) -> {
+        let error_frame = wire.encode_error(Some(request_id), [JsonError(\"type\", \"unknown: \" <> other)])
+        #(error_frame, server_context)
+      }"
+
+      "\nfn json_dispatch(
+  message message: Dynamic,
+  request_id request_id: Int,
+  server_context server_context: ServerContext,"
+      <> case has_auth {
+        True -> "\n  identity identity: auth.Identity,"
+        False -> ""
+      }
+      <> "
+) -> #(String, ServerContext) {
+  case decode.run(message, decode.field(\"type\", decode.string, fn(x) { decode.success(x) })) {
+    Error(_) -> {
+      let error_frame = wire.encode_error(Some(request_id), [JsonError(\"type\", \"missing or not a string\")])
+      #(error_frame, server_context)
+    }\n"
+      <> arms
+      <> "\n"
+      <> catch_all
+      <> "\n  }\n}\n"
+    }
+  }
+}
+
+pub fn json_dispatch_arm(
+  e: HandlerEndpoint,
+  has_auth: Bool,
+) -> String {
+  let alias = handler_alias(e.module_path)
+  let #(type_module, type_name) = case e.msg_type {
+    Some(#(mod, name)) -> #(mod, name)
+    _ -> #(e.module_path, to_pascal_case("server_" <> e.fn_name))
+  }
+  let type_str = type_module <> "." <> type_name
+  let msg_decoder =
+    "json_codecs.json_decode_"
+    <> walker.qualified_atom_name(type_module, type_name)
+  let handler_call = json_handler_call(e, alias, has_auth)
+  let #(ok_destructure, ok_ctx) = case e.mutates_context {
+    True -> #("#(result, new_ctx)", "new_ctx")
+    False -> #("result", "server_context")
+  }
+  let response_encode = json_response_encode(e)
+
+  "    Ok(\"" <> type_str <> "\") -> {
+      case " <> msg_decoder <> "(message) {
+        Error(errors) -> {
+          let error_frame = wire.encode_error(Some(request_id), errors)
+          #(error_frame, server_context)
+        }
+        Ok(msg) -> {
+          case trace.try_call(fn() { " <> handler_call <> " }) {
+            Ok(" <> ok_destructure <> ") -> {
+              " <> response_encode <> "
+              let frame = wire.encode_response(request_id, encoded)
+              #(frame, " <> ok_ctx <> ")
+            }
+            Error(reason) -> {
+              let trace_id = trace.new_trace_id()
+              io.println_error(\"[libero] \" <> trace_id <> \" " <> e.fn_name <> ": \" <> reason)
+              let error_frame = wire.encode_error(Some(request_id), [JsonError(\"handler\", \"Something went wrong\")])
+              #(error_frame, server_context)
+            }
+          }
+        }
+      }
+    }"
+}
+
+pub fn json_handler_call(
+  e: HandlerEndpoint,
+  alias: String,
+  has_auth: Bool,
+) -> String {
+  let extra = case has_auth {
+    True -> ", identity:"
+    False -> ""
+  }
+  case e.msg_type {
+    Some(_) ->
+      alias
+      <> "."
+      <> "server_"
+      <> e.fn_name
+      <> "(msg: msg, server_context: server_context"
+      <> extra
+      <> ")"
+    _ -> {
+      let labeled = list.map(e.params, fn(p) { p.0 <> ": " <> p.0 })
+      let args =
+        list.append(labeled, ["server_context: server_context" <> extra])
+      alias
+      <> "."
+      <> "server_"
+      <> e.fn_name
+      <> "("
+      <> string.join(args, ", ")
+      <> ")"
+    }
+  }
+}
+
+pub fn json_response_encode(e: HandlerEndpoint) -> String {
+  let ok_encoder = json_encoder_for_fieldtype(e.return_ok, "x")
+  let err_encoder = json_encoder_for_fieldtype(e.return_err, "x")
+  let ok_param = closure_param_for_fieldtype(e.return_ok)
+  let err_param = closure_param_for_fieldtype(e.return_err)
+  "let encoded = json_codecs.json_encode_gleam_result__result(result, fn("
+  <> ok_param
+  <> ") { "
+  <> ok_encoder
+  <> " }, fn("
+  <> err_param
+  <> ") { "
+  <> err_encoder
+  <> " })"
+}
+
+pub fn closure_param_for_fieldtype(ft: FieldType) -> String {
+  case ft {
+    NilField -> "_x"
+    _ -> "x"
+  }
+}
+
+pub fn json_encoder_for_fieldtype(ft: FieldType, var: String) -> String {
+  case ft {
+    StringField -> "json.string(" <> var <> ")"
+    IntField -> "json.int(" <> var <> ")"
+    FloatField -> "json.float(" <> var <> ")"
+    BoolField -> "json.bool(" <> var <> ")"
+    NilField -> "json.null()"
+    BitArrayField ->
+      "json.string(bit_array.base64_encode(" <> var <> ", True))"
+    UserType(module_path:, type_name:, ..) ->
+      "json_codecs.json_encode_"
+      <> walker.qualified_atom_name(module_path, type_name)
+      <> "("
+      <> var
+      <> ")"
+    ListOf(inner) ->
+      "json_codecs.json_encode_gleam__list("
+      <> var
+      <> ", fn(x) { "
+      <> json_encoder_for_fieldtype(inner, "x")
+      <> " })"
+    OptionOf(inner) ->
+      "json_codecs.json_encode_gleam_option__option("
+      <> var
+      <> ", fn(x) { "
+      <> json_encoder_for_fieldtype(inner, "x")
+      <> " })"
+    ResultOf(ok, err) ->
+      "json_codecs.json_encode_gleam_result__result("
+      <> var
+      <> ", fn(x) { "
+      <> json_encoder_for_fieldtype(ok, "x")
+      <> " }, fn(x) { "
+      <> json_encoder_for_fieldtype(err, "x")
+      <> " })"
+    DictOf(_, _) ->
+      "json_codecs.json_encode_gleam__dict(" <> var <> ")"
+    TupleOf(_) ->
+      "json_codecs.json_encode_gleam__tuple(" <> var <> ")"
+    TypeVar(_) -> "panic as \"cannot encode type variable\""
+  }
+}
+
+/// Collect unique handler module imports for generated code
+pub fn handler_imports(
+  endpoints: List(HandlerEndpoint),
+) -> List(String) {
+  endpoints
+  |> list.map(fn(e) { e.module_path })
+  |> list.unique()
+  |> list.map(fn(mod) {
+    let alias = handler_alias(mod)
+    case string.split(mod, "/") |> list.last {
+      Ok(seg) if seg == alias -> "import " <> mod
+      _ -> "import " <> mod <> " as " <> alias
+    }
+  })
+}
+```
+
+- [ ] **Step 2: Update `ws_handler.gleam` to import from the new module**
+
+Replace the private copies of `json_dispatch_arm`, `json_handler_call`,
+`json_response_encode`, `json_encoder_for_fieldtype`,
+`closure_param_for_fieldtype`, `to_pascal_case`, and `handler_alias` with
+imports from `rally/generator/json_rpc_dispatch`.
+
+In `generate_json_dispatch_function`, delegate:
+
+```gleam
+fn generate_json_dispatch_function(
+  endpoints: List(HandlerEndpoint),
+  has_auth: Bool,
+) -> String {
+  json_rpc_dispatch.generate_json_dispatch_function(endpoints, has_auth)
+}
+```
+
+Update the handler imports generation to use
+`json_rpc_dispatch.handler_imports(endpoints)`.
+
+- [ ] **Step 3: Run tests**
+
+```sh
+cd /Users/daverapin/projects/opensource/rally && gleam test
+```
+
+Expected: all pass, no behavior change. The dispatch output is identical;
+only the source location of the generator helpers changed.
+
+- [ ] **Step 4: Commit**
+
+```sh
+git add src/rally/generator/json_rpc_dispatch.gleam src/rally/generator/ws_handler.gleam
+git commit -m "Extract JSON dispatch generator into shared module"
+```
+
+**Review checkpoint:** `json_rpc_dispatch.gleam` exists, ws_handler delegates
+to it, all tests pass. No new callers yet.
+
+### Task 4b: Add dispatch and response to protocol_wire facade
 
 **Files:**
 - Modify: `src/rally/generator.gleam`
-- Modify: `src/rally/generator/ws_handler.gleam` (move `json_dispatch` helpers)
+- Modify: `src/rally.gleam` (call site for `generate_protocol_wire`)
+- Test: `bin/check-auth-codegen`
 
-This task adds `dispatch_rpc`, `send_rpc_result`, `rpc_result_body`,
-`rpc_content_type`, `auth_error_result`, and `error_result` to both facade
-versions.
-
-The JSON facade needs the `json_dispatch` function (currently generated
-inline in ws_handler). Move the generation logic so the facade generator can
-produce it. The generator helper functions (`json_dispatch_arm`,
-`json_handler_call`, `json_response_encode`, `json_encoder_for_fieldtype`,
-`closure_param_for_fieldtype`) stay in ws_handler.gleam as shared helper
-functions called by both ws_handler and generator.gleam.
-
-The `generate_protocol_wire` signature grows:
+The `generate_protocol_wire` signature grows to include everything the facade
+needs to generate dispatch code, auth error responses, and the `json_dispatch`
+function body:
 
 ```gleam
 pub fn generate_protocol_wire(
   protocol: String,
   atoms_module: String,
   contract_hash: String,
+  rpc_dispatch_module: String,
   endpoints: List(HandlerEndpoint),
-  has_auth: Bool,
+  auth_config: Option(AuthConfig),
+  wire_import_module: String,
 ) -> String
 ```
 
-Update the call site in `rally.gleam` (`do_write_files` or the inline call).
+Required inputs and why:
+- `rpc_dispatch_module`: ETF facade imports it for `dispatch_rpc`
+- `endpoints`: JSON facade generates `json_dispatch` arms per endpoint
+- `auth_config`: both facades conditionally include `identity` parameter
+  in `dispatch_rpc`. JSON facade imports the auth module for `auth.Identity`.
+  `None` means no auth: `dispatch_rpc` omits the identity parameter.
+- `wire_import_module`: JSON facade derives the json_codecs module name
+  from it (same `string.replace` pattern ws_handler uses today)
 
-- [ ] **Step 1: Add RpcResult and dispatch/response to ETF facade**
+- [ ] **Step 1: Add RpcResult and dispatch to ETF facade**
+
+Add to the `etf_protocol_wire_source` function. The function gains
+`rpc_dispatch_module` and `auth_config` parameters. The generated source
+includes:
 
 ```gleam
+import gleam/bytes_tree
+import mist.{type WebsocketConnection}
+import <rpc_dispatch_module> as rpc_dispatch
+
 pub opaque type RpcResult {
   RpcResult(data: BitArray)
 }
 
+// When auth_config is None:
 pub fn dispatch_rpc(
-  envelope: RpcEnvelope,
-  server_context: ServerContext,
+  envelope envelope: RpcEnvelope,
+  server_context server_context: ServerContext,
 ) -> #(RpcResult, ServerContext) {
   let #(response_data, new_ctx) = rpc_dispatch.handle(server_context:, data: envelope.raw)
   #(RpcResult(data: response_data), new_ctx)
 }
-// Auth variant (only generated when auth is configured):
+
+// When auth_config is Some(AuthConfig(auth_module:)):
+// (import <auth_module> as auth)
 pub fn dispatch_rpc(
-  envelope: RpcEnvelope,
-  server_context: ServerContext,
-  identity: auth.Identity,
+  envelope envelope: RpcEnvelope,
+  server_context server_context: ServerContext,
+  identity identity: auth.Identity,
 ) -> #(RpcResult, ServerContext) {
   let #(response_data, new_ctx) = rpc_dispatch.handle(server_context:, data: envelope.raw, identity:)
   #(RpcResult(data: response_data), new_ctx)
 }
 
-pub fn send_rpc_result(conn: WebsocketConnection, result: RpcResult) -> Result(Nil, glisten.SocketReason) {
+pub fn send_rpc_result(
+  conn: WebsocketConnection,
+  result: RpcResult,
+) -> Result(Nil, mist.Error) {
   mist.send_binary_frame(conn, result.data)
 }
 
@@ -528,47 +917,54 @@ pub fn error_result(request_id: Int, message: String) -> RpcResult {
 }
 ```
 
-Note: `dispatch_rpc` has a different signature depending on whether auth is
-configured. Gleam does not support overloading, so the generator produces
-exactly one version: with `identity` when auth is configured, without when
-not. Use the same conditional generation pattern that `json_dispatch` uses.
-The no-auth and auth facades are separate generated source strings.
+Only one `dispatch_rpc` variant is generated. The generator checks
+`auth_config`: `Some` generates the identity variant, `None` generates
+the no-identity variant.
 
-- [ ] **Step 2: Add RpcResult and dispatch/response to JSON facade**
+- [ ] **Step 2: Add RpcResult and dispatch to JSON facade**
 
-The JSON facade needs the `json_dispatch` function body moved into it. This
-means:
+The JSON facade uses `json_rpc_dispatch.generate_json_dispatch_function`
+to produce the `json_dispatch` function body. The function gains
+`endpoints`, `auth_config`, and `wire_import_module` parameters.
 
-- The facade imports handler modules (generated per-endpoint)
-- The facade imports `json_codecs`
-- The facade contains the per-endpoint dispatch arms
+Required imports in generated source (in addition to existing):
 
-Generate the `json_dispatch` function inside the facade using the same
-`json_dispatch_arm` helper that ws_handler uses. Since these helpers
-(`json_dispatch_arm`, `json_handler_call`, `json_response_encode`,
-`json_encoder_for_fieldtype`, `closure_param_for_fieldtype`) are pure
-string-building functions, extract them into a shared location or have
-`generator.gleam` import them from `ws_handler.gleam`.
+```gleam
+import gleam/bytes_tree
+import gleam/io
+import gleam/json
+import gleam/option.{Some}
+import libero/json/error.{JsonError}
+import libero/trace
+import mist.{type WebsocketConnection}
+import <json_codec_module> as json_codecs
+// Per-endpoint handler imports (from json_rpc_dispatch.handler_imports):
+import <handler_module> as <handler_alias>
+// When auth_config is Some:
+import <auth_module> as auth
+```
+
+Where `json_codec_module` is derived from `wire_import_module` using
+`string.replace(wire_import_module, "protocol_wire", "json_codecs")`.
+
+Generated dispatch and response functions:
 
 ```gleam
 pub opaque type RpcResult {
   RpcResult(text: String)
 }
 
-// json_dispatch is generated per-app, same arms as current ws_handler version
-fn json_dispatch(
-  message message: Dynamic,
-  request_id request_id: Int,
-  server_context server_context: ServerContext,
-  identity identity: auth.Identity,  // when auth configured
-) -> #(RpcResult, ServerContext) {
-  // ... generated dispatch arms matching on "type" field ...
-}
+// json_dispatch body generated by json_rpc_dispatch.generate_json_dispatch_function
+// This produces the full fn with arms like:
+//   Ok("admin/pages/dashboard.ServerLoadData") -> { ... handler call ... }
+<output of json_rpc_dispatch.generate_json_dispatch_function(endpoints, has_auth)>
 
+// dispatch_rpc wraps json_dispatch, converting String result to RpcResult
+// When auth_config is Some:
 pub fn dispatch_rpc(
-  envelope: RpcEnvelope,
-  server_context: ServerContext,
-  identity: auth.Identity,
+  envelope envelope: RpcEnvelope,
+  server_context server_context: ServerContext,
+  identity identity: auth.Identity,
 ) -> #(RpcResult, ServerContext) {
   let #(frame, ctx) = json_dispatch(
     message: envelope.message,
@@ -579,7 +975,10 @@ pub fn dispatch_rpc(
   #(RpcResult(text: frame), ctx)
 }
 
-pub fn send_rpc_result(conn, result: RpcResult) {
+pub fn send_rpc_result(
+  conn: WebsocketConnection,
+  result: RpcResult,
+) -> Result(Nil, mist.Error) {
   mist.send_text_frame(conn, result.text)
 }
 
@@ -602,30 +1001,65 @@ pub fn auth_error_result(request_id: Int, message: String) -> RpcResult {
 
 pub fn error_result(request_id: Int, message: String) -> RpcResult {
   RpcResult(text: json_wire.encode_error(
-    request_id: option.Some(request_id),
+    request_id: Some(request_id),
     errors: [JsonError("rpc", message)],
   ))
 }
 ```
 
-- [ ] **Step 3: Update rally.gleam call site**
+The `json_dispatch` function body is generated by calling
+`json_rpc_dispatch.generate_json_dispatch_function(endpoints, has_auth)`
+and concatenating its output into the facade source string.
 
-Pass `endpoints` and `has_auth` (derived from `auth_config`) to
-`generate_protocol_wire`.
+- [ ] **Step 3: Update `rally.gleam` call site**
 
-- [ ] **Step 4: Run auth codegen check and tests**
+Find `generator.generate_protocol_wire(` in `rally.gleam` (around line
+967) and pass the new arguments:
+
+```gleam
+generator.generate_protocol_wire(
+  config.protocol,
+  config.atoms_module,
+  contract_hash,
+  rpc_dispatch_module,
+  ns_endpoints,
+  auth_config,
+  protocol_wire_module,
+)
+```
+
+`rpc_dispatch_module` is already in scope at this call site.
+`ns_endpoints` is the filtered endpoint list.
+`auth_config` is already in scope.
+`protocol_wire_module` is already computed.
+
+- [ ] **Step 4: Run auth codegen check**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
+```
+
+This is the critical verification: the generated protocol_wire facade must
+compile with its new imports (handler modules, json_codecs, auth module,
+mist, bytes_tree) and the json_dispatch function must type-check.
+
+- [ ] **Step 5: Run tests**
+
+```sh
 cd /Users/daverapin/projects/opensource/rally && gleam test
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```sh
-git add src/rally/generator.gleam src/rally/generator/ws_handler.gleam src/rally.gleam
+git add src/rally/generator.gleam src/rally.gleam
 git commit -m "Add dispatch and response to protocol_wire facade"
 ```
+
+**Review checkpoint:** Both facade variants compile with dispatch. The
+facade is now a complete server-side protocol boundary: decode, identity,
+dispatch, response framing, error responses. No callers in the handlers
+yet; that is Tasks 5 and 6.
 
 ### Task 5: Make HTTP handler protocol-agnostic
 
@@ -806,63 +1240,124 @@ git commit -m "Make HTTP handler protocol-agnostic, fix JSON auth bypass"
 - Test: `test/rally/ws_auth_test.gleam`
 
 Replace the ETF-specific binary decode path and the JSON-specific text
-decode path with protocol-neutral calls through the facade. Both frame types
-should use the same auth + dispatch flow.
+decode path with a single `wire.decode_ws_rpc_envelope(msg)` call. Both
+frame types should use the same auth + dispatch flow.
 
-- [ ] **Step 1: Rewrite the binary frame RPC branch (auth version)**
+- [ ] **Step 1: Unify the RPC frame decode (auth version)**
 
-Replace `wire.decode_call(data)` + `wire.variant_tag(raw)` +
-`handler_page_info(variant)` with:
+Currently the auth WS handler generates separate `mist.Binary(data)` and
+`mist.Text(data)` branches. Replace both with a single RPC path that uses
+`decode_ws_rpc_envelope`:
+
+The frame handler's RPC path becomes:
 
 ```
-case wire.decode_rpc_envelope(data) {
+case wire.decode_ws_rpc_envelope(msg) {
   Ok(envelope) -> {
+    let request_id = wire.rpc_request_id(envelope)
+    debug_log("[rally:ws] RPC: request_id=" <> int.to_string(request_id))
+    let assert Ok(server_context) = effect.get_stored_server_context()
+    let current_page = effect.get_ws_page()
     case handler_page_info(wire.rpc_identity(envelope)) {
-      // ... same auth checks ...
-      // dispatch:
-      let #(result, new_ctx) = wire.dispatch_rpc(envelope, server_context, identity)
-      let _send = wire.send_rpc_result(conn, result)
-      // ... logging, state update, send_pending_frames ...
+      Error(Nil) -> {
+        let result = wire.auth_error_result(request_id, "auth:unknown_rpc")
+        let _send = wire.send_rpc_result(conn, result)
+        send_pending_frames(conn)
+        mist.continue(state)
+      }
+      Ok(info) -> {
+        // ... same auth checks as current ETF path:
+        // owning_page != current_page -> auth:page_mismatch
+        // required && !is_authenticated -> auth:redirect
+        // has_authorize && !check_page_authorize -> auth:forbidden
+        // then:
+        let start = timestamp.system_time()
+        let #(result, new_ctx) = wire.dispatch_rpc(envelope, server_context, identity)
+        let elapsed_ms = ...
+        // logging (see Step 2)
+        let Nil = effect.put_ws_state(conn, new_ctx, current_page)
+        let _send = wire.send_rpc_result(conn, result)
+        send_pending_frames(conn)
+        mist.continue(state)
+      }
     }
   }
-  Error(Nil) -> // bad request
+  Error(Nil) -> {
+    // Not an RPC frame (page-init, or unsupported frame type).
+    // Fall through to page-init handling or ignore.
+  }
 }
 ```
 
-- [ ] **Step 2: Rewrite the text frame RPC branch (auth version)**
+Page-init frames are NOT decoded by `decode_ws_rpc_envelope` (they use
+`decode_call` for ETF and are not yet implemented for JSON). Keep page-init
+handling in its existing protocol-specific branch for now. The RPC path is
+what gets unified.
 
-The JSON text branch currently bypasses auth. Replace with the same
-structure as the binary branch, using `decode_rpc_envelope_text`:
+The frame handler structure becomes: try `decode_ws_rpc_envelope` first
+for RPC, then fall through to page-init handling if it returns `Error(Nil)`.
+
+- [ ] **Step 2: Update logging to use facade accessors**
+
+Current logging calls:
+
+```gleam
+system.log_to_server(
+  db: db_conn,
+  session_id: session_id,
+  user_id: Error(Nil),
+  page: current_page,
+  value: raw,           // <- Dynamic, from ETF decode
+  raw_payload: data,    // <- BitArray, raw frame
+  elapsed_ms: elapsed_ms,
+)
+```
+
+Change to use the facade accessors:
+
+```gleam
+system.log_to_server(
+  db: db_conn,
+  session_id: session_id,
+  user_id: Error(Nil),
+  page: current_page,
+  variant_name: wire.rpc_identity(envelope),
+  raw_payload: wire.rpc_raw_payload(envelope),
+  elapsed_ms: elapsed_ms,
+)
+```
+
+This requires updating `system.log_to_server` to accept `variant_name:
+String` instead of `value: Dynamic` (which it currently calls
+`wire.variant_tag` on to derive the variant name). This is a small change
+to `rally_runtime/system.gleam`: replace the `value` parameter with
+`variant_name` and remove the internal `variant_tag` call.
+
+- [ ] **Step 3: Rewrite the no-auth RPC branch**
+
+Same pattern as Step 1 but without the auth checks. Replace
+`rpc_dispatch.handle` and `json_dispatch` with `wire.dispatch_rpc`:
 
 ```
-case wire.decode_rpc_envelope_text(data) {
+case wire.decode_ws_rpc_envelope(msg) {
   Ok(envelope) -> {
-    case handler_page_info(wire.rpc_identity(envelope)) {
-      // ... identical auth checks as binary branch ...
-      let #(result, new_ctx) = wire.dispatch_rpc(envelope, server_context, identity)
-      let _send = wire.send_rpc_result(conn, result)
-      // ...
-    }
+    let #(result, new_ctx) = wire.dispatch_rpc(envelope, server_context)
+    // logging, state update
+    let _send = wire.send_rpc_result(conn, result)
+    send_pending_frames(conn)
+    mist.continue(state)
   }
-  Error(Nil) -> // error handling
+  Error(Nil) -> // page-init or ignore
 }
 ```
 
-The auth flow in both branches is now structurally identical. Consider
-extracting the shared body into a generated helper function to keep the
-handler DRY. If the generator produces an `fn handle_rpc_envelope(envelope,
-conn, state)` that both frame branches call, there is zero duplication.
+- [ ] **Step 4: Remove inline `json_dispatch` generation from ws_handler**
 
-- [ ] **Step 3: Rewrite the no-auth binary and text branches**
-
-Same pattern: replace `rpc_dispatch.handle` with `wire.dispatch_rpc` and
-`json_dispatch` with `wire.dispatch_rpc`. Both go through the facade.
-
-- [ ] **Step 4: Remove `generate_json_dispatch_function` from ws_handler**
-
-This function is now generated inside the protocol_wire facade. Remove it
-from ws_handler, along with `json_dispatch_arm` if it was not extracted as
-a shared helper. If it was extracted to a shared module, keep it there.
+`generate_json_dispatch_function` was already delegated to
+`json_rpc_dispatch` in Task 4a. Now remove the ws_handler's call to
+generate it as a top-level function in the WS handler output, since
+dispatch now goes through the facade. The `json_dispatch` variable in
+`generate` (around line 119) should become `""` for all protocols.
 
 - [ ] **Step 5: Add JSON WS auth test**
 
@@ -887,45 +1382,81 @@ pub fn ws_auth_json_protocol_enforces_auth_test() {
       protocol: "json",
     )
 
-  // Text frame must use protocol-neutral decode
-  let assert True = string.contains(output, "wire.decode_rpc_envelope_text(data)")
-  // Must look up auth info
+  // Must use protocol-neutral decode (same call for both protocols)
+  let assert True = string.contains(output, "wire.decode_ws_rpc_envelope(")
+  // Must look up auth info by identity
   let assert True = string.contains(output, "handler_page_info(wire.rpc_identity(")
   // Must check is_authenticated
   let assert True = string.contains(output, "is_authenticated")
+  // Must check page mismatch
+  let assert True = string.contains(output, "owning_page != current_page")
   // Must dispatch through facade
   let assert True = string.contains(output, "wire.dispatch_rpc(")
   // Must NOT contain inline json_dispatch call
   let assert False = string.contains(output, "json_dispatch(")
-  // Must NOT call variant_tag
+  // Must NOT call decode_call or variant_tag
+  let assert False = string.contains(output, "decode_call")
   let assert False = string.contains(output, "variant_tag")
 }
 ```
 
-Add a page-mismatch test for JSON WS too:
+Also add a test that verifies ETF output uses the same API:
 
 ```gleam
-pub fn ws_auth_json_checks_page_mismatch_test() {
-  // same setup as above
-  let assert True = string.contains(output, "owning_page != current_page")
+pub fn ws_auth_etf_also_uses_protocol_neutral_decode_test() {
+  let endpoints = [make_endpoint("admin/pages/dashboard", "load_data")]
+  let contracts = [
+    #(
+      make_route_named("AdminDashboard", "admin/pages/dashboard"),
+      make_contract(has_page_auth: True, page_auth_required: True, has_authorize: False),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated/admin/atoms",
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: endpoints,
+      wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
+    )
+
+  // ETF also uses the unified decode
+  let assert True = string.contains(output, "wire.decode_ws_rpc_envelope(")
+  // Must NOT call decode_call or variant_tag directly
+  let assert False = string.contains(output, "decode_call")
+  let assert False = string.contains(output, "variant_tag")
 }
 ```
 
-- [ ] **Step 6: Verify ETF WS tests still pass**
+- [ ] **Step 6: Update existing ETF WS test assertions**
 
-Run all existing WS tests:
+Existing tests that assert `decode_call` or `variant_tag` in the generated
+output must be updated to assert `decode_ws_rpc_envelope` and
+`wire.rpc_identity` instead. Find all such assertions and update them.
+
+- [ ] **Step 7: Run tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && gleam test
+cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
 ```
 
-Update ETF test assertions if the generated code shape changed (e.g.,
-`decode_rpc_envelope` instead of `decode_call`).
+- [ ] **Step 8: Update `system.gleam` if logging signature changed**
 
-- [ ] **Step 7: Commit**
+If Step 2 changed `system.log_to_server` to take `variant_name: String`
+instead of `value: Dynamic`, update all callers. Check with:
 
 ```sh
-git add src/rally/generator/ws_handler.gleam test/rally/ws_auth_test.gleam
+grep -rn 'log_to_server' src/rally_runtime/
+```
+
+- [ ] **Step 9: Commit**
+
+```sh
+git add src/rally/generator/ws_handler.gleam src/rally_runtime/system.gleam test/rally/ws_auth_test.gleam
 git commit -m "Make WS handler protocol-agnostic, fix JSON auth bypass"
 ```
 
@@ -984,13 +1515,15 @@ git commit -m "Update docs: Protocol-agnostic RPC handlers"
   split it into `protocol_wire` (encode/decode) and `protocol_dispatch`
   (handler routing). Do not do this now.
 
-- Server message logging (`system.log_to_server`) currently accesses
-  ETF-specific values (`raw`, `data`). After this change, the handler has an
-  `RpcEnvelope` (opaque) and an `RpcResult` (opaque). Add accessor functions
-  to the facade (`rpc_raw_payload`, `rpc_identity`) so logging can still
-  capture timing and identity. The raw decoded value for the message inspector
-  may need a protocol-neutral accessor too, but that can be a follow-up if
-  the current logging shape doesn't fit cleanly.
+- Server message logging: `system.log_to_server` changes from
+  `value: Dynamic` (passed to `variant_tag` internally) to
+  `variant_name: String` (the identity from the facade). The raw payload
+  is available via `rpc_raw_payload`. This changes the `system.gleam`
+  module signature. The message inspector's variant name display should
+  still work since the identity string is what it ultimately displayed.
+  The raw decoded Dynamic value (which the inspector could format) is no
+  longer available through the handler; if that turns out to matter, a
+  follow-up can add a `rpc_decoded_value` accessor.
 
 - The `auth_error_result` encoding for JSON must produce responses that the
   client-side `transport_ffi.mjs` can detect as auth errors. The ETF path
