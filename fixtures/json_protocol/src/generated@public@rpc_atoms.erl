@@ -10,7 +10,7 @@
 %% binary_to_atom calls only run once per VM lifetime.
 
 -module(generated@public@rpc_atoms).
--export([ensure/0, json_encode_push_value/2]).
+-export([ensure/0, encode_push_frame/2, json_encode_push_value/2]).
 
 ensure() ->
     case persistent_term:get({?MODULE, done}, false) of
@@ -47,16 +47,22 @@ do_ensure() ->
         <<"updated">>
     ]),
     persistent_term:put({libero, wire_module}, 'generated@public@rpc_wire'),
-        persistent_term:put({libero, json_push_module}, 'generated@public@rpc_atoms'),
+        persistent_term:put({libero, push_frame_module}, 'generated@public@rpc_atoms'),
     persistent_term:put({libero, json_wire_module}, 'generated@public@protocol_wire'),
     persistent_term:put({?MODULE, done}, true),
     nil.
 
 
-%% JSON push dispatch: route page tag to the correct typed encoder.
+%% Push dispatch: route page tag to the correct typed encoder.
 json_encode_push_value(Page, Msg) ->
     case Page of
     <<"Public">> -> 'generated@public@json_codecs':'json_encode_public_pages_home___to_client'(Msg);
     <<"PublicNotifications">> -> 'generated@public@json_codecs':'json_encode_public_pages_notifications___to_client'(Msg);
     Page -> error({no_json_push_encoder, Page})
     end.
+
+%% Single push-frame facade called by rally_runtime_ffi.
+encode_push_frame(Page, Msg) ->
+    JsonValue = json_encode_push_value(Page, Msg),
+    JsonWireMod = persistent_term:get({libero, json_wire_module}),
+    JsonWireMod:encode_push(Page, JsonValue).

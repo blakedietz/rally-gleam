@@ -585,9 +585,16 @@ pub fn json_wire_server_push_encoder_in_atoms_test() {
   let atoms_path = fixture_root <> "/src/generated@public@rpc_atoms.erl"
   let assert Ok(atoms_content) = simplifile.read(atoms_path)
 
-  // Must export the function
+  // Must export both push functions
   atoms_content
-  |> string.contains("-export([ensure/0, json_encode_push_value/2]).")
+  |> string.contains(
+    "-export([ensure/0, encode_push_frame/2, json_encode_push_value/2]).",
+  )
+  |> should.be_true()
+
+  // Must register push_frame_module (the single facade the FFI calls)
+  atoms_content
+  |> string.contains("persistent_term:put({libero, push_frame_module},")
   |> should.be_true()
 
   // Must dispatch by page tag
@@ -607,6 +614,50 @@ pub fn json_wire_server_push_encoder_in_atoms_test() {
   atoms_content
   |> string.contains("Page -> error({no_json_push_encoder, Page})\n    end.")
   |> should.be_true()
+
+  // Must have encode_push_frame/2 that wraps json_encode_push_value + framing
+  atoms_content
+  |> string.contains("encode_push_frame(Page, Msg) ->")
+  |> should.be_true()
+  atoms_content
+  |> string.contains("JsonWireMod:encode_push(Page, JsonValue).")
+  |> should.be_true()
+}
+
+pub fn json_wire_server_push_encode_runtime_probe_test() {
+  // Build the fixture, then run a JS test that verifies the full
+  // push frame round-trip: typed JSON encode -> decode -> concrete instance.
+  let #(gen_status, _gen_output) =
+    run_gleam(fixture_root, ["run", "-m", "rally", "--", "gen"])
+  case gen_status {
+    0 -> Nil
+    _ -> panic as "Fixture rally gen failed"
+  }
+  let client_dir = fixture_root <> "/.generated_clients/public"
+  let #(build_status, _build_output) = run_gleam(client_dir, ["build"])
+  case build_status {
+    0 -> Nil
+    _ -> panic as "Client fixture gleam build failed"
+  }
+
+  case find_executable("node") {
+    Some(node) -> {
+      let #(status, output) =
+        run_executable_capturing_ffi(node, [
+          "test/js/server_push_encode_test.mjs",
+        ])
+      let msg =
+        "JS server push encode probe failed (exit "
+        <> int.to_string(status)
+        <> "):\n"
+        <> output
+      case status {
+        0 -> Nil
+        _ -> panic as msg
+      }
+    }
+    None -> panic as "node executable not found on PATH"
+  }
 }
 
 pub fn json_wire_push_decode_preserves_cross_module_identity_test() {

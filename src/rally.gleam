@@ -618,16 +618,18 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
           }
       }
 
-      // Add json_encode_push_value/2 to the export list.
+      // Add encode_push_frame/2 + json_encode_push_value/2 to the export list.
       let atoms_erl =
         string.replace(
           atoms_erl,
           "-export([ensure/0]).",
-          "-export([ensure/0, json_encode_push_value/2]).",
+          "-export([ensure/0, encode_push_frame/2, json_encode_push_value/2]).",
         )
 
-      // Insert JSON persistent_term registrations inside do_ensure(),
+      // Insert persistent_term registrations inside do_ensure(),
       // right before the {?MODULE, done} marker.
+      // {libero, push_frame_module} is the single facade the FFI calls.
+      // {libero, json_wire_module} is used internally by encode_push_frame/2.
       let atoms_erl = case
         string.split_once(
           atoms_erl,
@@ -636,7 +638,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       {
         Ok(#(before, after)) ->
           before
-          <> "    persistent_term:put({libero, json_push_module}, '"
+          <> "    persistent_term:put({libero, push_frame_module}, '"
           <> config.atoms_module
           <> "'),\n"
           <> "    persistent_term:put({libero, json_wire_module}, '"
@@ -647,14 +649,22 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         Error(Nil) -> atoms_erl
       }
 
-      // Append the push dispatch function at module level (after do_ensure)
+      // Append push dispatch functions at module level (after do_ensure).
+      // json_encode_push_value/2 routes page tag -> typed encoder.
+      // encode_push_frame/2 is the single facade: encode + frame.
       atoms_erl
       <> "\n\n"
-      <> "%% JSON push dispatch: route page tag to the correct typed encoder.\n"
+      <> "%% Push dispatch: route page tag to the correct typed encoder.\n"
       <> "json_encode_push_value(Page, Msg) ->\n"
       <> "    case Page of\n"
       <> push_arms
       <> "    end.\n"
+      <> "\n"
+      <> "%% Single push-frame facade called by rally_runtime_ffi.\n"
+      <> "encode_push_frame(Page, Msg) ->\n"
+      <> "    JsonValue = json_encode_push_value(Page, Msg),\n"
+      <> "    JsonWireMod = persistent_term:get({libero, json_wire_module}),\n"
+      <> "    JsonWireMod:encode_push(Page, JsonValue).\n"
     }
     _ -> atoms_erl
   }
