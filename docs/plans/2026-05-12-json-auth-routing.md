@@ -188,7 +188,7 @@ call sites in Task 6.
 - Read: `src/rally/generator/http_handler.gleam`
 - Read: `src/rally/generator/ws_handler.gleam`
 
-- [ ] **Step 1: Run all tests**
+- [x] **Step 1: Run all tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/libero && gleam test
@@ -199,7 +199,7 @@ cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
 
 Note any failures before editing. Do not explain them away.
 
-- [ ] **Step 2: Confirm the two bugs in code**
+- [x] **Step 2: Confirm the two bugs in code**
 
 Verify that `http_handler.gleam:320` returns `"Not implemented"`.
 Verify that `ws_handler.gleam:451` calls `json_dispatch` without
@@ -217,7 +217,7 @@ Commit: none.
 The HTTP handler generator currently has no `protocol` parameter. Add it so
 downstream tasks can generate protocol-appropriate code.
 
-- [ ] **Step 1: Add `protocol` parameter to `generate`**
+- [x] **Step 1: Add `protocol` parameter to `generate`**
 
 ```gleam
 pub fn generate(
@@ -235,18 +235,18 @@ Pass it through to `generate_with_auth` (add the parameter there too).
 `generate_no_auth` also needs it (for the same reason: the no-auth handler
 currently hardcodes ETF decoding).
 
-- [ ] **Step 2: Update the call site in `rally.gleam`**
+- [x] **Step 2: Update the call site in `rally.gleam`**
 
 Find `http_handler.generate(` (around line 950) and add `protocol:
 config.protocol`.
 
-- [ ] **Step 3: Update all test call sites**
+- [x] **Step 3: Update all test call sites**
 
 Every `http_handler.generate(...)` call in `test/rally/http_auth_test.gleam`
 currently passes 6 arguments. Add `protocol: "etf"` to each so they compile
 and continue testing ETF behavior.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && gleam test
@@ -254,7 +254,7 @@ cd /Users/daverapin/projects/opensource/rally && gleam test
 
 Expected: all pass, no behavior change.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```sh
 git add src/rally/generator/http_handler.gleam src/rally.gleam test/rally/http_auth_test.gleam
@@ -279,7 +279,7 @@ The JSON type string for an endpoint is `module_path.TypeName` where:
 
 This is the same string used in `json_dispatch_arm` at `ws_handler.gleam:863`.
 
-- [ ] **Step 1: Add `endpoint_json_tag` to `http_handler.gleam`**
+- [x] **Step 1: Add `endpoint_json_tag` to `http_handler.gleam`**
 
 ```gleam
 fn endpoint_json_tag(endpoint: HandlerEndpoint) -> String {
@@ -303,7 +303,7 @@ fn to_pascal_case(name: String) -> String {
 }
 ```
 
-- [ ] **Step 2: Make `endpoint_wire_tags` protocol-aware in `http_handler.gleam`**
+- [x] **Step 2: Make `endpoint_wire_tags` protocol-aware in `http_handler.gleam`**
 
 Change the existing `endpoint_wire_tags` to accept `protocol`:
 
@@ -329,14 +329,14 @@ fn endpoint_wire_tags(endpoint: HandlerEndpoint, protocol: String) -> List(Strin
 
 Update `build_page_auth_map` to pass `protocol` through to `endpoint_wire_tags`.
 
-- [ ] **Step 3: Do the same in `ws_handler.gleam`**
+- [x] **Step 3: Do the same in `ws_handler.gleam`**
 
 The WS handler has its own `endpoint_wire_tags` (around line 799). Apply the
 same change: add `protocol` parameter, add JSON case, add
 `endpoint_json_tag` and `to_pascal_case` (the WS handler already has
 `to_pascal_case` at line 995). Update callers.
 
-- [ ] **Step 4: Add test for JSON identity in handler_page_info**
+- [x] **Step 4: Add test for JSON identity in handler_page_info**
 
 In `test/rally/http_auth_test.gleam`:
 
@@ -376,13 +376,13 @@ pub fn http_auth_json_handler_page_info_uses_type_string_test() {
 
 Add a similar test in `test/rally/ws_auth_test.gleam`.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && gleam test
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add src/rally/generator/http_handler.gleam src/rally/generator/ws_handler.gleam test/rally/http_auth_test.gleam test/rally/ws_auth_test.gleam
@@ -398,7 +398,7 @@ git commit -m "Make handler_page_info protocol-aware with JSON type strings"
 Add `RpcEnvelope`, `decode_rpc_envelope`, `decode_ws_rpc_envelope`,
 `rpc_request_id`, `rpc_identity`, and `rpc_raw_payload` to both facade versions.
 
-- [ ] **Step 1: Add to ETF facade (`etf_protocol_wire_source`)**
+- [x] **Step 1: Add to ETF facade (`etf_protocol_wire_source`)**
 
 The ETF facade needs new imports for `mist` (for `WebsocketMessage` type).
 Add these to the generated source string:
@@ -440,7 +440,7 @@ pub fn decode_ws_rpc_envelope(msg: mist.WebsocketMessage(a)) -> Result(RpcEnvelo
 Note: `raw: data` stores the original body for dispatch (ETF's
 `rpc_dispatch.handle` re-decodes from the raw body).
 
-- [ ] **Step 2: Add to JSON facade (`json_protocol_wire_source`)**
+- [x] **Step 2: Add to JSON facade (`json_protocol_wire_source`)**
 
 The JSON facade needs new imports for `bit_array`, `gleam/dynamic/decode`,
 and `mist`:
@@ -511,7 +511,7 @@ Note: `raw_text` preserves the original JSON string for logging via
 use `decode_rpc_envelope` (for HTTP BitArray bodies) or
 `decode_ws_rpc_envelope` (for WS frames).
 
-- [ ] **Step 3: Run auth codegen check**
+- [x] **Step 3: Run auth codegen check**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
@@ -520,13 +520,13 @@ cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
 Expected: generated code compiles. The new functions exist but are not
 called yet; no behavior change.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && gleam test
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```sh
 git add src/rally/generator.gleam
@@ -562,7 +562,7 @@ Also add a new public function `generate_json_dispatch_body` that produces
 just the dispatch function body (the arms and catch-all), which both
 ws_handler and generator.gleam will use to generate the full function.
 
-- [ ] **Step 1: Create `src/rally/generator/json_rpc_dispatch.gleam`**
+- [x] **Step 1: Create `src/rally/generator/json_rpc_dispatch.gleam`**
 
 ```gleam
 import gleam/list
@@ -815,7 +815,7 @@ pub fn handler_imports(
 }
 ```
 
-- [ ] **Step 2: Update `ws_handler.gleam` to import from the new module**
+- [x] **Step 2: Update `ws_handler.gleam` to import from the new module**
 
 Replace the private copies of `json_dispatch_arm`, `json_handler_call`,
 `json_response_encode`, `json_encoder_for_fieldtype`,
@@ -836,7 +836,7 @@ fn generate_json_dispatch_function(
 Update the handler imports generation to use
 `json_rpc_dispatch.handler_imports(endpoints)`.
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && gleam test
@@ -845,7 +845,7 @@ cd /Users/daverapin/projects/opensource/rally && gleam test
 Expected: all pass, no behavior change. The dispatch output is identical;
 only the source location of the generator helpers changed.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```sh
 git add src/rally/generator/json_rpc_dispatch.gleam src/rally/generator/ws_handler.gleam
@@ -887,7 +887,7 @@ Required inputs and why:
 - `wire_import_module`: JSON facade derives the json_codecs module name
   from it (same `string.replace` pattern ws_handler uses today)
 
-- [ ] **Step 1: Add RpcResult and dispatch to ETF facade**
+- [x] **Step 1: Add RpcResult and dispatch to ETF facade**
 
 Add to the `etf_protocol_wire_source` function. The function gains
 `rpc_dispatch_module` and `auth_config` parameters. The generated source
@@ -949,7 +949,7 @@ Only one `dispatch_rpc` variant is generated. The generator checks
 `auth_config`: `Some` generates the identity variant, `None` generates
 the no-identity variant.
 
-- [ ] **Step 2: Add RpcResult and dispatch to JSON facade**
+- [x] **Step 2: Add RpcResult and dispatch to JSON facade**
 
 The JSON facade uses `json_rpc_dispatch.generate_json_dispatch_function`
 to produce the `json_dispatch` function body. The function gains
@@ -1040,7 +1040,7 @@ The `json_dispatch` function body is generated by calling
 `json_rpc_dispatch.generate_json_dispatch_function(endpoints, has_auth)`
 and concatenating its output into the facade source string.
 
-- [ ] **Step 3: Update `rally.gleam` call site**
+- [x] **Step 3: Update `rally.gleam` call site**
 
 Find `generator.generate_protocol_wire(` in `rally.gleam` (around line
 967) and pass the new arguments:
@@ -1062,7 +1062,7 @@ generator.generate_protocol_wire(
 `auth_config` is already in scope.
 `protocol_wire_module` is already computed.
 
-- [ ] **Step 4: Add a no-endpoints JSON facade compile test**
+- [x] **Step 4: Add a no-endpoints JSON facade compile test**
 
 Generate a JSON protocol_wire with an empty endpoint list and verify the
 output contains a `json_dispatch` stub that compiles (not an empty string):
@@ -1084,7 +1084,7 @@ pub fn json_protocol_wire_no_endpoints_compiles_test() {
 }
 ```
 
-- [ ] **Step 5: Run auth codegen check**
+- [x] **Step 5: Run auth codegen check**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
@@ -1094,13 +1094,13 @@ This is the critical verification: the generated protocol_wire facade must
 compile with its new imports (handler modules, json_codecs, auth module,
 mist, glisten, bytes_tree) and the json_dispatch function must type-check.
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && gleam test
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```sh
 git add src/rally/generator.gleam src/rally.gleam
@@ -1123,7 +1123,7 @@ Replace the entire ETF-then-JSON decode path with the protocol-neutral
 `wire.decode_rpc_envelope(body)`. Replace the dispatch call with
 `wire.dispatch_rpc`. Delete the "Not implemented" JSON stub.
 
-- [ ] **Step 1: Rewrite `generate_no_auth`**
+- [x] **Step 1: Rewrite `generate_no_auth`**
 
 The no-auth HTTP handler should decode via the facade and dispatch:
 
@@ -1168,7 +1168,7 @@ Note: the no-auth handler no longer needs to import `rpc_dispatch` directly.
 It dispatches through `wire.dispatch_rpc`. Remove the `rpc_dispatch_module`
 parameter if no longer needed (but check other callers first).
 
-- [ ] **Step 2: Rewrite `generate_auth_flow`**
+- [x] **Step 2: Rewrite `generate_auth_flow`**
 
 Replace `decode_and_lookup` (which calls `wire.decode_call` + `wire.variant_tag`)
 with `wire.decode_rpc_envelope`:
@@ -1198,7 +1198,7 @@ surrounding `bit_array.to_string` / `wire.decode_request` code).
 Remove `import gleam/bit_array` from the generated source since it is only
 used by the deleted JSON fallback.
 
-- [ ] **Step 3: Add JSON HTTP auth tests**
+- [x] **Step 3: Add JSON HTTP auth tests**
 
 ```gleam
 pub fn http_auth_json_protocol_enforces_auth_test() {
@@ -1247,7 +1247,7 @@ Also verify that ETF tests still pass unchanged (they now also use
 `decode_rpc_envelope` instead of `decode_call` + `variant_tag`, so update
 the ETF test assertions to match the new generated code).
 
-- [ ] **Step 4: Verify "Not implemented" is gone**
+- [x] **Step 4: Verify "Not implemented" is gone**
 
 ```gleam
 pub fn http_auth_no_not_implemented_stub_test() {
@@ -1272,13 +1272,13 @@ pub fn http_auth_no_not_implemented_stub_test() {
 }
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && gleam test
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add src/rally/generator/http_handler.gleam test/rally/http_auth_test.gleam
@@ -1523,7 +1523,7 @@ git commit -m "Make WS handler protocol-agnostic, fix JSON auth bypass"
 
 **Files:** none (read-only)
 
-- [ ] **Step 1: Run all tests**
+- [x] **Step 1: Run all tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/libero && gleam test
@@ -1532,7 +1532,7 @@ cd /Users/daverapin/projects/opensource/rally && test/js/run_auth_error_test.sh
 cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
 ```
 
-- [ ] **Step 2: Verify acceptance criteria**
+- [x] **Step 2: Verify acceptance criteria**
 
 ```sh
 # No protocol-specific calls in generated HTTP handlers
@@ -1556,14 +1556,14 @@ grep -n 'json_dispatch' src/rally/generator.gleam
 # Expected: matches in the JSON facade generation
 ```
 
-- [ ] **Step 3: Update llms.txt**
+- [x] **Step 3: Update llms.txt**
 
 Add to the protocol boundary description: Rally handlers use
 `wire.decode_rpc_envelope` for identity extraction and
 `wire.dispatch_rpc` for dispatch, making them protocol-agnostic.
 The protocol_wire facade absorbs all ETF/JSON differences.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```sh
 git add llms.txt
