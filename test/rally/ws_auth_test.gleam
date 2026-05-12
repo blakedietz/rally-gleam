@@ -464,8 +464,9 @@ pub fn ws_auth_rpc_dispatches_with_identity_test() {
   let assert True =
     string.contains(
       output,
-      "rpc_dispatch.handle(server_context:, data:, identity:)",
+      "wire.dispatch_rpc(envelope, server_context, identity)",
     )
+  let assert False = string.contains(output, "rpc_dispatch.handle(")
   // Must read identity before dispatch
   let assert True = string.contains(output, "effect.get_ws_identity()")
   // Missing identity must fail closed
@@ -538,7 +539,7 @@ pub fn ws_auth_json_handler_page_info_uses_type_string_test() {
   let assert False = string.contains(output, "\"server_load_data\"")
 }
 
-pub fn ws_auth_rpc_extracts_variant_tag_test() {
+pub fn ws_auth_rpc_uses_protocol_wire_identity_test() {
   let contracts = [
     #(
       make_route("admin/pages/dashboard"),
@@ -561,10 +562,11 @@ pub fn ws_auth_rpc_extracts_variant_tag_test() {
       protocol: "etf",
     )
 
-  // RPC branch must extract variant tag from decoded message
-  let assert True = string.contains(output, "wire.variant_tag(raw)")
-  // Must call handler_page_info with the variant
-  let assert True = string.contains(output, "handler_page_info(variant)")
+  // RPC branch must use the protocol-neutral identity from the envelope
+  let assert True = string.contains(output, "wire.decode_ws_rpc_envelope(msg)")
+  let assert True =
+    string.contains(output, "handler_page_info(wire.rpc_identity(envelope))")
+  let assert False = string.contains(output, "wire.variant_tag")
 }
 
 pub fn ws_auth_rpc_enforces_required_test() {
@@ -633,7 +635,7 @@ pub fn ws_auth_rpc_enforces_authorize_test() {
   let assert True =
     string.contains(
       output,
-      "rpc_dispatch.handle(server_context:, data:, identity:)",
+      "wire.dispatch_rpc(envelope, server_context, identity)",
     )
 }
 
@@ -701,8 +703,6 @@ pub fn ws_auth_rpc_unknown_variant_fails_closed_test() {
   // handler_page_info returns Error(Nil) for unknown variants
   // RPC branch must emit auth:unknown_rpc on unknown variant
   let assert True = string.contains(output, "auth:unknown_rpc")
-  // RPC branch must handle malformed tags
-  let assert True = string.contains(output, "auth:malformed")
   // RPC branch must check page mismatch
   let assert True = string.contains(output, "auth:page_mismatch")
 }
@@ -730,8 +730,7 @@ pub fn ws_auth_rpc_missing_identity_fails_before_dispatch_test() {
       protocol: "etf",
     )
 
-  let assert Ok(#(_, rpc_branch)) =
-    string.split_once(output, "Ok(#(_page, request_id, raw))")
+  let assert Ok(#(_, rpc_branch)) = string.split_once(output, "Ok(envelope) ->")
   let assert Ok(#(_, after_identity_check)) =
     string.split_once(rpc_branch, "case effect.get_ws_identity()")
   let assert Ok(#(missing_identity_branch, _)) =
@@ -739,6 +738,89 @@ pub fn ws_auth_rpc_missing_identity_fails_before_dispatch_test() {
   let assert True = string.contains(missing_identity_branch, "auth:forbidden")
   let assert False =
     string.contains(missing_identity_branch, "rpc_dispatch.handle(")
+}
+
+pub fn ws_auth_json_protocol_uses_protocol_wire_rpc_test() {
+  let contracts = [
+    #(
+      make_route_named("AdminDashboard", "admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated/admin/atoms",
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: [make_endpoint("admin/pages/dashboard", "load_data")],
+      wire_import_module: "generated/admin/protocol_wire",
+      protocol: "json",
+    )
+
+  let assert True = string.contains(output, "wire.decode_ws_rpc_envelope(msg)")
+  let assert True =
+    string.contains(output, "handler_page_info(wire.rpc_identity(envelope))")
+  let assert True = string.contains(output, "auth.is_authenticated(identity)")
+  let assert True = string.contains(output, "owning_page != current_page")
+  let assert True =
+    string.contains(
+      output,
+      "wire.dispatch_rpc(envelope, server_context, identity)",
+    )
+  let assert True =
+    string.contains(output, "wire.send_rpc_result(conn, result)")
+  let assert False = string.contains(output, "json_dispatch(")
+  let assert False = string.contains(output, "rpc_dispatch.handle(")
+  let assert False = string.contains(output, "wire.decode_call")
+  let assert False = string.contains(output, "wire.decode_request")
+}
+
+pub fn ws_auth_etf_protocol_uses_protocol_wire_rpc_test() {
+  let contracts = [
+    #(
+      make_route_named("AdminDashboard", "admin/pages/dashboard"),
+      make_contract(
+        has_page_auth: True,
+        page_auth_required: True,
+        has_authorize: False,
+      ),
+    ),
+  ]
+  let output =
+    ws_handler.generate(
+      contracts,
+      "generated/admin/atoms",
+      "generated/admin/rpc_dispatch",
+      Some(AuthConfig(auth_module: "admin/auth")),
+      from_session_module: "admin/client_context_server",
+      endpoints: [make_endpoint("admin/pages/dashboard", "load_data")],
+      wire_import_module: "generated/admin/protocol_wire",
+      protocol: "etf",
+    )
+
+  let assert True = string.contains(output, "wire.decode_ws_rpc_envelope(msg)")
+  let assert True =
+    string.contains(output, "handler_page_info(wire.rpc_identity(envelope))")
+  let assert True =
+    string.contains(
+      output,
+      "wire.dispatch_rpc(envelope, server_context, identity)",
+    )
+  let assert True =
+    string.contains(output, "wire.send_rpc_result(conn, result)")
+  let assert Ok(#(_, rpc_path)) = string.split_once(output, "Ok(envelope) ->")
+  let assert Ok(#(rpc_before_dispatch, _)) =
+    string.split_once(rpc_path, "wire.dispatch_rpc")
+  let assert False = string.contains(rpc_before_dispatch, "wire.decode_call")
+  let assert False = string.contains(output, "json_dispatch(")
+  let assert False = string.contains(output, "rpc_dispatch.handle(")
+  let assert False = string.contains(output, "wire.variant_tag")
 }
 
 // -- WS reauth --
@@ -929,11 +1011,9 @@ pub fn etf_protocol_does_not_generate_send_text_frame_test() {
 
 pub fn ws_auth_wire_hash_regression_test() {
   let #(_, hash) =
-    wire_identity.wire_identity(
-      "admin/pages/settings",
-      "ServerSetDarkMode",
-      [field_type.BoolField],
-    )
+    wire_identity.wire_identity("admin/pages/settings", "ServerSetDarkMode", [
+      field_type.BoolField,
+    ])
   let assert "0418533ae1" = hash
 }
 
@@ -946,10 +1026,7 @@ pub fn ws_auth_distinct_hashes_for_same_name_different_modules_test() {
       return_err: field_type.NilField,
       params: [#("enabled", field_type.BoolField)],
       mutates_context: False,
-      msg_type: Some(#(
-        "admin/pages/dashboard",
-        "ServerSetDarkMode",
-      )),
+      msg_type: Some(#("admin/pages/dashboard", "ServerSetDarkMode")),
     )
   let ep_b =
     scanner.HandlerEndpoint(
@@ -959,10 +1036,7 @@ pub fn ws_auth_distinct_hashes_for_same_name_different_modules_test() {
       return_err: field_type.NilField,
       params: [#("enabled", field_type.BoolField)],
       mutates_context: False,
-      msg_type: Some(#(
-        "admin/pages/settings",
-        "ServerSetDarkMode",
-      )),
+      msg_type: Some(#("admin/pages/settings", "ServerSetDarkMode")),
     )
   let contracts = [
     #(
@@ -994,17 +1068,13 @@ pub fn ws_auth_distinct_hashes_for_same_name_different_modules_test() {
       protocol: "etf",
     )
   let #(_, hash_a) =
-    wire_identity.wire_identity(
-      "admin/pages/dashboard",
-      "ServerSetDarkMode",
-      [field_type.BoolField],
-    )
+    wire_identity.wire_identity("admin/pages/dashboard", "ServerSetDarkMode", [
+      field_type.BoolField,
+    ])
   let #(_, hash_b) =
-    wire_identity.wire_identity(
-      "admin/pages/settings",
-      "ServerSetDarkMode",
-      [field_type.BoolField],
-    )
+    wire_identity.wire_identity("admin/pages/settings", "ServerSetDarkMode", [
+      field_type.BoolField,
+    ])
   let assert True = hash_a != hash_b
   let assert True = string.contains(output, "\"" <> hash_a <> "\"")
   let assert True = string.contains(output, "\"" <> hash_b <> "\"")

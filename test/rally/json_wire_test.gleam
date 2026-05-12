@@ -223,7 +223,7 @@ pub fn json_wire_ws_handler_has_text_branch_test() {
     )
   ws |> string.contains("mist.Text") |> should.be_true()
   // ETF mode uses mist.Binary, JSON adds mist.Text
-  ws |> string.contains("mist.Text(data)") |> should.be_true()
+  ws |> string.contains("mist.Text(_data)") |> should.be_true()
 }
 
 pub fn json_wire_ws_handler_no_etf_imports_test() {
@@ -239,10 +239,10 @@ pub fn json_wire_ws_handler_no_etf_imports_test() {
       "json",
     )
   ws |> string.contains("gleam/bit_array") |> should.be_false()
-  ws |> string.contains("gleam/time/duration") |> should.be_false()
-  ws |> string.contains("gleam/time/timestamp") |> should.be_false()
+  ws |> string.contains("gleam/time/duration") |> should.be_true()
+  ws |> string.contains("gleam/time/timestamp") |> should.be_true()
   ws |> string.contains("rpc_dispatch") |> should.be_false()
-  ws |> string.contains("rally_runtime/system") |> should.be_false()
+  ws |> string.contains("rally_runtime/system") |> should.be_true()
 }
 
 pub fn json_wire_ws_handler_auth_has_timestamp_imports_test() {
@@ -426,27 +426,26 @@ pub fn json_wire_identity_distinct_modules_test() {
       msg_type: Some(#("admin/discounts/discount", "Discount")),
     )
 
-  let ws =
-    ws_handler.generate(
-      [],
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      None,
-      "server_context",
-      [ep1, ep2],
-      "generated/protocol_wire",
+  let wire =
+    generator.generate_protocol_wire(
       "json",
+      "generated@rpc_atoms",
+      "test_hash",
+      "generated/rpc_dispatch",
+      [ep1, ep2],
+      None,
+      "generated/protocol_wire",
     )
 
   // Both must appear with their distinct type identities
-  ws
+  wire
   |> string.contains("\"admin/dashboard/discount.Discount\"")
   |> should.be_true()
-  ws
+  wire
   |> string.contains("\"admin/discounts/discount.Discount\"")
   |> should.be_true()
   // Neither must match by variant name alone
-  ws
+  wire
   |> string.contains("Ok(\"Discount\") -> {")
   |> should.be_false()
 }
@@ -464,19 +463,18 @@ pub fn json_wire_server_dispatch_uses_qualified_types_test() {
       msg_type: Some(#("admin/dashboard/discount", "Discount")),
     )
 
-  let ws =
-    ws_handler.generate(
-      [],
-      "generated@rpc_atoms",
-      "generated/rpc_dispatch",
-      None,
-      "server_context",
-      [endpoint],
-      "generated/protocol_wire",
+  let wire =
+    generator.generate_protocol_wire(
       "json",
+      "generated@rpc_atoms",
+      "test_hash",
+      "generated/rpc_dispatch",
+      [endpoint],
+      None,
+      "generated/protocol_wire",
     )
 
-  ws
+  wire
   |> string.contains("Ok(\"admin/dashboard/discount.Discount\") -> {")
   |> should.be_true()
 }

@@ -204,9 +204,15 @@ pub fn ws_handler_logs_decoded_rpc_value_test() {
     )
 
   output
-  |> string.contains(
-    "system.log_to_server(db: db_conn, session_id: session_id, user_id: Error(Nil), page: current_page, value: raw, raw_payload: data, elapsed_ms: elapsed_ms)",
-  )
+  |> string.contains("system.log_to_server(")
+  |> should.equal(True)
+
+  output
+  |> string.contains("variant_name: wire.rpc_identity(envelope),")
+  |> should.equal(True)
+
+  output
+  |> string.contains("raw_payload: wire.rpc_raw_payload(envelope),")
   |> should.equal(True)
 
   output

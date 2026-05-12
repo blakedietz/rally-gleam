@@ -1,4 +1,3 @@
-import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/int
 import gleam/result
@@ -6,7 +5,6 @@ import gleam/time/timestamp
 import global_value
 import logging
 import rally_runtime/jobs
-import rally_runtime/wire
 import sqlight
 
 // synchronous=OFF is safe here: this is observability data, not app state.
@@ -83,11 +81,10 @@ pub fn log_to_server(
   session_id session_id: String,
   user_id user_id: Result(Int, Nil),
   page page: String,
-  value value: dynamic.Dynamic,
+  variant_name variant_name: String,
   raw_payload raw_payload: BitArray,
   elapsed_ms elapsed_ms: Int,
 ) -> Nil {
-  let variant = wire.variant_tag(value) |> result.unwrap("unknown")
   let now = unix_seconds()
   let _query_result =
     sqlight.query(
@@ -99,7 +96,7 @@ pub fn log_to_server(
         sqlight.text(session_id),
         nullable_int(user_id),
         sqlight.text(page),
-        sqlight.text(variant),
+        sqlight.text(variant_name),
         sqlight.blob(raw_payload),
         sqlight.int(elapsed_ms),
       ],
