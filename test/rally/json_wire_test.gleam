@@ -578,6 +578,37 @@ pub fn json_wire_js_runtime_identity_mismatch_rejected_test() {
   }
 }
 
+pub fn json_wire_server_push_encoder_in_atoms_test() {
+  // The generated atoms.erl must contain a properly-exported
+  // json_encode_push_value/2 that dispatches page tags to typed
+  // JSON encoders.
+  let atoms_path = fixture_root <> "/src/generated@public@rpc_atoms.erl"
+  let assert Ok(atoms_content) = simplifile.read(atoms_path)
+
+  // Must export the function
+  atoms_content
+  |> string.contains("-export([ensure/0, json_encode_push_value/2]).")
+  |> should.be_true()
+
+  // Must dispatch by page tag
+  atoms_content
+  |> string.contains(
+    "<<\"Public\">> -> 'generated@public@json_codecs':'json_encode_public_pages_home___to_client'(Msg);",
+  )
+  |> should.be_true()
+
+  atoms_content
+  |> string.contains(
+    "<<\"PublicNotifications\">> -> 'generated@public@json_codecs':'json_encode_public_pages_notifications___to_client'(Msg);",
+  )
+  |> should.be_true()
+
+  // Last case arm must NOT have trailing ';' before end
+  atoms_content
+  |> string.contains("Page -> error({no_json_push_encoder, Page})\n    end.")
+  |> should.be_true()
+}
+
 pub fn json_wire_push_decode_preserves_cross_module_identity_test() {
   // Build the fixture so the JS modules and type registry exist.
   let #(gen_status, _gen_output) =

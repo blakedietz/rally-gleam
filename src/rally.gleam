@@ -600,7 +600,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         string.replace(config.atoms_module, "@rpc_atoms", "@protocol_wire")
 
       let push_arms = case json_push_dispatches {
-        [] -> "    _Page -> error({no_json_push_encoder, Page});\n"
+        [] -> "    _Page -> error({no_json_push_encoder, Page})\n"
         _ ->
           list.map(json_push_dispatches, fn(d) {
             let #(page_tag, type_atom) = d
@@ -614,9 +614,17 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
           })
           |> string.join("")
           |> fn(arms) {
-            arms <> "    Page -> error({no_json_push_encoder, Page});\n"
+            arms <> "    Page -> error({no_json_push_encoder, Page})\n"
           }
       }
+
+      // Add json_encode_push_value/2 to the export list.
+      let atoms_erl =
+        string.replace(
+          atoms_erl,
+          "-export([ensure/0]).",
+          "-export([ensure/0, json_encode_push_value/2]).",
+        )
 
       // Insert JSON persistent_term registrations inside do_ensure(),
       // right before the {?MODULE, done} marker.

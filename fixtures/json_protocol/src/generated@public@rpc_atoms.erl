@@ -10,7 +10,7 @@
 %% binary_to_atom calls only run once per VM lifetime.
 
 -module(generated@public@rpc_atoms).
--export([ensure/0]).
+-export([ensure/0, json_encode_push_value/2]).
 
 ensure() ->
     case persistent_term:get({?MODULE, done}, false) of
@@ -58,5 +58,5 @@ json_encode_push_value(Page, Msg) ->
     case Page of
     <<"Public">> -> 'generated@public@json_codecs':'json_encode_public_pages_home___to_client'(Msg);
     <<"PublicNotifications">> -> 'generated@public@json_codecs':'json_encode_public_pages_notifications___to_client'(Msg);
-    Page -> error({no_json_push_encoder, Page});
+    Page -> error({no_json_push_encoder, Page})
     end.

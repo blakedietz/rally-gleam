@@ -89,18 +89,18 @@ encode_push_payload(Page, Msg) ->
 encode_push_frame(Page, Msg) ->
     case persistent_term:get({libero, json_wire_module}, undefined) of
         undefined ->
-            %% ETF path: pre-encode via wire module, then tag with binary frame header
+            %% ETF path: pre-encode via wire module, then frame via Libero boundary.
             case persistent_term:get({libero, wire_module}, undefined) of
                 undefined ->
                     %% No wire module configured (e.g. test environment);
-                    %% produce a best-effort framed binary.
-                    <<1, (term_to_binary({Page, Msg}))/binary>>;
+                    %% use Libero's ETF encode_push directly.
+                    'libero@wire':encode_push(Page, Msg);
                 Mod ->
                     Encoded = Mod:encode_push(Page, Msg),
-                    <<1, (term_to_binary({Page, Encoded}))/binary>>
+                    'libero@wire':encode_push(Page, Encoded)
             end;
         JsonWireMod ->
-            %% JSON path: dispatch to typed JSON encoder, then wrap in protocol envelope
+            %% JSON path: dispatch to typed JSON encoder, then wrap in protocol envelope.
             JsonPushMod = persistent_term:get({libero, json_push_module}),
             JsonValue = JsonPushMod:json_encode_push_value(Page, Msg),
             JsonWireMod:encode_push(Page, JsonValue)
