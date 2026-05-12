@@ -2,7 +2,7 @@ import gleam/string
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
-import server_context.{type ServerContext}
+
 
 pub type Model {
   Model(count: Int)

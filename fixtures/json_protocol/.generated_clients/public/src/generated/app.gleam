@@ -2,7 +2,6 @@
 import generated/codec
 import generated/router
 import generated/transport
-import gleam/option.{type Option, None, Some}
 import lustre
 import lustre/attribute as attr
 import lustre/effect.{type Effect}

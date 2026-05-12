@@ -927,7 +927,7 @@ fn json_codec_gleam_content() -> String {
 
 import gleam/dynamic.{type Dynamic}
 import gleam/result
-import libero/json/error.{type JsonError, JsonError}
+import libero/json/error.{type JsonError}
 
 @external(javascript, \"./protocol_wire.mjs\", \"decode_flags_typed\")
 fn decode_json_flags(flags: String) -> Result(Dynamic, List(JsonError))

@@ -2,8 +2,6 @@
 
 import generated/public/json_codecs
 import generated/public/protocol_wire as wire
-import generated/public/rpc_dispatch
-import gleam/bit_array
 import gleam/bool
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
@@ -14,15 +12,12 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
-import gleam/time/duration
-import gleam/time/timestamp
-import libero/json/error.{type JsonError, JsonError}
+import libero/json/error.{JsonError}
 import libero/trace
 import mist.{type WebsocketConnection, type WebsocketMessage}
 import public/pages/home_ as public_pages_home__handler
 import rally_runtime/effect
 import rally_runtime/env
-import rally_runtime/system
 import rally_runtime/topics
 import server_context.{type ServerContext}
 
@@ -109,7 +104,6 @@ pub fn handler(
     }
     mist.Closed -> mist.stop()
     mist.Shutdown -> mist.stop()
-    _ -> mist.continue(state)
   }
 }
 
@@ -166,7 +160,7 @@ fn json_dispatch(
                 json_codecs.json_encode_gleam_result__result(
                   result,
                   fn(x) { json.int(x) },
-                  fn(x) { json.null() },
+                  fn(_x) { json.null() },
                 )
               let frame = wire.encode_response(request_id, encoded)
               #(frame, server_context)
@@ -212,7 +206,7 @@ fn json_dispatch(
                       x,
                     )
                   },
-                  fn(x) { json.null() },
+                  fn(_x) { json.null() },
                 )
               let frame = wire.encode_response(request_id, encoded)
               #(frame, server_context)

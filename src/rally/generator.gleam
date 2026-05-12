@@ -986,7 +986,7 @@ import gleam/json
 import gleam/option.{type Option}
 import libero/error.{type DecodeError, DecodeError}
 import libero/frame.{type ServerFrame}
-import libero/json/error.{type JsonError} as json_error
+import libero/json/error.{type JsonError} as _json_error
 import libero/json/wire.{type RequestEnvelope} as json_wire
 
 const contract_hash = \"" <> contract_hash <> "\"
@@ -1025,15 +1025,15 @@ pub fn decode_request(data: String) -> Result(RequestEnvelope, List(JsonError)) 
   json_wire.decode_request(data, contract_hash)
 }
 
-pub fn decode_call(data: BitArray) -> Result(#(String, Int, Dynamic), DecodeError) {
+pub fn decode_call(_data: BitArray) -> Result(#(String, Int, Dynamic), DecodeError) {
   Error(DecodeError(\"JSON protocol: decode_call not implemented, use decode_request for JSON frames\"))
 }
 
-pub fn variant_tag(value: Dynamic) -> Result(String, Nil) {
+pub fn variant_tag(_value: Dynamic) -> Result(String, Nil) {
   panic as \"JSON protocol: variant_tag not implemented\"
 }
 
-pub fn encode(value: a) -> BitArray {
+pub fn encode(_value: a) -> BitArray {
   panic as \"JSON protocol: encode not implemented\"
 }
 "

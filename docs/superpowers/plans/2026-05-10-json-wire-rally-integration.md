@@ -1,10 +1,12 @@
 # JSON Wire Rally Integration Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: Implemented.** All tasks complete. Warning cleanup pass done 2026-05-11.
 
 **Goal:** Add JSON wire protocol support to Rally, gated behind `protocol = "json"` config, without leaking JSON parsing or protocol details into Rally runtime code.
 
 **Architecture:** A generated `protocol_wire` facade sits between Rally's generated code and Libero's wire modules. For ETF, it delegates to `libero/wire`. For JSON, it delegates to `libero/json/wire` (server) and `libero/json/wire_ffi.mjs` (client). Rally runtime never imports `JSON.parse`, `JSON.stringify`, or raw JSON wire modules directly. The facade is generated per-namespace and selected at codegen time based on the `protocol` field in `ScanConfig`.
+
+**Push path:** `rally_runtime_ffi.erl` delegates push frame encoding to the module registered at `{libero, push_frame_module}` via `persistent_term`. The generated atoms module (`generated@<ns>@rpc_atoms.erl`) registers itself as that module and owns both atom registration and JSON push encode plus framing. Server push encode is tested by `test/erl/push_encode_probe.erl`; JS client push decode is tested by `test/js/push_frame_decode_test.mjs`.
 
 **Tech Stack:** Gleam (server generators), JavaScript (client transport), Libero JSON wire modules (codegen, wire, frame, error)
 
@@ -569,16 +571,22 @@ After all tasks:
 
 ```sh
 # Libero
-cd /Users/daverapin/projects/opensource/json-wire-worktrees/libero
+cd /path/to/libero
 gleam format --check src test
 gleam test
 bash test/run_json_codec_typecheck_test.sh
 bash test/run_js_tests.sh
 
 # Rally
-cd /Users/daverapin/projects/opensource/json-wire-worktrees/rally-json
+cd /path/to/rally-json
 gleam format --check src test
 gleam test
+cd fixtures/json_protocol && gleam run -m rally -- gen && gleam build
+erl -noshell -pa build/dev/erlang/*/ebin -s push_encode_probe main -s init stop
+cd .generated_clients/public && gleam format --check src && gleam build && gleam build --target javascript
+node ../../../../test/js/push_frame_decode_test.mjs
 ```
+
+**Accepted warnings:** Transitive dependency warnings in the fixture (fixture depends on rally which depends on libero; Gleam warns about the indirect import path). The unreachable catch-all pattern in `ws_handler.gleam` is intentional (dead arm required by Gleam's type broadness, per project convention).
 
 **Main Risk:** The hardest part is typed JSON encode/decode on the JS client without leaking protocol details into Rally. If JSON parsing, contract hash logic, or constructor dispatch appears in `rally_runtime/`, stop and move it behind the generated protocol_wire facade.

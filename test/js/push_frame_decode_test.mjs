@@ -11,7 +11,7 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { strictEqual, ok as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

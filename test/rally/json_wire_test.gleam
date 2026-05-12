@@ -6,14 +6,14 @@ import gleam/result
 import gleam/string
 import gleeunit/should
 import libero/field_type as libero_field_type
-import libero/scanner.{type HandlerEndpoint, HandlerEndpoint}
+import libero/scanner.{HandlerEndpoint}
 import rally/generator
 import rally/generator/codec
 import rally/generator/ssr_handler
 import rally/generator/ws_handler
 import rally/parser
 import rally/scanner as rally_scanner
-import rally/types.{type ScanConfig, type ScannedRoute, ScanConfig, ScannedRoute}
+import rally/types.{type ScanConfig, ScanConfig, ScannedRoute}
 import simplifile
 
 const fixture_root = "fixtures/json_protocol"
@@ -220,6 +220,74 @@ pub fn json_wire_ws_handler_has_text_branch_test() {
   ws |> string.contains("mist.Text") |> should.be_true()
   // ETF mode uses mist.Binary, JSON adds mist.Text
   ws |> string.contains("mist.Text(data)") |> should.be_true()
+}
+
+pub fn json_wire_ws_handler_no_etf_imports_test() {
+  let ws =
+    ws_handler.generate(
+      [],
+      "",
+      "",
+      None,
+      "server_context",
+      [],
+      "generated/protocol_wire",
+      "json",
+    )
+  ws |> string.contains("gleam/bit_array") |> should.be_false()
+  ws |> string.contains("gleam/time/duration") |> should.be_false()
+  ws |> string.contains("gleam/time/timestamp") |> should.be_false()
+  ws |> string.contains("rpc_dispatch") |> should.be_false()
+  ws |> string.contains("rally_runtime/system") |> should.be_false()
+}
+
+pub fn json_wire_ws_handler_auth_has_timestamp_imports_test() {
+  let ws =
+    ws_handler.generate(
+      [],
+      "",
+      "",
+      Some(types.AuthConfig(auth_module: "my_app/auth")),
+      "server_context",
+      [],
+      "generated/protocol_wire",
+      "json",
+    )
+  ws |> string.contains("gleam/time/duration") |> should.be_true()
+  ws |> string.contains("gleam/time/timestamp") |> should.be_true()
+  ws |> string.contains("gleam/bit_array") |> should.be_false()
+}
+
+pub fn json_wire_protocol_wire_no_unused_alias_test() {
+  let source =
+    generator.generate_protocol_wire(
+      "json",
+      "generated@rpc_atoms",
+      "test_hash_123",
+    )
+  source |> string.contains("as json_error") |> should.be_false()
+  source |> string.contains("_data: BitArray") |> should.be_true()
+  source |> string.contains("_value: Dynamic") |> should.be_true()
+  source |> string.contains("_value: a") |> should.be_true()
+}
+
+pub fn json_wire_client_codec_no_json_error_constructor_test() {
+  let files =
+    codec.generate(
+      contracts: [],
+      discovered: [],
+      endpoints: [],
+      server_symbols: [],
+      protocol: "json",
+    )
+  let assert Ok(codec_file) =
+    list.find(files, fn(f) { string.contains(f.path, "codec.gleam") })
+  codec_file.content
+  |> string.contains("type JsonError")
+  |> should.be_true()
+  codec_file.content
+  |> string.contains("{type JsonError, JsonError}")
+  |> should.be_false()
 }
 
 pub fn json_wire_facade_is_only_wire_import_test() {

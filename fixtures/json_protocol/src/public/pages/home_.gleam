@@ -46,14 +46,14 @@ pub type ToClient {
 
 pub fn server_increment_by(
   msg msg: ServerIncrementBy,
-  server_context server_context: ServerContext,
+  server_context _server_context: ServerContext,
 ) -> Result(IncrementResult, Nil) {
   Ok(IncrementResult(old: 0, new: msg.amount))
 }
 
 pub fn server_increment(
-  msg msg: ServerIncrement,
-  server_context server_context: ServerContext,
+  msg _msg: ServerIncrement,
+  server_context _server_context: ServerContext,
 ) -> Result(Int, Nil) {
   Ok(42)
 }
