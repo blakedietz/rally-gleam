@@ -36,6 +36,14 @@ pub fn generate_json_dispatch_function(
   endpoints: List(HandlerEndpoint),
   has_auth: Bool,
 ) -> String {
+  generate_json_dispatch_function_with_prefix(endpoints, has_auth, "wire.")
+}
+
+pub fn generate_json_dispatch_function_with_prefix(
+  endpoints: List(HandlerEndpoint),
+  has_auth: Bool,
+  encode_prefix: String,
+) -> String {
   case endpoints {
     [] -> "\nfn json_dispatch(
   message _message: Dynamic,
@@ -45,16 +53,17 @@ pub fn generate_json_dispatch_function(
         False -> ""
       } <> "
 ) -> #(String, ServerContext) {
-  let error_frame = wire.encode_error(Some(request_id), [JsonError(\"rpc\", \"no endpoints configured\")])
+  let error_frame = " <> encode_prefix <> "encode_error(Some(request_id), [JsonError(\"rpc\", \"no endpoints configured\")])
   #(error_frame, server_context)
 }\n"
     _ -> {
       let arms =
-        list.map(endpoints, fn(e) { json_dispatch_arm(e, has_auth) })
+        list.map(endpoints, fn(e) {
+          json_dispatch_arm(e, has_auth, encode_prefix)
+        })
         |> string.join("\n")
-      let catch_all =
-        "      Ok(other) -> {
-        let error_frame = wire.encode_error(Some(request_id), [JsonError(\"type\", \"unknown: \" <> other)])
+      let catch_all = "      Ok(other) -> {
+        let error_frame = " <> encode_prefix <> "encode_error(Some(request_id), [JsonError(\"type\", \"unknown: \" <> other)])
         #(error_frame, server_context)
       }"
 
@@ -68,14 +77,18 @@ pub fn generate_json_dispatch_function(
 ) -> #(String, ServerContext) {
   case decode.run(message, decode.field(\"type\", decode.string, fn(x) { decode.success(x) })) {
     Error(_) -> {
-      let error_frame = wire.encode_error(Some(request_id), [JsonError(\"type\", \"missing or not a string\")])
+      let error_frame = " <> encode_prefix <> "encode_error(Some(request_id), [JsonError(\"type\", \"missing or not a string\")])
       #(error_frame, server_context)
     }\n" <> arms <> "\n" <> catch_all <> "\n  }\n}\n"
     }
   }
 }
 
-pub fn json_dispatch_arm(e: HandlerEndpoint, has_auth: Bool) -> String {
+pub fn json_dispatch_arm(
+  e: HandlerEndpoint,
+  has_auth: Bool,
+  encode_prefix: String,
+) -> String {
   let alias = handler_alias(e.module_path)
   let #(type_module, type_name) = case e.msg_type {
     Some(#(mod, name)) -> #(mod, name)
@@ -95,20 +108,20 @@ pub fn json_dispatch_arm(e: HandlerEndpoint, has_auth: Bool) -> String {
   "    Ok(\"" <> type_str <> "\") -> {
       case " <> msg_decoder <> "(message) {
         Error(errors) -> {
-          let error_frame = wire.encode_error(Some(request_id), errors)
+          let error_frame = " <> encode_prefix <> "encode_error(Some(request_id), errors)
           #(error_frame, server_context)
         }
         Ok(msg) -> {
           case trace.try_call(fn() { " <> handler_call <> " }) {
             Ok(" <> ok_destructure <> ") -> {
               " <> response_encode <> "
-              let frame = wire.encode_response(request_id, encoded)
+              let frame = " <> encode_prefix <> "encode_response(request_id, encoded)
               #(frame, " <> ok_ctx <> ")
             }
             Error(reason) -> {
               let trace_id = trace.new_trace_id()
               io.println_error(\"[libero] \" <> trace_id <> \" " <> e.fn_name <> ": \" <> reason)
-              let error_frame = wire.encode_error(Some(request_id), [JsonError(\"handler\", \"Something went wrong\")])
+              let error_frame = " <> encode_prefix <> "encode_error(Some(request_id), [JsonError(\"handler\", \"Something went wrong\")])
               #(error_frame, server_context)
             }
           }

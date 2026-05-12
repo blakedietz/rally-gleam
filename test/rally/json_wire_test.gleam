@@ -127,6 +127,10 @@ pub fn json_wire_protocol_wire_is_json_mode_test() {
       "json",
       "generated@rpc_atoms",
       "test_hash_123",
+      "generated/rpc_dispatch",
+      [],
+      None,
+      "generated/protocol_wire",
     )
   source |> string.contains("libero/json/wire") |> should.be_true()
   source |> string.contains("libero/wire") |> should.be_false()
@@ -264,6 +268,10 @@ pub fn json_wire_protocol_wire_no_unused_alias_test() {
       "json",
       "generated@rpc_atoms",
       "test_hash_123",
+      "generated/rpc_dispatch",
+      [],
+      None,
+      "generated/protocol_wire",
     )
   source |> string.contains("as json_error") |> should.be_false()
   source |> string.contains("_data: BitArray") |> should.be_true()

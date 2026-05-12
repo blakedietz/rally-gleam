@@ -300,7 +300,15 @@ pub fn generate_etf_protocol_wire_js_facade_uses_browser_safe_boundaries_test() 
 
 pub fn generate_etf_protocol_wire_tuple_element_uses_external_stub_test() {
   let output =
-    generator.generate_protocol_wire("etf", "generated@rpc_atoms", "hash")
+    generator.generate_protocol_wire(
+      "etf",
+      "generated@rpc_atoms",
+      "hash",
+      "generated/rpc_dispatch",
+      [],
+      None,
+      "generated/protocol_wire",
+    )
 
   let assert True = string.contains(output, "dynamic.nil()")
   let assert False = string.contains(output, "libero_wire.tuple_element")
@@ -308,10 +316,33 @@ pub fn generate_etf_protocol_wire_tuple_element_uses_external_stub_test() {
 
 pub fn generate_etf_protocol_wire_includes_decode_request_stub_test() {
   let output =
-    generator.generate_protocol_wire("etf", "generated@rpc_atoms", "hash")
+    generator.generate_protocol_wire(
+      "etf",
+      "generated@rpc_atoms",
+      "hash",
+      "generated/rpc_dispatch",
+      [],
+      None,
+      "generated/protocol_wire",
+    )
 
   let assert True =
     string.contains(output, "pub fn decode_request(_data: String)")
+}
+
+pub fn json_protocol_wire_no_endpoints_compiles_test() {
+  let source =
+    generator.generate_protocol_wire(
+      "json",
+      "generated/admin/rpc_atoms",
+      "test_hash",
+      "generated/admin/rpc_dispatch",
+      [],
+      None,
+      "generated/admin/protocol_wire",
+    )
+  let assert True = string.contains(source, "fn json_dispatch(")
+  let assert True = string.contains(source, "fn dispatch_rpc(")
 }
 
 pub fn scan_config_protocol_can_be_json_test() {

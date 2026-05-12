@@ -969,6 +969,10 @@ fn do_write_files(
       config.protocol,
       config.atoms_module,
       contract_hash,
+      rpc_dispatch_module,
+      ns_endpoints,
+      auth_config,
+      protocol_wire_module,
     )
   use _ <- result.try(
     write_file(protocol_wire_output, protocol_wire_source)
