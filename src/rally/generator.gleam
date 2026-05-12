@@ -1002,7 +1002,6 @@ fn etf_protocol_wire_source(
 
 import gleam/bytes_tree
 import gleam/dynamic.{type Dynamic}
-import glisten
 import libero/error.{type DecodeError}
 import libero/wire as libero_wire
 import mist.{type WebsocketConnection, type WebsocketMessage}
@@ -1064,8 +1063,9 @@ pub fn decode_ws_rpc_envelope(msg: WebsocketMessage(a)) -> Result(RpcEnvelope, N
 }
 
 " <> dispatch_fn <> "
-pub fn send_rpc_result(conn: WebsocketConnection, result: RpcResult) -> Result(Nil, glisten.SocketReason) {
-  mist.send_binary_frame(conn, result.data)
+pub fn send_rpc_result(conn: WebsocketConnection, result: RpcResult) -> Nil {
+  let _send_result = mist.send_binary_frame(conn, result.data)
+  Nil
 }
 
 pub fn rpc_result_body(result: RpcResult) -> bytes_tree.BytesTree {
@@ -1091,7 +1091,7 @@ pub fn tuple_element(_tuple: Dynamic, _index: Int) -> Dynamic { dynamic.nil() }
 
 fn json_protocol_wire_source(
   contract_hash: String,
-  rpc_dispatch_module: String,
+  _rpc_dispatch_module: String,
   endpoints: List(HandlerEndpoint),
   auth_config: Option(AuthConfig),
   wire_import_module: String,
@@ -1155,15 +1155,13 @@ import gleam/dynamic/decode
 import gleam/io
 import gleam/json
 import gleam/option.{type Option, Some}
-import glisten
-import libero/error.{type DecodeError, DecodeError} as libero_error
+import libero/error as libero_error
 import libero/frame.{type ServerFrame}
 import libero/json/error.{type JsonError, JsonError}
 import libero/json/wire.{type RequestEnvelope} as json_wire
 import libero/trace
 import mist.{type WebsocketConnection, type WebsocketMessage}
 import server_context.{type ServerContext}
-import " <> rpc_dispatch_module <> " as rpc_dispatch
 import " <> json_codecs_module <> " as json_codecs
 " <> handler_imports <> auth_import <> "
 
@@ -1263,8 +1261,9 @@ fn extract_message_type(message: Dynamic) -> Result(String, Nil) {
 }
 
 " <> json_dispatch <> "\n" <> dispatch_fn <> "
-pub fn send_rpc_result(conn: WebsocketConnection, result: RpcResult) -> Result(Nil, glisten.SocketReason) {
-  mist.send_text_frame(conn, result.text)
+pub fn send_rpc_result(conn: WebsocketConnection, result: RpcResult) -> Nil {
+  let _send_result = mist.send_text_frame(conn, result.text)
+  Nil
 }
 
 pub fn rpc_result_body(result: RpcResult) -> bytes_tree.BytesTree {
@@ -1293,8 +1292,8 @@ pub fn error_result(request_id: Int, message: String) -> RpcResult {
   ))
 }
 
-pub fn decode_call(_data: BitArray) -> Result(#(String, Int, Dynamic), DecodeError) {
-  Error(DecodeError(\"JSON protocol: decode_call not implemented, use decode_request for JSON frames\"))
+pub fn decode_call(_data: BitArray) -> Result(#(String, Int, Dynamic), libero_error.DecodeError) {
+  Error(libero_error.DecodeError(\"JSON protocol: decode_call not implemented, use decode_request for JSON frames\"))
 }
 
 pub fn variant_tag(_value: Dynamic) -> Result(String, Nil) {
