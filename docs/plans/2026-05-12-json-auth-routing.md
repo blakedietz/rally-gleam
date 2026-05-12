@@ -113,6 +113,12 @@ from the handler. The ETF facade decodes `mist.Binary(data)` and ignores
 `mist.Binary(_)`. The handler calls one function and gets back an envelope
 or `Error(Nil)`.
 
+Both facade versions filter out `request_id == 0` (page-init frames) by
+returning `Error(Nil)`, so page-init handling falls through to its existing
+protocol-specific branch. Without this guard, a no-param ETF page-init
+payload could pass `variant_tag` and get rejected as `"auth:unknown_rpc"`
+instead of being handled as a page-init.
+
 ### Identity in handler_page_info
 
 `endpoint_wire_tags` gains a `protocol` parameter. For ETF, it returns
@@ -421,7 +427,11 @@ pub fn decode_rpc_envelope(data: BitArray) -> Result(RpcEnvelope, Nil) {
 
 pub fn decode_ws_rpc_envelope(msg: mist.WebsocketMessage(a)) -> Result(RpcEnvelope, Nil) {
   case msg {
-    mist.Binary(data) -> decode_rpc_envelope(data)
+    mist.Binary(data) ->
+      case decode_rpc_envelope(data) {
+        Ok(envelope) if envelope.request_id == 0 -> Error(Nil)
+        result -> result
+      }
     _ -> Error(Nil)
   }
 }
@@ -457,7 +467,11 @@ pub fn decode_rpc_envelope(data: BitArray) -> Result(RpcEnvelope, Nil) {
 
 pub fn decode_ws_rpc_envelope(msg: mist.WebsocketMessage(a)) -> Result(RpcEnvelope, Nil) {
   case msg {
-    mist.Text(data) -> decode_rpc_envelope_text(data)
+    mist.Text(data) ->
+      case decode_rpc_envelope_text(data) {
+        Ok(envelope) if envelope.request_id == 0 -> Error(Nil)
+        result -> result
+      }
     _ -> Error(Nil)
   }
 }
@@ -593,7 +607,20 @@ pub fn generate_json_dispatch_function(
   has_auth: Bool,
 ) -> String {
   case endpoints {
-    [] -> ""
+    [] ->
+      "\nfn json_dispatch(
+  message _message: Dynamic,
+  request_id request_id: Int,
+  server_context server_context: ServerContext,"
+      <> case has_auth {
+        True -> "\n  identity _identity: auth.Identity,"
+        False -> ""
+      }
+      <> "
+) -> #(String, ServerContext) {
+  let error_frame = wire.encode_error(Some(request_id), [JsonError(\"rpc\", \"no endpoints configured\")])
+  #(error_frame, server_context)
+}\n"
     _ -> {
       let arms =
         list.map(endpoints, fn(e) { json_dispatch_arm(e, has_auth) })
@@ -868,6 +895,7 @@ includes:
 
 ```gleam
 import gleam/bytes_tree
+import glisten
 import mist.{type WebsocketConnection}
 import <rpc_dispatch_module> as rpc_dispatch
 
@@ -898,7 +926,7 @@ pub fn dispatch_rpc(
 pub fn send_rpc_result(
   conn: WebsocketConnection,
   result: RpcResult,
-) -> Result(Nil, mist.Error) {
+) -> Result(Nil, glisten.SocketReason) {
   mist.send_binary_frame(conn, result.data)
 }
 
@@ -934,6 +962,7 @@ import gleam/bytes_tree
 import gleam/io
 import gleam/json
 import gleam/option.{Some}
+import glisten
 import libero/json/error.{JsonError}
 import libero/trace
 import mist.{type WebsocketConnection}
@@ -978,7 +1007,7 @@ pub fn dispatch_rpc(
 pub fn send_rpc_result(
   conn: WebsocketConnection,
   result: RpcResult,
-) -> Result(Nil, mist.Error) {
+) -> Result(Nil, glisten.SocketReason) {
   mist.send_text_frame(conn, result.text)
 }
 
@@ -1033,7 +1062,29 @@ generator.generate_protocol_wire(
 `auth_config` is already in scope.
 `protocol_wire_module` is already computed.
 
-- [ ] **Step 4: Run auth codegen check**
+- [ ] **Step 4: Add a no-endpoints JSON facade compile test**
+
+Generate a JSON protocol_wire with an empty endpoint list and verify the
+output contains a `json_dispatch` stub that compiles (not an empty string):
+
+```gleam
+pub fn json_protocol_wire_no_endpoints_compiles_test() {
+  let source =
+    generator.generate_protocol_wire(
+      "json",
+      "generated/admin/rpc_atoms",
+      "test_hash",
+      "generated/admin/rpc_dispatch",
+      [],
+      None,
+      "generated/admin/protocol_wire",
+    )
+  let assert True = string.contains(source, "fn json_dispatch(")
+  let assert True = string.contains(source, "fn dispatch_rpc(")
+}
+```
+
+- [ ] **Step 5: Run auth codegen check**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
@@ -1041,22 +1092,23 @@ cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
 
 This is the critical verification: the generated protocol_wire facade must
 compile with its new imports (handler modules, json_codecs, auth module,
-mist, bytes_tree) and the json_dispatch function must type-check.
+mist, glisten, bytes_tree) and the json_dispatch function must type-check.
 
-- [ ] **Step 5: Run tests**
+- [ ] **Step 6: Run tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && gleam test
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```sh
 git add src/rally/generator.gleam src/rally.gleam
 git commit -m "Add dispatch and response to protocol_wire facade"
 ```
 
-**Review checkpoint:** Both facade variants compile with dispatch. The
+**Review checkpoint:** Both facade variants compile with dispatch, including
+zero-endpoint edge case. The
 facade is now a complete server-side protocol boundary: decode, identity,
 dispatch, response framing, error responses. No callers in the handlers
 yet; that is Tasks 5 and 6.
