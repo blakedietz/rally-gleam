@@ -369,6 +369,32 @@ pub fn json_fixture_builds_test() {
   }
 }
 
+pub fn json_http_fixture_dispatches_real_request_test() {
+  let #(gen_status, gen_output) =
+    run_gleam(fixture_root, ["run", "-m", "rally", "--", "gen"])
+  let gen_msg =
+    "Fixture rally gen failed (exit "
+    <> int.to_string(gen_status)
+    <> "):\n"
+    <> gen_output
+  case gen_status {
+    0 -> Nil
+    _ -> panic as gen_msg
+  }
+
+  let #(probe_status, probe_output) =
+    run_gleam(fixture_root, ["run", "-m", "json_http_probe"])
+  let probe_msg =
+    "JSON HTTP probe failed (exit "
+    <> int.to_string(probe_status)
+    <> "):\n"
+    <> probe_output
+  case probe_status {
+    0 -> Nil
+    _ -> panic as probe_msg
+  }
+}
+
 // =============================================================================
 // Identity collision tests — prove the protocol preserves type identity
 // =============================================================================
