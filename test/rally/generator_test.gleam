@@ -343,6 +343,7 @@ pub fn json_protocol_wire_no_endpoints_compiles_test() {
     )
   let assert True = string.contains(source, "fn json_dispatch(")
   let assert True = string.contains(source, "fn dispatch_rpc(")
+  let assert True = string.contains(source, "pub fn malformed_rpc_result()")
   let assert False = string.contains(source, "import glisten")
   let assert False = string.contains(source, "as rpc_dispatch")
 }
@@ -364,6 +365,7 @@ pub fn etf_protocol_wire_hides_socket_reason_test() {
       source,
       "pub fn send_rpc_result(conn: WebsocketConnection, result: RpcResult) -> Nil",
     )
+  let assert True = string.contains(source, "pub fn malformed_rpc_result()")
   let assert False = string.contains(source, "import glisten")
   let assert False = string.contains(source, "glisten.SocketReason")
 }

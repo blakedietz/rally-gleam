@@ -226,6 +226,25 @@ pub fn json_wire_ws_handler_has_text_branch_test() {
   ws |> string.contains("mist.Text(_data)") |> should.be_true()
 }
 
+pub fn json_wire_ws_handler_reports_malformed_rpc_frames_test() {
+  let ws =
+    ws_handler.generate(
+      [],
+      "",
+      "",
+      None,
+      "server_context",
+      [],
+      "generated/protocol_wire",
+      "json",
+    )
+
+  ws |> string.contains("wire.malformed_rpc_result()") |> should.be_true()
+  ws
+  |> string.contains("wire.send_rpc_result(conn, result)")
+  |> should.be_true()
+}
+
 pub fn json_wire_ws_handler_no_etf_imports_test() {
   let ws =
     ws_handler.generate(

@@ -814,6 +814,10 @@ pub fn ws_auth_etf_protocol_uses_protocol_wire_rpc_test() {
     )
   let assert True =
     string.contains(output, "wire.send_rpc_result(conn, result)")
+  let assert Ok(#(before_page_init_decode, _)) =
+    string.split_once(output, "wire.decode_call")
+  let assert True =
+    string.contains(before_page_init_decode, "wire.decode_ws_rpc_envelope(msg)")
   let assert Ok(#(_, rpc_path)) = string.split_once(output, "Ok(envelope) ->")
   let assert Ok(#(rpc_before_dispatch, _)) =
     string.split_once(rpc_path, "wire.dispatch_rpc")

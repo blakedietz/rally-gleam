@@ -7,7 +7,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/io
 import gleam/json
-import gleam/option.{type Option, Some}
+import gleam/option.{type Option, None, Some}
 import libero/error as libero_error
 import libero/frame.{type ServerFrame}
 import libero/json/error.{type JsonError, JsonError}
@@ -301,6 +301,14 @@ pub fn error_result(request_id: Int, message: String) -> RpcResult {
   RpcResult(
     text: json_wire.encode_error(request_id: Some(request_id), errors: [
       JsonError("rpc", message),
+    ]),
+  )
+}
+
+pub fn malformed_rpc_result() -> RpcResult {
+  RpcResult(
+    text: json_wire.encode_error(request_id: None, errors: [
+      JsonError("frame", "invalid RPC frame"),
     ]),
   )
 }

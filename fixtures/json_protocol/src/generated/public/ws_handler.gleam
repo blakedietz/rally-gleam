@@ -90,7 +90,12 @@ pub fn handler(
           send_pending_frames(conn)
           mist.continue(state)
         }
-        Error(Nil) -> mist.continue(state)
+        Error(Nil) -> {
+          let result = wire.malformed_rpc_result()
+          wire.send_rpc_result(conn, result)
+          send_pending_frames(conn)
+          mist.continue(state)
+        }
       }
     }
     mist.Custom(msg) -> {

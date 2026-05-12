@@ -1295,7 +1295,7 @@ Replace the ETF-specific binary decode path and the JSON-specific text
 decode path with a single `wire.decode_ws_rpc_envelope(msg)` call. Both
 frame types should use the same auth + dispatch flow.
 
-- [ ] **Step 1: Unify the RPC frame decode (auth version)**
+- [x] **Step 1: Unify the RPC frame decode (auth version)**
 
 Currently the auth WS handler generates separate `mist.Binary(data)` and
 `mist.Text(data)` branches. Replace both with a single RPC path that uses
@@ -1349,7 +1349,7 @@ what gets unified.
 The frame handler structure becomes: try `decode_ws_rpc_envelope` first
 for RPC, then fall through to page-init handling if it returns `Error(Nil)`.
 
-- [ ] **Step 2: Update logging to use facade accessors**
+- [x] **Step 2: Update logging to use facade accessors**
 
 Current logging calls:
 
@@ -1383,9 +1383,13 @@ This requires updating `system.log_to_server` to accept `variant_name:
 String` instead of `value: Dynamic` (which it currently calls
 `wire.variant_tag` on to derive the variant name). This is a small change
 to `rally_runtime/system.gleam`: replace the `value` parameter with
-`variant_name` and remove the internal `variant_tag` call.
+`variant_name`.
 
-- [ ] **Step 3: Rewrite the no-auth RPC branch**
+JSON malformed RPC text frames now use `wire.malformed_rpc_result()` so
+the handler still responds with a protocol-shaped error without calling the
+JSON request decoder directly.
+
+- [x] **Step 3: Rewrite the no-auth RPC branch**
 
 Same pattern as Step 1 but without the auth checks. Replace
 `rpc_dispatch.handle` and `json_dispatch` with `wire.dispatch_rpc`:
@@ -1403,7 +1407,7 @@ case wire.decode_ws_rpc_envelope(msg) {
 }
 ```
 
-- [ ] **Step 4: Remove inline `json_dispatch` generation from ws_handler**
+- [x] **Step 4: Remove inline `json_dispatch` generation from ws_handler**
 
 `generate_json_dispatch_function` was already delegated to
 `json_rpc_dispatch` in Task 4a. Now remove the ws_handler's call to
@@ -1411,7 +1415,7 @@ generate it as a top-level function in the WS handler output, since
 dispatch now goes through the facade. The `json_dispatch` variable in
 `generate` (around line 119) should become `""` for all protocols.
 
-- [ ] **Step 5: Add JSON WS auth test**
+- [x] **Step 5: Add JSON WS auth test**
 
 ```gleam
 pub fn ws_auth_json_protocol_enforces_auth_test() {
@@ -1475,28 +1479,31 @@ pub fn ws_auth_etf_also_uses_protocol_neutral_decode_test() {
       protocol: "etf",
     )
 
-  // ETF also uses the unified decode
+  // ETF also uses the unified decode before the page-init fallback
   let assert True = string.contains(output, "wire.decode_ws_rpc_envelope(")
-  // Must NOT call decode_call or variant_tag directly
-  let assert False = string.contains(output, "decode_call")
+  let assert Ok(#(before_page_init_decode, _)) =
+    string.split_once(output, "wire.decode_call")
+  let assert True =
+    string.contains(before_page_init_decode, "wire.decode_ws_rpc_envelope(msg)")
+  // Must NOT call variant_tag directly
   let assert False = string.contains(output, "variant_tag")
 }
 ```
 
-- [ ] **Step 6: Update existing ETF WS test assertions**
+- [x] **Step 6: Update existing ETF WS test assertions**
 
 Existing tests that assert `decode_call` or `variant_tag` in the generated
 output must be updated to assert `decode_ws_rpc_envelope` and
 `wire.rpc_identity` instead. Find all such assertions and update them.
 
-- [ ] **Step 7: Run tests**
+- [x] **Step 7: Run tests**
 
 ```sh
 cd /Users/daverapin/projects/opensource/rally && gleam test
 cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
 ```
 
-- [ ] **Step 8: Update `system.gleam` if logging signature changed**
+- [x] **Step 8: Update `system.gleam` if logging signature changed**
 
 If Step 2 changed `system.log_to_server` to take `variant_name: String`
 instead of `value: Dynamic`, update all callers. Check with:
@@ -1505,7 +1512,7 @@ instead of `value: Dynamic`, update all callers. Check with:
 grep -rn 'log_to_server' src/rally_runtime/
 ```
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```sh
 git add src/rally/generator/ws_handler.gleam src/rally_runtime/system.gleam test/rally/ws_auth_test.gleam
@@ -1528,12 +1535,15 @@ cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
 - [ ] **Step 2: Verify acceptance criteria**
 
 ```sh
-# No protocol-specific calls in generated handlers
+# No protocol-specific calls in generated HTTP handlers
 grep -n 'decode_call\|variant_tag\|decode_request' src/rally/generator/http_handler.gleam
 # Expected: 0 matches (no direct protocol calls)
 
-grep -n 'decode_call\|variant_tag' src/rally/generator/ws_handler.gleam
+# WS may still use decode_call only in the ETF page-init fallback.
+grep -n 'variant_tag\|decode_request' src/rally/generator/ws_handler.gleam
 # Expected: 0 matches
+grep -n 'decode_call' src/rally/generator/ws_handler.gleam
+# Expected: page-init fallback only, after decode_ws_rpc_envelope.
 
 # No "Not implemented" anywhere
 grep -rn 'Not implemented' src/rally/generator/
@@ -1598,7 +1608,8 @@ git commit -m "Update docs: Protocol-agnostic RPC handlers"
 - New: JSON WS handler generates is_authenticated check
 - New: JSON WS handler generates authorize check
 - New: JSON handler_page_info maps type strings, not ETF atom tags
-- New: No generated handler calls `decode_call`, `variant_tag`, or
-  `decode_request` directly
+- New: HTTP handlers do not call `decode_call`, `variant_tag`, or
+  `decode_request` directly. WS RPC handling uses `decode_ws_rpc_envelope`;
+  ETF `decode_call` remains only as the page-init fallback.
 - New: Both ETF and JSON handler_page_info entries resolve to the same
   PageAuthInfo for the same endpoint

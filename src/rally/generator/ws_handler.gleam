@@ -194,7 +194,12 @@ fn generate_frame_handler_no_auth(protocol: String) -> String {
           send_pending_frames(conn)
           mist.continue(state)
         }
-        Error(Nil) -> mist.continue(state)
+        Error(Nil) -> {
+          let result = wire.malformed_rpc_result()
+          wire.send_rpc_result(conn, result)
+          send_pending_frames(conn)
+          mist.continue(state)
+        }
       }
     }"
 
@@ -208,90 +213,57 @@ fn generate_frame_handler_no_auth(protocol: String) -> String {
     _ ->
       "\n    mist.Binary(data) -> {
       debug_log(\"[rally:ws] Binary frame: \" <> int.to_string(bit_array.byte_size(data)) <> \" bytes\")
-      case wire.decode_call(data) {
-        Ok(#(page, request_id, _value)) if request_id == 0 -> {
-          debug_log(\"[rally:ws] page_init: \" <> page)
-          let old_page = effect.get_ws_page()
+      case wire.decode_ws_rpc_envelope(msg) {
+        Ok(envelope) -> {
+          let request_id = wire.rpc_request_id(envelope)
+          debug_log(\"[rally:ws] RPC: request_id=\" <> int.to_string(request_id))
           let assert Ok(server_context) = effect.get_stored_server_context()
-          let Nil = effect.put_ws_state(conn, server_context, page)
-          case old_page {
-            \"\" -> Nil
-            _ -> topics.leave(\"page:\" <> old_page)
-          }
-          topics.join(\"page:\" <> page)
-          let response_frame = wire.encode_response(request_id:, value: wire.page_init_ok())
-          let _send_result = mist.send_binary_frame(conn, response_frame)
+          let current_page = effect.get_ws_page()
+          let start = timestamp.system_time()
+          let #(result, new_ctx) = wire.dispatch_rpc(envelope, server_context)
+          let elapsed_ms =
+            timestamp.difference(start, timestamp.system_time())
+            |> duration.to_milliseconds()
+
+          let session_id = effect.get_ws_session()
+          let assert Ok(db_conn) = system.get_conn()
+          system.log_to_server(
+            db: db_conn,
+            session_id: session_id,
+            user_id: Error(Nil),
+            page: current_page,
+            variant_name: wire.rpc_identity(envelope),
+            raw_payload: wire.rpc_raw_payload(envelope),
+            elapsed_ms: elapsed_ms,
+          )
+
+          let Nil = effect.put_ws_state(conn, new_ctx, current_page)
+          wire.send_rpc_result(conn, result)
           send_pending_frames(conn)
           mist.continue(state)
         }
-        Ok(#(_page, _request_id, _raw)) ->
-          case wire.decode_ws_rpc_envelope(msg) {
-            Ok(envelope) -> {
-              let request_id = wire.rpc_request_id(envelope)
-              debug_log(\"[rally:ws] RPC: request_id=\" <> int.to_string(request_id))
+        Error(Nil) ->
+          case wire.decode_call(data) {
+            Ok(#(page, request_id, _value)) if request_id == 0 -> {
+              debug_log(\"[rally:ws] page_init: \" <> page)
+              let old_page = effect.get_ws_page()
               let assert Ok(server_context) = effect.get_stored_server_context()
-              let current_page = effect.get_ws_page()
-              let start = timestamp.system_time()
-              let #(result, new_ctx) = wire.dispatch_rpc(envelope, server_context)
-              let elapsed_ms =
-                timestamp.difference(start, timestamp.system_time())
-                |> duration.to_milliseconds()
-
-              let session_id = effect.get_ws_session()
-              let assert Ok(db_conn) = system.get_conn()
-              system.log_to_server(
-                db: db_conn,
-                session_id: session_id,
-                user_id: Error(Nil),
-                page: current_page,
-                variant_name: wire.rpc_identity(envelope),
-                raw_payload: wire.rpc_raw_payload(envelope),
-                elapsed_ms: elapsed_ms,
-              )
-
-              let Nil = effect.put_ws_state(conn, new_ctx, current_page)
-              wire.send_rpc_result(conn, result)
+              let Nil = effect.put_ws_state(conn, server_context, page)
+              case old_page {
+                \"\" -> Nil
+                _ -> topics.leave(\"page:\" <> old_page)
+              }
+              topics.join(\"page:\" <> page)
+              let response_frame = wire.encode_response(request_id:, value: wire.page_init_ok())
+              let _send_result = mist.send_binary_frame(conn, response_frame)
               send_pending_frames(conn)
               mist.continue(state)
             }
-            Error(Nil) -> mist.continue(state)
-          }
-        Error(_error) -> {
-          case wire.decode_ws_rpc_envelope(msg) {
-            Ok(envelope) -> {
-              let request_id = wire.rpc_request_id(envelope)
-              debug_log(\"[rally:ws] RPC: request_id=\" <> int.to_string(request_id))
-              let assert Ok(server_context) = effect.get_stored_server_context()
-              let current_page = effect.get_ws_page()
-              let start = timestamp.system_time()
-              let #(result, new_ctx) = wire.dispatch_rpc(envelope, server_context)
-              let elapsed_ms =
-                timestamp.difference(start, timestamp.system_time())
-                |> duration.to_milliseconds()
-
-              let session_id = effect.get_ws_session()
-              let assert Ok(db_conn) = system.get_conn()
-              system.log_to_server(
-                db: db_conn,
-                session_id: session_id,
-                user_id: Error(Nil),
-                page: current_page,
-                variant_name: wire.rpc_identity(envelope),
-                raw_payload: wire.rpc_raw_payload(envelope),
-                elapsed_ms: elapsed_ms,
-              )
-
-              let Nil = effect.put_ws_state(conn, new_ctx, current_page)
-              wire.send_rpc_result(conn, result)
-              send_pending_frames(conn)
-              mist.continue(state)
-            }
-            Error(Nil) -> {
+            _ -> {
               debug_log(\"[rally:ws] decode_call FAILED\")
               mist.continue(state)
             }
           }
-        }
       }
     }"
   }
@@ -309,7 +281,7 @@ fn generate_frame_handler_no_auth(protocol: String) -> String {
 
   let msg_catch_all = case protocol {
     "json" -> ""
-    _ -> rpc_branch
+    _ -> "\n    _ -> mist.continue(state)"
   }
 
   "pub fn handler(
@@ -391,21 +363,45 @@ fn generate_frame_handler_with_auth(
         }
         False -> Nil
       }
-      case wire.decode_call(data) {
-        Ok(#(page, request_id, _value)) if request_id == 0 -> {
-          debug_log(\"[rally:ws] page_init: \" <> page)
-          let #(can_proceed, response_frame) = case page_auth_policy(page) {
-            rally_auth.Required -> {
-              case effect.get_ws_identity() {
-                Error(Nil) ->
-                  #(False, wire.encode_response(request_id:, value: Error(\"auth:redirect:\" <> " <> auth_ref <> ".redirect_url)))
-                Ok(identity) -> {
-                  case " <> auth_ref <> ".is_authenticated(identity) {
-                    False ->
+      case wire.decode_ws_rpc_envelope(msg) {
+" <> rpc_body(has_endpoints, auth_ref) <> "
+        Error(Nil) ->
+          case wire.decode_call(data) {
+            Ok(#(page, request_id, _value)) if request_id == 0 -> {
+              debug_log(\"[rally:ws] page_init: \" <> page)
+              let #(can_proceed, response_frame) = case page_auth_policy(page) {
+                rally_auth.Required -> {
+                  case effect.get_ws_identity() {
+                    Error(Nil) ->
                       #(False, wire.encode_response(request_id:, value: Error(\"auth:redirect:\" <> " <> auth_ref <> ".redirect_url)))
-                    True -> {
-                      case page_has_authorize(page) {
+                    Ok(identity) -> {
+                      case " <> auth_ref <> ".is_authenticated(identity) {
+                        False ->
+                          #(False, wire.encode_response(request_id:, value: Error(\"auth:redirect:\" <> " <> auth_ref <> ".redirect_url)))
                         True -> {
+                          case page_has_authorize(page) {
+                            True -> {
+                              let assert Ok(server_context) = effect.get_stored_server_context()
+                              case check_page_authorize(page, server_context, identity) {
+                                False ->
+                                  #(False, wire.encode_response(request_id:, value: Error(\"auth:forbidden\")))
+                                True -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
+                              }
+                            }
+                            False -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                rally_auth.Optional -> {
+                  case page_has_authorize(page) {
+                    True -> {
+                      case effect.get_ws_identity() {
+                        Error(Nil) ->
+                          #(False, wire.encode_response(request_id:, value: Error(\"auth:forbidden\")))
+                        Ok(identity) -> {
                           let assert Ok(server_context) = effect.get_stored_server_context()
                           case check_page_authorize(page, server_context, identity) {
                             False ->
@@ -413,63 +409,38 @@ fn generate_frame_handler_with_auth(
                             True -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
                           }
                         }
-                        False -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
                       }
                     }
+                    False -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
                   }
                 }
               }
-            }
-            rally_auth.Optional -> {
-              case page_has_authorize(page) {
+              case can_proceed {
                 True -> {
-                  case effect.get_ws_identity() {
-                    Error(Nil) ->
-                      #(False, wire.encode_response(request_id:, value: Error(\"auth:forbidden\")))
-                    Ok(identity) -> {
-                      let assert Ok(server_context) = effect.get_stored_server_context()
-                      case check_page_authorize(page, server_context, identity) {
-                        False ->
-                          #(False, wire.encode_response(request_id:, value: Error(\"auth:forbidden\")))
-                        True -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
-                      }
-                    }
+                  let old_page = effect.get_ws_page()
+                  let assert Ok(server_context) = effect.get_stored_server_context()
+                  let Nil = effect.put_ws_state(conn, server_context, page)
+                  case old_page {
+                    \"\" -> Nil
+                    _ -> topics.leave(\"page:\" <> old_page)
                   }
+                  topics.join(\"page:\" <> page)
+                  let _send_result = mist.send_binary_frame(conn, response_frame)
+                  send_pending_frames(conn)
+                  mist.continue(state)
                 }
-                False -> #(True, wire.encode_response(request_id:, value: wire.page_init_ok()))
+                False -> {
+                  let _send_result = mist.send_binary_frame(conn, response_frame)
+                  send_pending_frames(conn)
+                  mist.continue(state)
+                }
               }
             }
-          }
-          case can_proceed {
-            True -> {
-              let old_page = effect.get_ws_page()
-              let assert Ok(server_context) = effect.get_stored_server_context()
-              let Nil = effect.put_ws_state(conn, server_context, page)
-              case old_page {
-                \"\" -> Nil
-                _ -> topics.leave(\"page:\" <> old_page)
-              }
-              topics.join(\"page:\" <> page)
-              let _send_result = mist.send_binary_frame(conn, response_frame)
-              send_pending_frames(conn)
-              mist.continue(state)
-            }
-            False -> {
-              let _send_result = mist.send_binary_frame(conn, response_frame)
-              send_pending_frames(conn)
+            _ -> {
+              debug_log(\"[rally:ws] decode_call FAILED\")
               mist.continue(state)
             }
           }
-        }
-        Ok(#(_page, _request_id, _raw)) ->
-          case wire.decode_ws_rpc_envelope(msg) {
-" <> rpc_body(has_endpoints, auth_ref) <> "
-            Error(Nil) -> mist.continue(state)
-          }
-        Error(_error) -> {
-          debug_log(\"[rally:ws] decode_call FAILED\")
-          mist.continue(state)
-        }
       }
     }"
   }
@@ -503,7 +474,12 @@ fn generate_frame_handler_with_auth(
       }
       case wire.decode_ws_rpc_envelope(msg) {
 " <> rpc_body(has_endpoints, auth_ref) <> "
-        Error(Nil) -> mist.continue(state)
+        Error(Nil) -> {
+          let result = wire.malformed_rpc_result()
+          wire.send_rpc_result(conn, result)
+          send_pending_frames(conn)
+          mist.continue(state)
+        }
       }
     }"
     _ -> ""
