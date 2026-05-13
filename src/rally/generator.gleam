@@ -734,7 +734,7 @@ pub fn handle(
   data data: BitArray," <> extra_handle_params <> "
 ) -> #(BitArray, ServerContext) {
   ensure_atoms()
-  case wire.decode_call(data) {
+  case wire.decode_request(data) {
     Ok(#(\"rpc\", request_id, _msg)) ->
       #(wire.encode_response(request_id:, value: Error(UnknownFunction(\"rpc\"))), server_context)
     Ok(#(name, request_id, _)) ->
@@ -1015,9 +1015,7 @@ fn ensure_atoms() -> Nil
 pub fn page_init_ok() -> Nil { Nil }
 
 pub fn encode(value: a) -> BitArray { libero_wire.encode(value) }
-pub fn decode_call(data: BitArray) -> Result(#(String, Int, Dynamic), DecodeError) { libero_wire.decode_call(data) }
-pub fn decode_request(_data: String) -> Result(a, List(b)) { Error([]) }
-pub fn encode_call(module module: String, request_id request_id: Int, msg msg: a) -> BitArray { libero_wire.encode_call(module:, request_id:, msg:) }
+pub fn decode_request(data: BitArray) -> Result(#(String, Int, Dynamic), DecodeError) { libero_wire.decode_request(data) }
 pub fn encode_request(module module: String, request_id request_id: Int, msg msg: a) -> BitArray { libero_wire.encode_request(module:, request_id:, msg:) }
 pub fn encode_response(request_id request_id: Int, value value: a) -> BitArray { libero_wire.encode_response(request_id:, value:) }
 pub fn tag_response(request_id request_id: Int, data data: BitArray) -> BitArray { libero_wire.tag_response(request_id:, data:) }
@@ -1041,7 +1039,7 @@ pub fn rpc_identity(envelope: RpcEnvelope) -> String { envelope.identity }
 pub fn rpc_raw_payload(envelope: RpcEnvelope) -> BitArray { envelope.raw }
 
 pub fn decode_rpc_envelope(data: BitArray) -> Result(RpcEnvelope, Nil) {
-  case libero_wire.decode_call(data) {
+  case libero_wire.decode_request(data) {
     Ok(#(_module, request_id, raw)) ->
       case libero_wire.variant_tag(raw) {
         Ok(tag) -> Ok(RpcEnvelope(request_id:, identity: tag, raw: data))
@@ -1301,10 +1299,6 @@ pub fn malformed_rpc_result() -> RpcResult {
     request_id: None,
     errors: [JsonError(\"frame\", \"invalid RPC frame\")],
   ))
-}
-
-pub fn decode_call(_data: BitArray) -> Result(#(String, Int, Dynamic), libero_error.DecodeError) {
-  Error(libero_error.DecodeError(\"JSON protocol: decode_call not implemented, use decode_request for JSON frames\"))
 }
 
 pub fn variant_tag(_value: Dynamic) -> Result(String, Nil) {

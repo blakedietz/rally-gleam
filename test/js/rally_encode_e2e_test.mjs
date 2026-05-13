@@ -15,13 +15,13 @@ execFileSync("gleam", ["run", "-m", "rally"], {
   stdio: "inherit",
 });
 execFileSync("gleam", ["build"], {
-  cwd: "examples/realworld/.generated_client/public",
+  cwd: "examples/realworld/.generated_clients/public",
   stdio: "inherit",
 });
 
 const clientRoot = join(
   process.cwd(),
-  "examples/realworld/.generated_client/public/build/dev/javascript/client",
+  "examples/realworld/.generated_clients/public/build/dev/javascript/client",
 );
 const rpc = await import(
   pathToFileURL(join(clientRoot, "generated/rpc_ffi.mjs")).href
@@ -54,14 +54,14 @@ const cases = [
 ];
 
 const erlangCases = cases.map(([name, requestId, msg]) => {
-  const payload = rpc.encode_call("rpc", requestId, msg);
+  const payload = rpc.encode_request("rpc", requestId, msg);
   return `{${JSON.stringify(name)},${JSON.stringify(Buffer.from(payload).toString("base64"))}}`;
 });
 
 rpc.registerFieldTypes("server_record_measurements", [
   { kind: "list", element: "float" },
 ]);
-const nestedFloatPayload = rpc.encode_call(
+const nestedFloatPayload = rpc.encode_request(
   "rpc",
   43,
   new ServerRecordMeasurements(gleam.toList([2.0, 3.5])),

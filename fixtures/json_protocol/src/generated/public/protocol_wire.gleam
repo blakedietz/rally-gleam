@@ -313,14 +313,6 @@ pub fn malformed_rpc_result() -> RpcResult {
   )
 }
 
-pub fn decode_call(
-  _data: BitArray,
-) -> Result(#(String, Int, Dynamic), libero_error.DecodeError) {
-  Error(libero_error.DecodeError(
-    "JSON protocol: decode_call not implemented, use decode_request for JSON frames",
-  ))
-}
-
 pub fn variant_tag(_value: Dynamic) -> Result(String, Nil) {
   panic as "JSON protocol: variant_tag not implemented"
 }

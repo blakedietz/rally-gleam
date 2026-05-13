@@ -327,7 +327,7 @@ pub fn generate_etf_protocol_wire_includes_decode_request_stub_test() {
     )
 
   let assert True =
-    string.contains(output, "pub fn decode_request(_data: String)")
+    string.contains(output, "pub fn decode_request(data: BitArray)")
 }
 
 pub fn json_protocol_wire_no_endpoints_compiles_test() {

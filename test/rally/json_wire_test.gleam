@@ -293,7 +293,6 @@ pub fn json_wire_protocol_wire_no_unused_alias_test() {
       "generated/protocol_wire",
     )
   source |> string.contains("as json_error") |> should.be_false()
-  source |> string.contains("_data: BitArray") |> should.be_true()
   source |> string.contains("_value: Dynamic") |> should.be_true()
   source |> string.contains("_value: a") |> should.be_true()
 }

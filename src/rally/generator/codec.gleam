@@ -344,7 +344,7 @@ fn post_process_page(
         "json" -> "import gleam/json\n"
         _ -> ""
       }
-      let encode_call = case protocol {
+      let encoded_msg = case protocol {
         "json" -> "json_encode_msg(msg)"
         _ -> "msg"
       }
@@ -355,7 +355,7 @@ fn post_process_page(
       <> "    transport.send_to_server(\""
       <> variant_name
       <> "\", "
-      <> encode_call
+      <> encoded_msg
       <> ")\n"
       <> "    Nil\n"
       <> "  })\n"

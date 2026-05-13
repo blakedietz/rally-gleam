@@ -243,7 +243,7 @@ fn generate_frame_handler_no_auth(protocol: String) -> String {
           mist.continue(state)
         }
         Error(Nil) ->
-          case wire.decode_call(data) {
+          case wire.decode_request(data) {
             Ok(#(page, request_id, _value)) if request_id == 0 -> {
               debug_log(\"[rally:ws] page_init: \" <> page)
               let old_page = effect.get_ws_page()
@@ -260,7 +260,7 @@ fn generate_frame_handler_no_auth(protocol: String) -> String {
               mist.continue(state)
             }
             _ -> {
-              debug_log(\"[rally:ws] decode_call FAILED\")
+              debug_log(\"[rally:ws] decode_request FAILED\")
               mist.continue(state)
             }
           }
@@ -366,7 +366,7 @@ fn generate_frame_handler_with_auth(
       case wire.decode_ws_rpc_envelope(msg) {
 " <> rpc_body(has_endpoints, auth_ref) <> "
         Error(Nil) ->
-          case wire.decode_call(data) {
+          case wire.decode_request(data) {
             Ok(#(page, request_id, _value)) if request_id == 0 -> {
               debug_log(\"[rally:ws] page_init: \" <> page)
               let #(can_proceed, response_frame) = case page_auth_policy(page) {
@@ -437,7 +437,7 @@ fn generate_frame_handler_with_auth(
               }
             }
             _ -> {
-              debug_log(\"[rally:ws] decode_call FAILED\")
+              debug_log(\"[rally:ws] decode_request FAILED\")
               mist.continue(state)
             }
           }

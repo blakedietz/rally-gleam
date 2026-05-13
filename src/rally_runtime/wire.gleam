@@ -16,18 +16,10 @@ pub fn decode_safe(data: BitArray) -> Result(a, DecodeError) {
   libero_wire.decode_safe(data)
 }
 
-pub fn decode_call(
+pub fn decode_request(
   data: BitArray,
 ) -> Result(#(String, Int, Dynamic), DecodeError) {
-  libero_wire.decode_call(data)
-}
-
-pub fn encode_call(
-  module module: String,
-  request_id request_id: Int,
-  msg msg: a,
-) -> BitArray {
-  libero_wire.encode_call(module:, request_id:, msg:)
+  libero_wire.decode_request(data)
 }
 
 pub fn encode_request(

@@ -549,8 +549,8 @@ export function registerPushHandler(module, callback) {
 }
 
 /**
- * Encode a call envelope: `{module_name, request_id, msg}` as ETF binary.
- * Symmetric with the server-side `wire.decode_call`. Returns a raw
+ * Encode a request envelope: `{module_name, request_id, msg}` as ETF binary.
+ * Symmetric with the server-side `wire.decode_request`. Returns a raw
  * ArrayBuffer (not a Gleam BitArray) because this is only called
  * internally by `send()`, which passes it directly to `WebSocket.send()`.
  * Compare with `encode_value()` which returns a BitArray for Gleam callers.
