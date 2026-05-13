@@ -1,3 +1,11 @@
+//// WebSocket auth codegen tests.
+////
+//// This file protects the generated ws_handler.gleam auth flow:
+//// page-init policy checks, RPC owner-page checks, authorize calls,
+//// reauth state, and protocol-specific handler routing. Most tests inspect
+//// generated source because the contract here is "Rally emits this handler
+//// shape" rather than a runtime WebSocket session.
+
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string

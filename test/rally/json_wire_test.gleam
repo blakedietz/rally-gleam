@@ -1,3 +1,10 @@
+//// JSON protocol integration tests.
+////
+//// This file protects Rally's JSON path across scanner, parser, generators,
+//// generated fixtures, JavaScript decode behavior, and Erlang push encoding.
+//// It is intentionally broad because JSON protocol work crosses Libero,
+//// generated Gleam, generated JS, and runtime transport boundaries.
+
 import gleam/dict
 import gleam/int
 import gleam/list

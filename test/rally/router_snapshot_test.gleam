@@ -1,3 +1,9 @@
+//// Snapshot tests for generated router, dispatch, SSR, client app, and codecs.
+////
+//// These tests protect the public shape of generated source files. Use this
+//// file when a generator change should alter emitted code intentionally, then
+//// review the Birdie snapshots as the readable diff of Rally's output.
+
 import birdie
 import gleam/dict
 import gleam/list

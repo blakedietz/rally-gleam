@@ -1,3 +1,10 @@
+//// HTTP auth codegen tests.
+////
+//// This file protects generated http_handler.gleam for /rpc requests:
+//// resolve, required-page checks, authorize checks, owner-page lookup,
+//// protocol-specific wire tags, and HTTP response behavior for auth errors.
+//// The tests mostly inspect generated source plus snapshots.
+
 import birdie
 import gleam/list
 import gleam/option.{None, Some}
