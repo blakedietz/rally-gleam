@@ -243,102 +243,18 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     |> result.map_error(fn(msg) { RallyError("scan error: " <> msg) }),
   )
 
-  let auth_path = dirname(config.pages_root) <> "/auth.gleam"
-  let auth_config = case simplifile.read(auth_path) {
-    Ok(source) -> {
-      let auth_module = module_from_src_path(auth_path)
-      case
-        string.contains(source, "pub type Identity")
-        && string.contains(source, "pub fn resolve")
-        && string.contains(source, "pub fn is_authenticated")
-        && string.contains(source, "pub const redirect_url")
-      {
-        True -> option.Some(types.AuthConfig(auth_module:))
-        False -> {
-          io.println_error(
-            "rally: auth.gleam found at "
-            <> auth_path
-            <> " but missing required exports (Identity, resolve, is_authenticated, redirect_url)",
-          )
-          option.None
-        }
-      }
-    }
-    _ -> option.None
-  }
-
-  let exclude_param_types = case auth_config {
-    option.Some(types.AuthConfig(auth_module:)) -> [#(auth_module, "Identity")]
-    option.None -> []
-  }
-
-  let handler_endpoints = case
-    libero.scan_excluding(exclude_param_types:)
-  {
-    Ok(endpoints) -> {
-      case endpoints {
-        [] -> Nil
-        _ ->
-          io.println(
-            "rally: discovered "
-            <> int.to_string(list.length(endpoints))
-            <> " handler endpoints via libero",
-          )
-      }
-      endpoints
-    }
-    Error(errors) -> {
-      list.each(errors, gen_error.print_error)
-      []
-    }
-  }
-
-  let contracts =
-    list.filter_map(routes, fn(route) {
-      let file_path =
-        config.pages_root
-        <> "/"
-        <> last_module_segment(route.module_path)
-        <> ".gleam"
-      case simplifile.read(file_path) {
-        Ok(source) -> {
-          case parser.parse_page(source, module_path: route.module_path) {
-            Ok(contract) -> Ok(#(route, contract))
-            _ -> {
-              io.println_error(
-                "warning: failed to parse " <> file_path <> ", skipping",
-              )
-              Error(Nil)
-            }
-          }
-        }
-        _ -> {
-          io.println_error("warning: cannot read " <> file_path <> ", skipping")
-          Error(Nil)
-        }
-      }
-    })
+  // -- Scan & discover --
+  let auth_config = detect_auth(config)
+  let handler_endpoints = discover_endpoints(auth_config)
+  let contracts = parse_page_contracts(routes, config.pages_root)
 
   let client_context_path =
     dirname(config.pages_root) <> "/client_context.gleam"
   let client_context_module = module_from_src_path(client_context_path)
   let has_client_context =
     simplifile.is_file(client_context_path) |> result.unwrap(False)
-  let server_context_path = "src/server_context.gleam"
-  let client_context_server_path =
-    dirname(config.pages_root) <> "/client_context_server.gleam"
-  let client_context_server_module =
-    module_from_src_path(client_context_server_path)
-  let #(has_from_session, from_session_module) = case
-    simplifile.read(client_context_server_path)
-  {
-    Ok(source) ->
-      case string.contains(source, "pub fn from_session") {
-        True -> #(True, client_context_server_module)
-        False -> check_server_context_from_session(server_context_path)
-      }
-    _ -> check_server_context_from_session(server_context_path)
-  }
+  let #(has_from_session, from_session_module) =
+    resolve_from_session(config.pages_root)
 
   let router_module = module_from_src_path(config.output_route)
   let rpc_dispatch_module = module_from_src_path(config.output_server_dispatch)
@@ -353,19 +269,6 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       client_context_module,
     )
 
-  let extra_dispatch_params = case auth_config {
-    option.Some(types.AuthConfig(auth_module:)) -> {
-      let auth_ref = last_segment(auth_module)
-      [
-        ExtraParam(
-          name: "identity",
-          type_ref: auth_ref <> ".Identity",
-          import_line: import_as_string(auth_module, auth_ref),
-        ),
-      ]
-    }
-    option.None -> []
-  }
   let namespace_prefix =
     config.pages_root
     |> string.drop_start(4)
@@ -374,33 +277,8 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     list.filter(handler_endpoints, fn(ep) {
       string.starts_with(ep.module_path, namespace_prefix <> "/")
     })
-  let sd_source = case ns_endpoints {
-    [] ->
-      generator.generate_empty_rpc_dispatch(
-        config.atoms_module,
-        extra_dispatch_params,
-      )
-    _ ->
-      case extra_dispatch_params {
-        [] ->
-          libero.generate_dispatch(
-            ns_endpoints,
-            option.Some(config.atoms_module),
-            option.Some(config.wire_module),
-          )
-        params ->
-          libero.generate_dispatch_with_extra_params(
-            ns_endpoints,
-            option.Some(config.atoms_module),
-            option.Some(config.wire_module),
-            params,
-          )
-      }
-  }
   let sd_source =
-    sd_source
-    |> generator.normalize_rpc_dispatch_context_import
-    |> generator.normalize_rpc_dispatch_unused_fields
+    generate_rpc_dispatch_source(ns_endpoints, config, auth_config)
 
   let shell_html = case simplifile.read(config.shell_file) {
     Ok(html) -> html
@@ -408,8 +286,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       "<!DOCTYPE html>\n<html>\n<head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>\n<body><div id='app'></div><script type='module' src='/client.js'></script></body>\n</html>"
   }
 
-  // Read client context source and walk discovered types early
-  // (needed for contract hash computation before writing protocol_wire)
+  // Walk discovered types and build push dispatch tables
   let client_context_source = case has_client_context {
     True ->
       case simplifile.read(client_context_path) {
@@ -418,122 +295,27 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       }
     False -> option.None
   }
-  let handler_seeds = libero.collect_seeds(ns_endpoints)
-  let cc_seeds = case client_context_source {
-    option.Some(source) ->
-      codec.client_context_seeds(source, client_context_module)
-    option.None -> []
-  }
-  let page_model_seeds =
-    list.filter_map(contracts, fn(pair) {
-      let #(route, contract) = pair
-      case contract.has_model {
-        True -> Ok(#(route.module_path, "Model"))
-        False -> Error(Nil)
-      }
-    })
-  let to_client_seeds =
-    list.filter_map(contracts, fn(pair) {
-      let #(route, contract) = pair
-      case has_to_client_type(route, contract) {
-        True -> Ok(#(route.module_path, "ToClient"))
-        False -> Error(Nil)
-      }
-    })
-  let seeds =
-    list.flatten([handler_seeds, cc_seeds, page_model_seeds, to_client_seeds])
-  let discovered = case libero.walk(seeds) {
-    Ok(types) -> types
-    Error(errors) -> {
-      list.each(errors, gen_error.print_error)
-      []
-    }
-  }
-
-  let push_dispatches = {
-    let page_dispatches =
-      list.filter_map(contracts, fn(pair) {
-        let #(route, contract) = pair
-        case has_to_client_type(route, contract) {
-          True -> {
-            let type_atom =
-              libero.qualified_atom_name(
-                module_path: route.module_path,
-                variant_name: "ToClient",
-              )
-            Ok(codegen_erl.PushDispatch(
-              page_tag: route.variant_name,
-              type_atom: type_atom,
-            ))
-          }
-          False -> Error(Nil)
-        }
-      })
-    let cc_dispatch = case has_client_context, client_context_source {
-      True, option.Some(_) -> {
-        let type_atom =
-          libero.qualified_atom_name(
-            module_path: client_context_module,
-            variant_name: "ClientContextMsg",
-          )
-        [
-          codegen_erl.PushDispatch(
-            page_tag: "__ClientContext__",
-            type_atom: type_atom,
-          ),
-        ]
-      }
-      _, _ -> []
-    }
-    list.append(page_dispatches, cc_dispatch)
-  }
-
-  // Build JSON push dispatches from the same push type data.
-  // Each entry is #(page_tag, type_atom) where page_tag is the
-  // route variant name (e.g. "Home") and type_atom matches the
-  // qualified encoder name (e.g. "public_pages_home___to_client").
+  let discovered =
+    walk_discovered_types(
+      ns_endpoints,
+      contracts,
+      client_context_source,
+      client_context_module,
+    )
+  let push_dispatches =
+    build_push_dispatches(
+      contracts,
+      has_client_context,
+      client_context_source,
+      client_context_module,
+    )
   let json_push_dispatches =
     list.map(push_dispatches, fn(d: codegen_erl.PushDispatch) {
       #(d.page_tag, d.type_atom)
     })
 
-  // Compute contract hash for JSON protocol
-  let push_contracts =
-    list.filter_map(contracts, fn(pair) {
-      let #(route, contract) = pair
-      case has_to_client_type(route, contract) {
-        True ->
-          Ok(json_contract.PushContract(
-            module: route.module_path,
-            type_module: route.module_path,
-            type_name: "ToClient",
-          ))
-        False -> Error(Nil)
-      }
-    })
-  let ssr_model_contracts =
-    list.filter_map(contracts, fn(pair) {
-      let #(route, contract) = pair
-      case contract.has_load && contract.has_model {
-        True ->
-          Ok(json_contract.SsrModelContract(
-            route_module: route.module_path,
-            type_module: route.module_path,
-            type_name: "Model",
-          ))
-        False -> Error(Nil)
-      }
-    })
-  let contract_hash = case config.protocol {
-    "json" ->
-      json_contract.generate_hash(
-        ns_endpoints,
-        discovered,
-        push_contracts,
-        ssr_model_contracts,
-      )
-    _ -> ""
-  }
+  let contract_hash =
+    compute_contract_hash(contracts, ns_endpoints, discovered, config)
 
   let protocol_wire_output =
     string.replace(config.output_ws, "ws_handler.gleam", "protocol_wire.gleam")
@@ -594,93 +376,12 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
   )
 
   let atoms_erl =
-    libero.generate_atoms(
+    generate_atoms_erl_source(
       ns_endpoints,
       discovered,
-      config.atoms_module,
-      option.Some(config.wire_module),
+      config,
+      json_push_dispatches,
     )
-
-  // For JSON protocol, register the json_codecs and protocol_wire modules
-  // so the encode_push_frame FFI can locate them at runtime. Also generate
-  // a json_encode_push_value/2 dispatch function (in Erlang to avoid Gleam
-  // type issues with generic push payloads).
-  let atoms_erl = case config.protocol {
-    "json" -> {
-      let json_codec_mod =
-        string.replace(config.atoms_module, "@rpc_atoms", "@json_codecs")
-      let protocol_wire_mod =
-        string.replace(config.atoms_module, "@rpc_atoms", "@protocol_wire")
-
-      let push_arms = case json_push_dispatches {
-        [] -> "    _Page -> error({no_json_push_encoder, Page})\n"
-        _ ->
-          list.map(json_push_dispatches, fn(d) {
-            let #(page_tag, type_atom) = d
-            "    <<\""
-            <> page_tag
-            <> "\">> -> '"
-            <> json_codec_mod
-            <> "':'json_encode_"
-            <> type_atom
-            <> "'(Msg);\n"
-          })
-          |> string.join("")
-          |> fn(arms) {
-            arms <> "    Page -> error({no_json_push_encoder, Page})\n"
-          }
-      }
-
-      // Add encode_push_frame/2 + json_encode_push_value/2 to the export list.
-      let atoms_erl =
-        string.replace(
-          atoms_erl,
-          "-export([ensure/0]).",
-          "-export([ensure/0, encode_push_frame/2, json_encode_push_value/2]).",
-        )
-
-      // Insert persistent_term registrations inside do_ensure(),
-      // right before the {?MODULE, done} marker.
-      // {libero, push_frame_module} is the single facade the FFI calls.
-      // {libero, json_wire_module} is used internally by encode_push_frame/2.
-      let atoms_erl = case
-        string.split_once(
-          atoms_erl,
-          "persistent_term:put({?MODULE, done}, true),",
-        )
-      {
-        Ok(#(before, after)) ->
-          before
-          <> "    persistent_term:put({libero, push_frame_module}, '"
-          <> config.atoms_module
-          <> "'),\n"
-          <> "    persistent_term:put({libero, json_wire_module}, '"
-          <> protocol_wire_mod
-          <> "'),\n"
-          <> "    persistent_term:put({?MODULE, done}, true),"
-          <> after
-        Error(Nil) -> atoms_erl
-      }
-
-      // Append push dispatch functions at module level (after do_ensure).
-      // json_encode_push_value/2 routes page tag -> typed encoder.
-      // encode_push_frame/2 is the single facade: encode + frame.
-      atoms_erl
-      <> "\n\n"
-      <> "%% Push dispatch: route page tag to the correct typed encoder.\n"
-      <> "json_encode_push_value(Page, Msg) ->\n"
-      <> "    case Page of\n"
-      <> push_arms
-      <> "    end.\n"
-      <> "\n"
-      <> "%% Single push-frame facade called by rally_runtime_ffi.\n"
-      <> "encode_push_frame(Page, Msg) ->\n"
-      <> "    JsonValue = json_encode_push_value(Page, Msg),\n"
-      <> "    JsonWireMod = persistent_term:get({libero, json_wire_module}),\n"
-      <> "    JsonWireMod:encode_push(Page, JsonValue).\n"
-    }
-    _ -> atoms_erl
-  }
 
   use _ <- result.try(
     write_file(config.output_server_atoms, atoms_erl)
@@ -798,37 +499,13 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         }
       }),
     )
-  let client_context_files = case has_client_context {
-    True -> {
-      case simplifile.read(client_context_path) {
-        Ok(cc_source) -> {
-          let shaken = tree_shaker.shake(cc_source, server_symbols:)
-          let ffi_path = dirname(config.pages_root) <> "/client_context_ffi.mjs"
-          let ffi_files = case simplifile.read(ffi_path) {
-            Ok(ffi_content) -> [
-              client.GeneratedFile(
-                config.client_root
-                  <> "/src/"
-                  <> client_context_module
-                  <> "_ffi.mjs",
-                ffi_content,
-              ),
-            ]
-            _ -> []
-          }
-          [
-            client.GeneratedFile(
-              config.client_root <> "/src/" <> client_context_module <> ".gleam",
-              shaken,
-            ),
-            ..ffi_files
-          ]
-        }
-        _ -> []
-      }
-    }
-    False -> []
-  }
+  let client_context_files =
+    generate_client_context_files(
+      config,
+      client_context_path,
+      client_context_module,
+      server_symbols,
+    )
 
   let layout_files = copy_layout_modules(routes:, config:, server_symbols:)
 
@@ -985,6 +662,419 @@ fn do_write_files(
   )
 
   Ok(Nil)
+}
+
+// ---------------------------------------------------------------------------
+// Extracted phases of generate_for_config
+// ---------------------------------------------------------------------------
+
+/// Check for an auth.gleam with the required exports alongside the pages dir.
+fn detect_auth(config: ScanConfig) -> option.Option(types.AuthConfig) {
+  let auth_path = dirname(config.pages_root) <> "/auth.gleam"
+  case simplifile.read(auth_path) {
+    Ok(source) -> {
+      let auth_module = module_from_src_path(auth_path)
+      case
+        string.contains(source, "pub type Identity")
+        && string.contains(source, "pub fn resolve")
+        && string.contains(source, "pub fn is_authenticated")
+        && string.contains(source, "pub const redirect_url")
+      {
+        True -> option.Some(types.AuthConfig(auth_module:))
+        False -> {
+          io.println_error(
+            "rally: auth.gleam found at "
+            <> auth_path
+            <> " but missing required exports (Identity, resolve, is_authenticated, redirect_url)",
+          )
+          option.None
+        }
+      }
+    }
+    _ -> option.None
+  }
+}
+
+/// Scan for server_* handler endpoints via libero. When auth is configured,
+/// excludes Identity params from the wire contract.
+fn discover_endpoints(
+  auth_config: option.Option(types.AuthConfig),
+) -> List(libero_scanner.HandlerEndpoint) {
+  let exclude_param_types = case auth_config {
+    option.Some(types.AuthConfig(auth_module:)) -> [#(auth_module, "Identity")]
+    option.None -> []
+  }
+  case libero.scan_excluding(exclude_param_types:) {
+    Ok(endpoints) -> {
+      case endpoints {
+        [] -> Nil
+        _ ->
+          io.println(
+            "rally: discovered "
+            <> int.to_string(list.length(endpoints))
+            <> " handler endpoints via libero",
+          )
+      }
+      endpoints
+    }
+    Error(errors) -> {
+      list.each(errors, gen_error.print_error)
+      []
+    }
+  }
+}
+
+/// Read and parse each page module's source to extract its contract.
+fn parse_page_contracts(
+  routes: List(types.ScannedRoute),
+  pages_root: String,
+) -> List(#(types.ScannedRoute, types.PageContract)) {
+  list.filter_map(routes, fn(route) {
+    let file_path =
+      pages_root <> "/" <> last_module_segment(route.module_path) <> ".gleam"
+    case simplifile.read(file_path) {
+      Ok(source) -> {
+        case parser.parse_page(source, module_path: route.module_path) {
+          Ok(contract) -> Ok(#(route, contract))
+          _ -> {
+            io.println_error(
+              "warning: failed to parse " <> file_path <> ", skipping",
+            )
+            Error(Nil)
+          }
+        }
+      }
+      _ -> {
+        io.println_error("warning: cannot read " <> file_path <> ", skipping")
+        Error(Nil)
+      }
+    }
+  })
+}
+
+/// Find from_session: check client_context_server.gleam first, fall back
+/// to server_context.gleam.
+fn resolve_from_session(pages_root: String) -> #(Bool, String) {
+  let server_context_path = "src/server_context.gleam"
+  let client_context_server_path =
+    dirname(pages_root) <> "/client_context_server.gleam"
+  let client_context_server_module =
+    module_from_src_path(client_context_server_path)
+  case simplifile.read(client_context_server_path) {
+    Ok(source) ->
+      case string.contains(source, "pub fn from_session") {
+        True -> #(True, client_context_server_module)
+        False -> check_server_context_from_session(server_context_path)
+      }
+    _ -> check_server_context_from_session(server_context_path)
+  }
+}
+
+/// Generate the RPC dispatch source via libero, with auth identity threading
+/// when auth is configured.
+fn generate_rpc_dispatch_source(
+  ns_endpoints: List(libero_scanner.HandlerEndpoint),
+  config: ScanConfig,
+  auth_config: option.Option(types.AuthConfig),
+) -> String {
+  let extra_dispatch_params = case auth_config {
+    option.Some(types.AuthConfig(auth_module:)) -> {
+      let auth_ref = last_segment(auth_module)
+      [
+        ExtraParam(
+          name: "identity",
+          type_ref: auth_ref <> ".Identity",
+          import_line: import_as_string(auth_module, auth_ref),
+        ),
+      ]
+    }
+    option.None -> []
+  }
+  let source = case ns_endpoints {
+    [] ->
+      generator.generate_empty_rpc_dispatch(
+        config.atoms_module,
+        extra_dispatch_params,
+      )
+    _ ->
+      case extra_dispatch_params {
+        [] ->
+          libero.generate_dispatch(
+            ns_endpoints,
+            option.Some(config.atoms_module),
+            option.Some(config.wire_module),
+          )
+        params ->
+          libero.generate_dispatch_with_extra_params(
+            ns_endpoints,
+            option.Some(config.atoms_module),
+            option.Some(config.wire_module),
+            params,
+          )
+      }
+  }
+  source
+  |> generator.normalize_rpc_dispatch_context_import
+  |> generator.normalize_rpc_dispatch_unused_fields
+}
+
+/// Collect type seeds from handlers, client context, page models, and
+/// ToClient types, then walk the type graph via libero.
+fn walk_discovered_types(
+  ns_endpoints: List(libero_scanner.HandlerEndpoint),
+  contracts: List(#(types.ScannedRoute, types.PageContract)),
+  client_context_source: option.Option(String),
+  client_context_module: String,
+) {
+  let handler_seeds = libero.collect_seeds(ns_endpoints)
+  let cc_seeds = case client_context_source {
+    option.Some(source) ->
+      codec.client_context_seeds(source, client_context_module)
+    option.None -> []
+  }
+  let page_model_seeds =
+    list.filter_map(contracts, fn(pair) {
+      let #(route, contract) = pair
+      case contract.has_model {
+        True -> Ok(#(route.module_path, "Model"))
+        False -> Error(Nil)
+      }
+    })
+  let to_client_seeds =
+    list.filter_map(contracts, fn(pair) {
+      let #(route, contract) = pair
+      case has_to_client_type(route, contract) {
+        True -> Ok(#(route.module_path, "ToClient"))
+        False -> Error(Nil)
+      }
+    })
+  let seeds =
+    list.flatten([handler_seeds, cc_seeds, page_model_seeds, to_client_seeds])
+  case libero.walk(seeds) {
+    Ok(types) -> types
+    Error(errors) -> {
+      list.each(errors, gen_error.print_error)
+      []
+    }
+  }
+}
+
+/// Build push dispatch entries for pages with ToClient types and for
+/// ClientContextMsg when client context is present.
+fn build_push_dispatches(
+  contracts: List(#(types.ScannedRoute, types.PageContract)),
+  has_client_context: Bool,
+  client_context_source: option.Option(String),
+  client_context_module: String,
+) -> List(codegen_erl.PushDispatch) {
+  let page_dispatches =
+    list.filter_map(contracts, fn(pair) {
+      let #(route, contract) = pair
+      case has_to_client_type(route, contract) {
+        True -> {
+          let type_atom =
+            libero.qualified_atom_name(
+              module_path: route.module_path,
+              variant_name: "ToClient",
+            )
+          Ok(codegen_erl.PushDispatch(
+            page_tag: route.variant_name,
+            type_atom: type_atom,
+          ))
+        }
+        False -> Error(Nil)
+      }
+    })
+  let cc_dispatch = case has_client_context, client_context_source {
+    True, option.Some(_) -> {
+      let type_atom =
+        libero.qualified_atom_name(
+          module_path: client_context_module,
+          variant_name: "ClientContextMsg",
+        )
+      [
+        codegen_erl.PushDispatch(
+          page_tag: "__ClientContext__",
+          type_atom: type_atom,
+        ),
+      ]
+    }
+    _, _ -> []
+  }
+  list.append(page_dispatches, cc_dispatch)
+}
+
+/// Compute the JSON contract hash for cache busting. Returns "" for
+/// non-JSON protocols.
+fn compute_contract_hash(
+  contracts: List(#(types.ScannedRoute, types.PageContract)),
+  ns_endpoints: List(libero_scanner.HandlerEndpoint),
+  discovered,
+  config: ScanConfig,
+) -> String {
+  case config.protocol {
+    "json" -> {
+      let push_contracts =
+        list.filter_map(contracts, fn(pair) {
+          let #(route, contract) = pair
+          case has_to_client_type(route, contract) {
+            True ->
+              Ok(json_contract.PushContract(
+                module: route.module_path,
+                type_module: route.module_path,
+                type_name: "ToClient",
+              ))
+            False -> Error(Nil)
+          }
+        })
+      let ssr_model_contracts =
+        list.filter_map(contracts, fn(pair) {
+          let #(route, contract) = pair
+          case contract.has_load && contract.has_model {
+            True ->
+              Ok(json_contract.SsrModelContract(
+                route_module: route.module_path,
+                type_module: route.module_path,
+                type_name: "Model",
+              ))
+            False -> Error(Nil)
+          }
+        })
+      json_contract.generate_hash(
+        ns_endpoints,
+        discovered,
+        push_contracts,
+        ssr_model_contracts,
+      )
+    }
+    _ -> ""
+  }
+}
+
+/// Generate the Erlang atoms module source. For JSON protocol, extends the
+/// base module with push dispatch functions and persistent_term registrations.
+fn generate_atoms_erl_source(
+  ns_endpoints: List(libero_scanner.HandlerEndpoint),
+  discovered,
+  config: ScanConfig,
+  json_push_dispatches: List(#(String, String)),
+) -> String {
+  let atoms_erl =
+    libero.generate_atoms(
+      ns_endpoints,
+      discovered,
+      config.atoms_module,
+      option.Some(config.wire_module),
+    )
+
+  case config.protocol {
+    "json" -> {
+      let json_codec_mod =
+        string.replace(config.atoms_module, "@rpc_atoms", "@json_codecs")
+      let protocol_wire_mod =
+        string.replace(config.atoms_module, "@rpc_atoms", "@protocol_wire")
+
+      let push_arms = case json_push_dispatches {
+        [] -> "    _Page -> error({no_json_push_encoder, Page})\n"
+        _ ->
+          list.map(json_push_dispatches, fn(d) {
+            let #(page_tag, type_atom) = d
+            "    <<\""
+            <> page_tag
+            <> "\">> -> '"
+            <> json_codec_mod
+            <> "':'json_encode_"
+            <> type_atom
+            <> "'(Msg);\n"
+          })
+          |> string.join("")
+          |> fn(arms) {
+            arms <> "    Page -> error({no_json_push_encoder, Page})\n"
+          }
+      }
+
+      let atoms_erl =
+        string.replace(
+          atoms_erl,
+          "-export([ensure/0]).",
+          "-export([ensure/0, encode_push_frame/2, json_encode_push_value/2]).",
+        )
+
+      let atoms_erl = case
+        string.split_once(
+          atoms_erl,
+          "persistent_term:put({?MODULE, done}, true),",
+        )
+      {
+        Ok(#(before, after)) ->
+          before
+          <> "    persistent_term:put({libero, push_frame_module}, '"
+          <> config.atoms_module
+          <> "'),\n"
+          <> "    persistent_term:put({libero, json_wire_module}, '"
+          <> protocol_wire_mod
+          <> "'),\n"
+          <> "    persistent_term:put({?MODULE, done}, true),"
+          <> after
+        Error(Nil) -> atoms_erl
+      }
+
+      atoms_erl
+      <> "\n\n"
+      <> "%% Push dispatch: route page tag to the correct typed encoder.\n"
+      <> "json_encode_push_value(Page, Msg) ->\n"
+      <> "    case Page of\n"
+      <> push_arms
+      <> "    end.\n"
+      <> "\n"
+      <> "%% Single push-frame facade called by rally_runtime_ffi.\n"
+      <> "encode_push_frame(Page, Msg) ->\n"
+      <> "    JsonValue = json_encode_push_value(Page, Msg),\n"
+      <> "    JsonWireMod = persistent_term:get({libero, json_wire_module}),\n"
+      <> "    JsonWireMod:encode_push(Page, JsonValue).\n"
+    }
+    _ -> atoms_erl
+  }
+}
+
+/// Tree-shake client_context.gleam and collect its FFI file if present.
+fn generate_client_context_files(
+  config: ScanConfig,
+  client_context_path: String,
+  client_context_module: String,
+  server_symbols: List(String),
+) -> List(client.GeneratedFile) {
+  case simplifile.is_file(client_context_path) |> result.unwrap(False) {
+    True -> {
+      case simplifile.read(client_context_path) {
+        Ok(cc_source) -> {
+          let shaken = tree_shaker.shake(cc_source, server_symbols:)
+          let ffi_path = dirname(config.pages_root) <> "/client_context_ffi.mjs"
+          let ffi_files = case simplifile.read(ffi_path) {
+            Ok(ffi_content) -> [
+              client.GeneratedFile(
+                config.client_root
+                  <> "/src/"
+                  <> client_context_module
+                  <> "_ffi.mjs",
+                ffi_content,
+              ),
+            ]
+            _ -> []
+          }
+          [
+            client.GeneratedFile(
+              config.client_root <> "/src/" <> client_context_module <> ".gleam",
+              shaken,
+            ),
+            ..ffi_files
+          ]
+        }
+        _ -> []
+      }
+    }
+    False -> []
+  }
 }
 
 fn reset_generated_client_src(client_root: String) -> Nil {
