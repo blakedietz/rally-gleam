@@ -60,7 +60,7 @@ pub type Cookie {
 
 - [ ] **Step 2: Verify it compiles**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam build`
+Run: `cd /path/to/rally && gleam build`
 Expected: PASS
 
 - [ ] **Step 3: Commit**
@@ -115,7 +115,7 @@ Add `has_page_auth: False, page_auth_required: False, has_authorize: False` to e
 
 - [ ] **Step 3: Verify it compiles**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam build`
+Run: `cd /path/to/rally && gleam build`
 Expected: PASS
 
 - [ ] **Step 4: Commit**
@@ -214,7 +214,7 @@ pub fn update(ctx, model, msg) { #(model, []) }
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam test`
+Run: `cd /path/to/rally && gleam test`
 Expected: FAIL (has_page_auth is False for all since parser doesn't detect it yet)
 
 - [ ] **Step 3: Implement page_auth and authorize detection**
@@ -264,7 +264,7 @@ Ok(PageContract(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam test`
+Run: `cd /path/to/rally && gleam test`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -356,7 +356,7 @@ Do the same for `ws_handler.generate(...)` and the HTTP handler generation.
 
 - [ ] **Step 4: Verify it compiles**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam build`
+Run: `cd /path/to/rally && gleam build`
 Expected: FAIL (generator signatures don't accept auth_config yet -- expected, will fix in next tasks)
 
 - [ ] **Step 5: Commit work in progress**
@@ -486,7 +486,7 @@ fn apply_cookies(resp, cookies) {
 
 - [ ] **Step 5: Verify it compiles**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam build`
+Run: `cd /path/to/rally && gleam build`
 Expected: PASS
 
 - [ ] **Step 6: Commit**
@@ -651,7 +651,7 @@ This requires libero to generate an `owning_page(data) -> String` function that 
 
 - [ ] **Step 6: Verify it compiles**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam build`
+Run: `cd /path/to/rally && gleam build`
 Expected: PASS
 
 - [ ] **Step 7: Commit**
@@ -714,7 +714,7 @@ Note: page-level auth (is_authenticated, authorize) for HTTP RPC is enforced ins
 
 - [ ] **Step 3: Verify it compiles**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam build`
+Run: `cd /path/to/rally && gleam build`
 Expected: PASS
 
 - [ ] **Step 4: Commit**
@@ -779,7 +779,7 @@ The `inject_identity_into_dispatch` function:
 
 - [ ] **Step 3: Verify it compiles**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam build`
+Run: `cd /path/to/rally && gleam build`
 Expected: PASS
 
 - [ ] **Step 4: Commit**
@@ -832,7 +832,7 @@ fn serve_html_shell(server_context, session_id, hostname) {
 
 - [ ] **Step 3: Verify it compiles**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam build`
+Run: `cd /path/to/rally && gleam build`
 Expected: PASS
 
 - [ ] **Step 4: Commit**
@@ -874,7 +874,7 @@ These likely use the Erlang process dictionary (same as the existing state stora
 
 - [ ] **Step 3: Verify it compiles**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam build`
+Run: `cd /path/to/rally && gleam build`
 Expected: PASS
 
 - [ ] **Step 4: Commit**
@@ -916,7 +916,7 @@ pub fn ssr_handler_with_auth_generates_resolve_call_test() {
 
 - [ ] **Step 2: Run the test**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam test`
+Run: `cd /path/to/rally && gleam test`
 Expected: PASS
 
 - [ ] **Step 3: Commit**
@@ -937,7 +937,7 @@ Verify that apps without auth.gleam still work identically.
 
 - [ ] **Step 1: Run existing test suite**
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam test`
+Run: `cd /path/to/rally && gleam test`
 Expected: ALL PASS (no regressions)
 
 - [ ] **Step 2: Test with curling/v3**

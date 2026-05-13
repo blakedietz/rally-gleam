@@ -1,8 +1,8 @@
 # Rally Framework
 
-A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, libero for RPC plumbing.
+A full-stack web framework for Gleam + Lustre with file-based routing. Write page modules, run the codegen, get a working web app. Opinionated: Lustre for UI, SQLite for data, libero for typed protocol plumbing.
 
-Target boundary: The generated `protocol_wire` facade (`protocol_wire.gleam` on the server, `protocol_wire.mjs` in the JS client) is the concrete boundary mechanism: all wire operations go through it, and Rally never imports libero wire modules directly. Rally is a protocol-oblivious consumer of Libero. Rally owns WebSocket lifecycle, routes, sessions, topics, reconnects, timeouts, page semantics, and logging. Libero owns the typed protocol contract, encode/decode, request envelopes, response frames, push frames, flags, validation, and security limits. ETF remains the fast native path for Rally's generated Lustre clients. In JSON mode, the facade delegates to `libero/json/wire` instead, and Rally does not need to understand the JSON shape. See `docs/libero-boundary-spec.md`.
+Protocol boundary: generated handlers, generated client code, and JS transport use the generated `protocol_wire` facade (`protocol_wire.gleam` on the server, `protocol_wire.mjs` in the JS client). Rally is a protocol-oblivious consumer of Libero. Rally owns WebSocket lifecycle, routes, sessions, topics, reconnects, timeouts, page semantics, and logging. Libero owns the typed protocol contract, encode/decode, request envelopes, response frames, push frames, flags, validation, and security limits. ETF remains the fast native path for Rally's generated Lustre clients. In JSON mode, the facade delegates to `libero/json/wire` instead, and Rally does not need to understand the JSON shape. See `docs/libero-boundary-spec.md`.
 
 Shared Glance type resolution lives in `libero/glance_type_resolver`: Rally's page and client-context parser delegates all `glance.Type` to `FieldType` conversion to this module. Rally consumes `libero/wire_identity` for message-type RPC auth routing so HTTP and WS handlers agree on wire hashes with Libero's `decode_client_msg`. See `docs/plans/2026-05-11-libero-codegen-substrate.md` for the full extraction plan; generated-file and formatter sharing remain deferred.
 
@@ -101,7 +101,7 @@ Page modules import from `rally_runtime/effect`:
 
 - `rpc(msg, on_response: callback)`: calls a stateless server_* handler via WebSocket RPC. On the server this is a no-op. On the client, the generated code encodes the msg and sends it over the transport.
 - `send_to_server(msg)`: sends a ToServer variant to the server (stateful model). On the server this is a no-op. On the client, the generated transport sends it over WebSocket.
-- `send_to_client(variant)`: server push: encodes as ETF push frame, queues for WS handler
+- `send_to_client(variant)`: server push: encodes a configured-protocol push frame, queues for WS handler
 - `broadcast_to_page(variant)` / `broadcast_to_app(variant)` / `broadcast_to_session(variant)`: multi-cast push via pg topics
 - `send_to_client_context(variant)`: page-to-context messaging for cross-page state
 - `navigate(path)`: client-side URL push via modem
@@ -204,9 +204,9 @@ Four-level server-to-client messaging using OTP `pg` process groups:
 
 ### Transport
 
-- **Current wire format:** ETF (Erlang External Term Format), binary
+- **Default wire format:** ETF (Erlang External Term Format), binary
 - **Configured protocol target:** Rally calls Libero protocol helpers through the generated `protocol_wire` facade rather than depending on ETF or JSON frame details directly. The facade is generated at build time based on the `protocol` config field (`"etf"` or `"json"`).
-- **Protocol boundary:** For generated app code, the `protocol_wire` facade is the only module that imports libero wire functions. Generated app code imports the protocol_wire facade, not raw Libero wire modules. The legacy `rally_runtime/wire.gleam` ETF shim still imports `libero/wire` directly; this will be removed when the facade migration is complete. All encode, decode, call framing, and flag operations route through the facade.
+- **Protocol boundary:** Generated app code and generated handlers use the `protocol_wire` facade. The facade is generated from the `protocol` config field and delegates to Libero's ETF or JSON modules. `rally_runtime/wire.gleam` remains a small ETF compatibility wrapper for direct runtime helpers, but generated protocol traffic goes through the facade.
 - **Call envelope:** Libero-owned request shape for client to server RPC calls
 - **Response frame:** Libero-owned correlated response frame
 - **Push frame:** Libero-owned server to client push frame
@@ -233,11 +233,11 @@ RPC responses show round-trip latency (e.g. `rpc #3 (12.4ms)`). Connection lifec
 
 **Console API:**
 - `window.__RALLY_MESSAGES__`: array of all messages with timestamps, direction, raw data, and formatted strings
-- `window.__RALLY_FORMAT__(value)`: format any ETF-decoded value as Gleam syntax
+- `window.__RALLY_FORMAT__(value)`: format any decoded protocol value as Gleam syntax
 - `window.__RALLY_DEBUG__ = false`: disable inspector in dev
 - `window.__RALLY_DEBUG__ = true`: enable inspector outside dev
 
-**Server-side:** All messages are logged to `system.messages` SQLite table with session ID, page, direction, variant name derived from the decoded inbound value, raw ETF payload, and elapsed time.
+**Server-side:** All messages are logged to `system.messages` SQLite table with session ID, page, direction, variant name derived from the decoded inbound value, raw protocol payload, and elapsed time.
 
 ## Runtime Data
 

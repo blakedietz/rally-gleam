@@ -267,7 +267,7 @@ Files:
 Steps:
 
 - Run `cd /Users/daverapin/projects/opensource/libero && gleam test`.
-- Run `cd /Users/daverapin/projects/opensource/rally && gleam test`.
+- Run `cd /path/to/rally && gleam test`.
 - Note any failing tests before implementation. Do not explain them away.
 - Confirm these facts in the code before editing:
   - Libero scanner owns `build_type_import_map`,
@@ -614,7 +614,7 @@ Run:
 
 ```sh
 cd /Users/daverapin/projects/opensource/libero && gleam test
-cd /Users/daverapin/projects/opensource/rally && gleam test
+cd /path/to/rally && gleam test
 ```
 
 Commit:
@@ -690,7 +690,7 @@ Required tests:
 - Add parser test for ambiguous unqualified imports returning `Error(message)`.
 - Re-run the Task 5 Rally hash-routing tests after the parser migration.
 
-Run: `cd /Users/daverapin/projects/opensource/rally && gleam test`.
+Run: `cd /path/to/rally && gleam test`.
 
 Commit:
 
@@ -733,7 +733,7 @@ Run:
 
 ```sh
 cd /Users/daverapin/projects/opensource/libero && gleam test
-cd /Users/daverapin/projects/opensource/rally && gleam test
+cd /path/to/rally && gleam test
 ```
 
 Commit:
@@ -753,9 +753,9 @@ Commands:
 
 ```sh
 cd /Users/daverapin/projects/opensource/libero && gleam test
-cd /Users/daverapin/projects/opensource/rally && gleam test
-cd /Users/daverapin/projects/opensource/rally && test/js/run_auth_error_test.sh
-cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
+cd /path/to/rally && gleam test
+cd /path/to/rally && test/js/run_auth_error_test.sh
+cd /path/to/rally && bin/check-auth-codegen
 ```
 
 Inspect generated output if any snapshot changed:
@@ -845,7 +845,7 @@ stays about source handling, not Rally concepts.
 ## Test Plan
 
 - `cd /Users/daverapin/projects/opensource/libero && gleam test`
-- `cd /Users/daverapin/projects/opensource/rally && gleam test`
+- `cd /path/to/rally && gleam test`
 - Add focused tests before each extraction step.
 - Keep existing Rally parser tests as regression coverage for error text.
 - Add explicit Rally assertions for unsupported function and hole type messages.

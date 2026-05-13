@@ -192,9 +192,9 @@ call sites in Task 6.
 
 ```sh
 cd /Users/daverapin/projects/opensource/libero && gleam test
-cd /Users/daverapin/projects/opensource/rally && gleam test
-cd /Users/daverapin/projects/opensource/rally && test/js/run_auth_error_test.sh
-cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
+cd /path/to/rally && gleam test
+cd /path/to/rally && test/js/run_auth_error_test.sh
+cd /path/to/rally && bin/check-auth-codegen
 ```
 
 Note any failures before editing. Do not explain them away.
@@ -249,7 +249,7 @@ and continue testing ETF behavior.
 - [x] **Step 4: Run tests**
 
 ```sh
-cd /Users/daverapin/projects/opensource/rally && gleam test
+cd /path/to/rally && gleam test
 ```
 
 Expected: all pass, no behavior change.
@@ -379,7 +379,7 @@ Add a similar test in `test/rally/ws_auth_test.gleam`.
 - [x] **Step 5: Run tests**
 
 ```sh
-cd /Users/daverapin/projects/opensource/rally && gleam test
+cd /path/to/rally && gleam test
 ```
 
 - [x] **Step 6: Commit**
@@ -514,7 +514,7 @@ use `decode_rpc_envelope` (for HTTP BitArray bodies) or
 - [x] **Step 3: Run auth codegen check**
 
 ```sh
-cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
+cd /path/to/rally && bin/check-auth-codegen
 ```
 
 Expected: generated code compiles. The new functions exist but are not
@@ -523,7 +523,7 @@ called yet; no behavior change.
 - [x] **Step 4: Run tests**
 
 ```sh
-cd /Users/daverapin/projects/opensource/rally && gleam test
+cd /path/to/rally && gleam test
 ```
 
 - [x] **Step 5: Commit**
@@ -839,7 +839,7 @@ Update the handler imports generation to use
 - [x] **Step 3: Run tests**
 
 ```sh
-cd /Users/daverapin/projects/opensource/rally && gleam test
+cd /path/to/rally && gleam test
 ```
 
 Expected: all pass, no behavior change. The dispatch output is identical;
@@ -1087,7 +1087,7 @@ pub fn json_protocol_wire_no_endpoints_compiles_test() {
 - [x] **Step 5: Run auth codegen check**
 
 ```sh
-cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
+cd /path/to/rally && bin/check-auth-codegen
 ```
 
 This is the critical verification: the generated protocol_wire facade must
@@ -1097,7 +1097,7 @@ mist, glisten, bytes_tree) and the json_dispatch function must type-check.
 - [x] **Step 6: Run tests**
 
 ```sh
-cd /Users/daverapin/projects/opensource/rally && gleam test
+cd /path/to/rally && gleam test
 ```
 
 - [x] **Step 7: Commit**
@@ -1275,7 +1275,7 @@ pub fn http_auth_no_not_implemented_stub_test() {
 - [x] **Step 5: Run tests**
 
 ```sh
-cd /Users/daverapin/projects/opensource/rally && gleam test
+cd /path/to/rally && gleam test
 ```
 
 - [x] **Step 6: Commit**
@@ -1499,8 +1499,8 @@ output must be updated to assert `decode_ws_rpc_envelope` and
 - [x] **Step 7: Run tests**
 
 ```sh
-cd /Users/daverapin/projects/opensource/rally && gleam test
-cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
+cd /path/to/rally && gleam test
+cd /path/to/rally && bin/check-auth-codegen
 ```
 
 - [x] **Step 8: Update `system.gleam` if logging signature changed**
@@ -1527,9 +1527,9 @@ git commit -m "Make WS handler protocol-agnostic, fix JSON auth bypass"
 
 ```sh
 cd /Users/daverapin/projects/opensource/libero && gleam test
-cd /Users/daverapin/projects/opensource/rally && gleam test
-cd /Users/daverapin/projects/opensource/rally && test/js/run_auth_error_test.sh
-cd /Users/daverapin/projects/opensource/rally && bin/check-auth-codegen
+cd /path/to/rally && gleam test
+cd /path/to/rally && test/js/run_auth_error_test.sh
+cd /path/to/rally && bin/check-auth-codegen
 ```
 
 - [x] **Step 2: Verify acceptance criteria**

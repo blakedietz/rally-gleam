@@ -1,8 +1,20 @@
 # Rally Auth Framework Design
 
+Status: implemented design note
+Date: 2026-05-10
+Last checked: 2026-05-13
+
+This document records the auth design rationale. For the current framework
+contract, use `llms.txt` and the root README. Some problem statements below
+describe the pre-auth state before this design was implemented.
+
 ## Problem
 
-Rally apps need authentication and authorization but rally has no opinion on how they work. Apps currently hardcode identity or build ad-hoc session handling in `app.gleam`. There's no convention for protecting pages, resolving user identity, or gating access by role. Server handlers (RPCs) are completely unprotected across both WebSocket and HTTP transports.
+Before this design, Rally apps needed authentication and authorization but Rally
+had no framework convention for them. Apps hardcoded identity or built ad-hoc
+session handling in `app.gleam`. There was no generated path for protecting
+pages, resolving user identity, or gating access by role. Server handlers
+(RPCs) had no generated auth gate across WebSocket and HTTP transports.
 
 ## Design
 

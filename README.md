@@ -1,3 +1,5 @@
+![Rally](https://github.com/pairshaped/rally/blob/master/rally.png?raw=true)
+
 # Rally
 
 A full-stack web framework for Gleam on the BEAM. You write page modules that contain both client and server code in the same file. Rally's codegen reads your source, splits out the client-safe parts, and produces a working web app with file-based routing, server-side rendering, and real-time client-server messaging over WebSockets.
@@ -275,18 +277,18 @@ These are two different architectures for building full-stack Lustre apps. Neith
 
 **Lustre server components** run the TEA loop on the server: model, update, and view all execute server-side. On first connect, the server sends the full VDOM. On each subsequent update, it diffs the old and new VDOM and sends only the patch. The client is a thin JS shell (~10KB) that applies DOM patches and forwards events back to the server.
 
-**Rally** runs TEA on both sides. The client handles UI state locally (model, update, view run in the browser). The server has handler functions, and only gets involved when the client explicitly calls an RPC. The server responds with domain data, not VDOM patches.
+**Rally** runs TEA in the browser for UI state. Server work is explicit: most pages call stateless `server_*` RPC handlers, while pages that need per-connection server state use `server_init`/`server_update` and `ToServer`/`ToClient` messages. In both cases the wire carries domain messages, not VDOM patches.
 
 | | Lustre server components | Rally |
 |---|---|---|
 | **Where UI runs** | Server (model + update + view) | Client (model + update + view) |
 | **What goes over the wire** | VDOM patches down, DOM events up | Domain messages in both directions |
 | **Interaction latency** | Every event round-trips to server | Local state changes are instant |
-| **Server memory** | Model + VDOM + event handler cache (shared across subscribers of same component) | ServerContext per connection (stateless handlers) |
+| **Server memory** | Model + VDOM + event handler cache (shared across subscribers of same component) | Optional ServerModel per connection for stateful pages; stateless RPC pages keep no page model on the server |
 | **Client JS bundle** | Minimal (DOM patcher, ~10KB) | Full app logic (Lustre + page modules) |
 | **Client/server decision** | None: everything is server-side | You decide per interaction |
 | **Real-time multi-user** | Built in (all subscribers see same state) | Requires explicit broadcast |
-| **Code to write** | One update function | Two update functions (client + server) |
+| **Code to write** | One update function | Client update plus server handlers; stateful pages also define server_update |
 
 ### When server components make more sense
 

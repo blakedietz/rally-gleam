@@ -52,7 +52,7 @@ pub fn rpc(_msg: a, on_response _on_response: fn(b) -> msg) -> Effect(msg) {
 }
 
 /// Send a ToClient variant to the connected client.
-/// Encodes the message as an ETF push frame and queues it for
+/// Encodes the message as a protocol-specific push frame and queues it for
 /// the WebSocket handler to send after the current dispatch.
 pub fn send_to_client(msg: a) -> Effect(b) {
   do_push(msg)

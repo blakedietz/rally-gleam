@@ -1,7 +1,8 @@
 # Libero Boundary Spec
 
-Status: target architecture
+Status: implemented boundary, kept for rationale
 Date: 2026-05-09
+Last checked: 2026-05-13
 
 ## Summary
 
@@ -9,10 +10,9 @@ Rally should be a protocol-oblivious consumer of Libero. Rally decides what
 messages exist and when to send them. Libero decides how those typed messages
 become protocol data and back.
 
-This is mostly where the codebase has been heading. Rally already backs onto
-Libero for scanning, dispatch generation, wire transforms, and typed decoders.
-The remaining work is to remove the places where Rally still knows ETF frame
-shape or chooses raw codec functions directly.
+This boundary is now represented by generated `protocol_wire` facades. Rally
+backs onto Libero for scanning, dispatch generation, wire transforms, protocol
+facades, and typed decoders.
 
 The test is simple: Libero should be able to add JSON RPC as a configured
 protocol and Rally should not care which protocol is selected. ETF remains
@@ -21,7 +21,7 @@ Libero-owned modules or updated facade imports. It should not need to rewrite
 WebSocket transport logic, response handling, push handling, page init, SSR
 hydration, or the message inspector because the configured protocol changed.
 
-Rally's generated Lustre clients can keep using ETF. JSON is useful for
+Rally's generated Lustre clients default to ETF. JSON is useful for
 non-Gleam clients such as a Rust CLI or Go tool that call the same handler
 contract. Rally should benefit from Libero's protocol choice without owning the
 choice.
@@ -55,33 +55,22 @@ objects, positional arrays, or any future protocol shape.
 
 ## Current State
 
-Rally is already close:
+Current protocol boundary:
 
 - `rally.gleam` uses Libero scanner, walker, dispatch generation, atoms, and
   wire module generation.
-- `rally_runtime/wire.gleam` is a thin wrapper over `libero/wire`.
-- Generated client codec files delegate typed decoder generation to Libero.
-- The WebSocket lifecycle lives in Rally, which is correct.
+- Generated `protocol_wire.gleam` and `protocol_wire.mjs` choose ETF or JSON.
+- `transport_ffi.mjs` imports `encode_request` and `decode_server_frame` from
+  `./protocol_wire.mjs`.
+- Generated `transport.gleam` exposes framework send, register, and read
+  helpers instead of raw frame parsing.
+- Generated app code uses generated codec and hydration helpers.
+- `rally_runtime/wire.gleam` remains as a small ETF wrapper for legacy and
+  direct runtime helpers.
+- Some historical plans under `docs/plans/` still describe the migration steps
+  that led here.
 
-Remaining protocol leaks:
-
-- `rally_runtime/transport_ffi.mjs` imports `encode_call` and `decode_value`
-  from Libero directly.
-- `transport_ffi.mjs` reads frame tag bytes `0x00` and `0x01`.
-- `transport_ffi.mjs` slices `request_id` out of response bytes.
-- Generated `transport.gleam` exposes `decode_safe_raw` and
-  `apply_typed_decoder`.
-- Client app generation calls `transport.apply_typed_decoder(...)` for flags
-  and page models.
-- `rally_runtime/codec.gleam` owns base64 flag encode/decode.
-- The RealWorld CLI decodes the response frame by matching on raw bytes.
-- Some docs describe Rally's generated runtime in terms of ETF instead of
-  Libero protocol operations.
-
-These are not design failures. They are the last visible parts of an ongoing
-migration.
-
-## Target Rally Shape
+## Boundary Shape
 
 Rally's transport should look like this conceptually:
 
@@ -109,7 +98,7 @@ frame = generated_libero.encode_request(page, 0, params)
 SSR hydration should use generated Libero helpers rather than raw
 `decode_safe_raw` plus `apply_typed_decoder` calls in Rally-generated app code.
 
-## Target Generated Client Surface
+## Generated Client Surface
 
 Generated Rally client code should expose framework operations:
 
@@ -132,6 +121,8 @@ directly. Rally's generated surface should guide normal app code toward the
 typed contract.
 
 ## Migration Steps
+
+The migration checklist below is retained as historical context.
 
 1. Add higher-level protocol facade functions to Libero while keeping ETF.
 2. Update `rally_runtime/transport_ffi.mjs` to call Libero frame helpers instead
