@@ -636,10 +636,11 @@ fn emit_codec_ffi_with_endpoints(
   endpoints: List(HandlerEndpoint),
 ) -> String {
   codegen_decoders.generate_decoders_ffi(
-    discovered,
-    endpoints,
-    "../../",
-    "client",
+    discovered:,
+    endpoints:,
+    relpath_prefix: "../../",
+    package: "client",
+    dispatch_module: option.Some("generated/types"),
   )
 }
 
