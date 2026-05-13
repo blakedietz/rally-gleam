@@ -23,7 +23,7 @@ import rally/scanner as rally_scanner
 import rally/types.{type ScanConfig, ScanConfig, ScannedRoute}
 import simplifile
 
-const fixture_root = "test_fixtures/json_protocol"
+const fixture_root = "fixtures/json_protocol"
 
 @external(erlang, "libero_ffi", "find_executable")
 fn find_executable(name: String) -> Option(String)

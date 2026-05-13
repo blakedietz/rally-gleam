@@ -381,8 +381,8 @@ bin/check-auth-codegen           # on-demand auth codegen compile check
 test/js/run_auth_error_test.sh   # client auth error detection (JS, not part of gleam test)
 ```
 
-Test-only fixture apps live under `test_fixtures/`. The JSON protocol fixture is
-`test_fixtures/json_protocol`.
+Test-only fixture apps live under `fixtures/`. The JSON protocol fixture is
+`fixtures/json_protocol`.
 
 ## Links
 

@@ -763,7 +763,7 @@ Inspect generated output if any snapshot changed:
 - `test/birdie_snapshots/http_handler_with_auth_required.accepted`
 - `test/birdie_snapshots/http_handler_with_auth_and_authorize.accepted`
 - `test/birdie_snapshots/client_transport_gleam.accepted`
-- fixture generated protocol files under `test_fixtures/json_protocol/src/generated`.
+- fixture generated protocol files under `fixtures/json_protocol/src/generated`.
 
 Acceptance:
 

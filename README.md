@@ -211,7 +211,7 @@ gleam run -m birdie accept       # Accept all new snapshots
 test/js/run_auth_error_test.sh   # JS-side auth error detection (not part of gleam test)
 ```
 
-Tests create temporary directories in `/tmp/rally_test_*` and clean up after themselves. Test-only fixture apps live under `test_fixtures/`; codec and wire tests use in-memory SQLite via `test_db.gleam`.
+Tests create temporary directories in `/tmp/rally_test_*` and clean up after themselves. Test-only fixture apps live under `fixtures/`; codec and wire tests use in-memory SQLite via `test_db.gleam`.
 
 ## Where to start reading
 

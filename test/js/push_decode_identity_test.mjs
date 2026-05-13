@@ -12,7 +12,7 @@ import { ok as assert, strictEqual, notStrictEqual } from "node:assert";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const buildDir = resolve(
   __dirname,
-  "../../test_fixtures/json_protocol/.generated_clients/public/build/dev/javascript/client/generated",
+  "../../fixtures/json_protocol/.generated_clients/public/build/dev/javascript/client/generated",
 );
 
 const mod = await import(`file://${buildDir}/protocol_wire.mjs`);
