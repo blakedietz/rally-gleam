@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // JS client path can round-trip it.
 const buildDir = resolve(
   __dirname,
-  "../../fixtures/json_protocol/.generated_clients/public/build/dev/javascript/client/generated",
+  "../../test_fixtures/json_protocol/.generated_clients/public/build/dev/javascript/client/generated",
 );
 
 const mod = await import(`file://${buildDir}/protocol_wire.mjs`);

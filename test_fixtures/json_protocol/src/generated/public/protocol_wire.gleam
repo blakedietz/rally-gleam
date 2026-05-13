@@ -8,7 +8,6 @@ import gleam/dynamic/decode
 import gleam/io
 import gleam/json
 import gleam/option.{type Option, None, Some}
-import libero/error as libero_error
 import libero/frame.{type ServerFrame}
 import libero/json/error.{type JsonError, JsonError}
 import libero/json/wire.{type RequestEnvelope} as json_wire

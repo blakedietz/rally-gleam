@@ -13,7 +13,7 @@ import { ok as assert, strictEqual, throws } from "node:assert";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const buildDir = resolve(
   __dirname,
-  "../../fixtures/json_protocol/.generated_clients/public/build/dev/javascript/client/generated",
+  "../../test_fixtures/json_protocol/.generated_clients/public/build/dev/javascript/client/generated",
 );
 
 // Dynamic import so relative imports inside protocol_wire.mjs resolve
