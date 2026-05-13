@@ -238,7 +238,38 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     |> result.map_error(fn(msg) { RallyError("scan error: " <> msg) }),
   )
 
-  let handler_endpoints = case libero.scan() {
+  let auth_path = dirname(config.pages_root) <> "/auth.gleam"
+  let auth_config = case simplifile.read(auth_path) {
+    Ok(source) -> {
+      let auth_module = module_from_src_path(auth_path)
+      case
+        string.contains(source, "pub type Identity")
+        && string.contains(source, "pub fn resolve")
+        && string.contains(source, "pub fn is_authenticated")
+        && string.contains(source, "pub const redirect_url")
+      {
+        True -> option.Some(types.AuthConfig(auth_module:))
+        False -> {
+          io.println_error(
+            "rally: auth.gleam found at "
+            <> auth_path
+            <> " but missing required exports (Identity, resolve, is_authenticated, redirect_url)",
+          )
+          option.None
+        }
+      }
+    }
+    _ -> option.None
+  }
+
+  let exclude_param_types = case auth_config {
+    option.Some(types.AuthConfig(auth_module:)) -> [#(auth_module, "Identity")]
+    option.None -> []
+  }
+
+  let handler_endpoints = case
+    libero.scan_excluding(exclude_param_types:)
+  {
     Ok(endpoints) -> {
       case endpoints {
         [] -> Nil
@@ -302,29 +333,6 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
         False -> check_server_context_from_session(server_context_path)
       }
     _ -> check_server_context_from_session(server_context_path)
-  }
-  let auth_path = dirname(config.pages_root) <> "/auth.gleam"
-  let auth_config = case simplifile.read(auth_path) {
-    Ok(source) -> {
-      let auth_module = module_from_src_path(auth_path)
-      case
-        string.contains(source, "pub type Identity")
-        && string.contains(source, "pub fn resolve")
-        && string.contains(source, "pub fn is_authenticated")
-        && string.contains(source, "pub const redirect_url")
-      {
-        True -> option.Some(types.AuthConfig(auth_module:))
-        False -> {
-          io.println_error(
-            "rally: auth.gleam found at "
-            <> auth_path
-            <> " but missing required exports (Identity, resolve, is_authenticated, redirect_url)",
-          )
-          option.None
-        }
-      }
-    }
-    _ -> option.None
   }
 
   let router_module = module_from_src_path(config.output_route)

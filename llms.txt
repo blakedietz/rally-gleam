@@ -351,7 +351,7 @@ Unknown `auth:*` values and non-string errors fall through to the existing respo
 
 ### Identity threading
 
-When auth is enabled, Libero dispatch gains an `identity` parameter via `ExtraParam`, and all server handlers receive `identity: auth.Identity` as their last argument.
+When auth is enabled, Rally tells Libero's scanner to exclude `Identity` params (`scan_excluding(exclude_param_types: [#(auth_module, "Identity")])`) so they are stripped before message-type resolution. This keeps identity out of `HandlerEndpoint.params`, the generated `ClientMsg` type, and the wire decoder, while Libero dispatch threads identity separately via `ExtraParam`. All server handlers still receive `identity: auth.Identity` as their last argument; the param is just not part of the client-facing contract.
 
 ## Prior art
 
