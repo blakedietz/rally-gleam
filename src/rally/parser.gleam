@@ -30,9 +30,9 @@ pub fn parse_page(
     }),
   )
 
-  use resolver <- result.try(
-    glance_type_resolver.resolver_from_imports(ast.imports),
-  )
+  use resolver <- result.try(glance_type_resolver.resolver_from_imports(
+    ast.imports,
+  ))
 
   use model_variants <- result.try(extract_variants(
     ast: ast,
@@ -111,9 +111,9 @@ pub fn parse_client_context(
     }),
   )
 
-  use resolver <- result.try(
-    glance_type_resolver.resolver_from_imports(ast.imports),
-  )
+  use resolver <- result.try(glance_type_resolver.resolver_from_imports(
+    ast.imports,
+  ))
 
   use context_variants <- result.try(extract_variants(
     ast: ast,
@@ -175,7 +175,6 @@ fn extract_variants(
     }
   }
 }
-
 
 // ---------- Function detection ----------
 

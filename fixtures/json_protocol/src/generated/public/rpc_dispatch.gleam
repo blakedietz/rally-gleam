@@ -2,8 +2,8 @@
 
 import gleam/io
 import libero/error.{InternalError, MalformedRequest, UnknownFunction}
+import libero/etf/wire
 import libero/trace
-import libero/wire
 import public/pages/home_ as public_pages_home__handler
 import server_context.{type ServerContext}
 
@@ -33,7 +33,7 @@ pub fn handle(
   data data: BitArray,
 ) -> #(BitArray, ServerContext) {
   ensure_atoms()
-  case wire.decode_call(data) {
+  case wire.decode_request(data) {
     Ok(#("rpc", request_id, msg)) -> {
       let msg = wire_decode_client_msg(msg)
       case wire.variant_tag(msg) {

@@ -42,7 +42,7 @@ pub fn decode_call_wrong_shape_test() {
   // Encode a plain integer instead of a {module, request_id, value} tuple
   let bad = ffi_encode(coerce(42))
   let assert Error(DecodeError(
-    message: "invalid call envelope: expected {binary, integer, value} tuple",
+    message: "invalid request envelope: expected {binary, integer, value} tuple",
   )) = wire.decode_call(bad)
 }
 

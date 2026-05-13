@@ -7,7 +7,7 @@ import gleam/result
 import gleam/string
 import libero
 import libero/codegen_dispatch.{ExtraParam}
-import libero/codegen_wire_erl
+import libero/etf/codegen_erl
 import libero/field_type
 import libero/gen_error
 import libero/json/contract as json_contract
@@ -448,7 +448,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
                 module_path: route.module_path,
                 variant_name: "ToClient",
               )
-            Ok(codegen_wire_erl.PushDispatch(
+            Ok(codegen_erl.PushDispatch(
               page_tag: route.variant_name,
               type_atom: type_atom,
             ))
@@ -464,7 +464,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
             variant_name: "ClientContextMsg",
           )
         [
-          codegen_wire_erl.PushDispatch(
+          codegen_erl.PushDispatch(
             page_tag: "__ClientContext__",
             type_atom: type_atom,
           ),
@@ -480,7 +480,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
   // route variant name (e.g. "Home") and type_atom matches the
   // qualified encoder name (e.g. "public_pages_home___to_client").
   let json_push_dispatches =
-    list.map(push_dispatches, fn(d: codegen_wire_erl.PushDispatch) {
+    list.map(push_dispatches, fn(d: codegen_erl.PushDispatch) {
       #(d.page_tag, d.type_atom)
     })
 

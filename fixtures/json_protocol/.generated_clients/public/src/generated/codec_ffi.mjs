@@ -6,7 +6,7 @@ import { decode_int, decode_float, decode_string, decode_bool, decode_bit_array,
 import { Ok, Error as ResultError, Empty, NonEmpty } from "../../gleam_stdlib/gleam.mjs";
 import { Some, None } from "../../gleam_stdlib/gleam/option.mjs";
 import { from_list as dictFromList } from "../../gleam_stdlib/gleam/dict.mjs";
-import { registerAtomDecoder } from "../../libero/libero/rpc_ffi.mjs";
+import { registerAtomDecoder } from "../../libero/libero/etf/wire_ffi.mjs";
 import { Success as _Success, Failure as _Failure, TransportError as _TransportError, DomainError as _DomainError } from "../../libero/libero/remote_data.mjs";
 import { MalformedRequest as _MalformedRequest, UnknownFunction as _UnknownFunction, InternalError as _InternalError } from "../../libero/libero/error.mjs";
 import * as _m_public_pages_home_ from "../../client/public/pages/home_.mjs";
