@@ -1,9 +1,9 @@
 name = "rally"
 version = "0.1.0"
 target = "erlang"
-repository = { type = "github", user = "pairshaped", repo = "rally" }
+repository = { type = "github", user = "pairshaped", repo = "rally-gleam" }
 links = [
-  { title = "llms.txt", href = "https://raw.githubusercontent.com/pairshaped/rally/refs/heads/master/llms.txt" },
+  { title = "llms.txt", href = "https://raw.githubusercontent.com/pairshaped/rally-gleam/refs/heads/master/llms.txt" },
 ]
 
 [dependencies]

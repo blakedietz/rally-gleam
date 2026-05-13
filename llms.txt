@@ -383,7 +383,7 @@ test/js/run_auth_error_test.sh   # client auth error detection (JS, not part of 
 
 ## Links
 
-- [Rally on GitHub](https://github.com/pairshaped/rally)
+- [Rally on GitHub](https://github.com/pairshaped/rally-gleam)
 - [Gleam](https://gleam.run)
 - [Lustre](https://hexdocs.pm/lustre)
 - [Libero](https://github.com/pairshaped/libero)
