@@ -1,3 +1,9 @@
+//// Route type, parse function, path builder, and page dispatch codegen.
+////
+//// Generates router.gleam (Route type, parse_route, route_to_path, href),
+//// page_dispatch.gleam (PageModel/PageMsg unions, per-route init/update/view),
+//// protocol_wire.gleam facade, and RPC dispatch scaffolding.
+
 import gleam/dict
 import gleam/list
 import gleam/option.{type Option, None, Some}

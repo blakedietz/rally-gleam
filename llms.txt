@@ -57,11 +57,11 @@ pub fn server_login(
 pub fn load(server_context: ServerContext) -> Model
 ```
 
-The handler-as-contract pattern: define a single-variant type for the message, and a `pub fn server_*` function that receives it. The type is both the handler's input and the client's constructor for RPC calls. Libero scans these functions, generates dispatch and client stubs automatically.
+### Two server communication models
 
-### How client calls the server
+Rally supports two ways for pages to communicate with the server.
 
-The message type defined alongside the handler is used directly in the client's update:
+**RPC (stateless, recommended default).** Define a single-variant type for the message and a `pub fn server_*` function that receives it. The type is both the handler's input and the client's constructor. Libero scans these functions and generates dispatch and client stubs automatically. The client calls via `rally_effect.rpc(msg, on_response: callback)`.
 
 ```gleam
 pub fn update(model, msg) {
@@ -71,6 +71,16 @@ pub fn update(model, msg) {
     GotLogin(Error(errors)) -> // handle errors
   }
 }
+```
+
+**Stateful (bidirectional messaging).** Define `ToServer`/`ToClient` message types, a `ServerModel`, and `server_init`/`server_update` functions. The server keeps a `ServerModel` per WebSocket connection and can push `ToClient` messages at any time. The client sends via `rally_effect.send_to_server(msg)` and receives pushes through a `GotServerMsg(ToClient)` variant in `Msg`. Use this when the server needs state between calls (entity ownership for authorization) or server-initiated push without a request.
+
+```gleam
+pub type ToServer { ToggleFavorite; AddComment(body: String) }
+pub type ToClient { ArticleUpdated(Article); CommentAdded(Comment) }
+pub type ServerModel { ServerModel(article_id: Int) }
+pub fn server_init(slug: String, server_context: ServerContext) -> #(ServerModel, Effect(ToClient))
+pub fn server_update(model: ServerModel, msg: ToServer, server_context: ServerContext) -> #(ServerModel, Effect(ToClient))
 ```
 
 - `Model`/`Msg` and client functions are standard Lustre TEA
@@ -89,7 +99,8 @@ pub fn update(model, msg) {
 
 Page modules import from `rally_runtime/effect`:
 
-- `rpc(msg, on_response: callback)`: calls a server handler via WebSocket RPC. On the server this is a no-op (update never runs server-side). On the client, the generated code encodes the msg and sends it over the transport.
+- `rpc(msg, on_response: callback)`: calls a stateless server_* handler via WebSocket RPC. On the server this is a no-op. On the client, the generated code encodes the msg and sends it over the transport.
+- `send_to_server(msg)`: sends a ToServer variant to the server (stateful model). On the server this is a no-op. On the client, the generated transport sends it over WebSocket.
 - `send_to_client(variant)`: server push: encodes as ETF push frame, queues for WS handler
 - `broadcast_to_page(variant)` / `broadcast_to_app(variant)` / `broadcast_to_session(variant)`: multi-cast push via pg topics
 - `send_to_client_context(variant)`: page-to-context messaging for cross-page state
@@ -151,7 +162,7 @@ Running `gleam run -m rally` produces:
 | `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
 | `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam |
 | `generator/codec.gleam` | Client codegen: per-page modules (tree-shaken), types.gleam (ClientMsg), codec_ffi.mjs (ETF decoders), codec.gleam (decode_flags), rally_effect shim |
-| `dependency_resolver.gleam` | Follows import chains from page modules to build the full set of server-only symbols, client-safe functions, and shared dependencies used by the tree shaker |
+| `dependency_resolver.gleam` | Follows import chains from tree-shaken client pages to copy shared modules into the client package, catching @external(erlang) imports that can't compile for JS |
 | `types.gleam` | Shared types: ScannedRoute, PageContract, ScanConfig, ClientContextContract, segment and variant field representations |
 | `tree_shaker.gleam` | Source-level tree shaker: extracts client-safe code from page modules using Glance AST |
 | `generator/ssr_handler.gleam` | SSR handler generation |

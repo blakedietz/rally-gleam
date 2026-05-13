@@ -1,3 +1,13 @@
+//// Durable background job runner backed by SQLite.
+////
+//// Jobs are rows in the system DB's `jobs` table. A poller actor claims
+//// ready jobs with UPDATE...RETURNING, runs the handler, and marks them
+//// completed or schedules a retry. Failed jobs get quadratic backoff
+//// (5s, 20s, 45s, 80s) and are dead-lettered after max_attempts.
+//// Running jobs have a claimed_at lease so they can be reclaimed if the
+//// process crashes. Use run_once for deterministic testing without the
+//// polling actor.
+
 import gleam/dynamic/decode
 import gleam/erlang/process.{type Subject}
 import gleam/int
@@ -6,8 +16,10 @@ import gleam/time/timestamp
 import logging
 import sqlight
 
+/// How often the polling actor checks for ready jobs (milliseconds).
 const poll_interval_ms = 1000
 
+/// Jobs that fail this many times are marked dead and stop retrying.
 const max_attempts = 5
 
 pub type JobHandler =
@@ -78,6 +90,7 @@ pub fn start_runner(
   |> actor.start
 }
 
+/// Jobs claimed longer than this are assumed crashed and reclaimed.
 const running_lease_seconds = 60
 
 pub fn run_once(db db: sqlight.Connection, handler handler: JobHandler) -> Nil {

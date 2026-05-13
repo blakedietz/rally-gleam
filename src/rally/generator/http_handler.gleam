@@ -1,3 +1,10 @@
+//// HTTP RPC handler codegen.
+////
+//// Generates http_handler.gleam: handles POST /rpc requests for
+//// non-WebSocket clients. Decodes the request body through protocol_wire,
+//// dispatches to the RPC handler, and returns the response. When auth is
+//// configured, runs resolve/is_authenticated/authorize per request.
+
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string

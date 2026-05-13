@@ -1,3 +1,7 @@
+//// SSR flag serialization. Encodes a page's Model as base64 ETF for
+//// embedding in HTML (server-side), and decodes it back during client
+//// hydration. Delegates the actual ETF encode/decode to libero via wire.
+
 import gleam/bit_array
 import gleam/result
 import rally_runtime/wire

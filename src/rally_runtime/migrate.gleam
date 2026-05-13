@@ -1,3 +1,8 @@
+//// SQL migration runner for SQLite. Reads numbered .sql files from a
+//// directory, tracks the last applied version in a schema_migrations
+//// table, and runs pending migrations inside transactions. Failed
+//// migrations roll back and leave the version at the last success.
+
 import gleam/dynamic/decode
 import gleam/int
 import gleam/io

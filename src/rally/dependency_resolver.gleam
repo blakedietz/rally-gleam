@@ -1,3 +1,11 @@
+//// Client dependency resolver.
+////
+//// Starting from the tree-shaken page modules and layout files, follows
+//// their import chains through the server's src/ tree and copies any
+//// shared modules the client package needs. Catches @external(erlang)
+//// imports that would fail to compile for JavaScript and reports the
+//// import chain so the developer can find the problem.
+
 import glance
 import gleam/bool
 import gleam/int

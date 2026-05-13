@@ -1,3 +1,9 @@
+//// JSON-specific RPC dispatch codegen.
+////
+//// Generates dispatch functions that route JSON-encoded RPC calls to
+//// server_* handlers. Handles JSON response encoding and type registry
+//// building for the JSON protocol path.
+
 import gleam/list
 import gleam/option.{Some}
 import gleam/string

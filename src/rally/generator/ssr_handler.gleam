@@ -1,3 +1,11 @@
+//// SSR handler codegen.
+////
+//// Generates ssr_handler.gleam: takes a parsed Route, calls the page's
+//// load function, renders view wrapped in layout, embeds the model as
+//// base64 flags for client hydration. Handles auth resolve, from_session,
+//// authorize, and LoadResult (Page/Redirect with cookies) when auth is
+//// configured.
+
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string

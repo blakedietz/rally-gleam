@@ -1,3 +1,10 @@
+//// Client package generation.
+////
+//// Assembles the standalone Gleam project that compiles to the browser
+//// SPA: gleam.toml, app.gleam (Lustre entry point with per-page TEA loop),
+//// transport.gleam (WebSocket FFI bridge), and router.gleam (client-side
+//// route parsing). The generated package lives in .generated_clients/<namespace>.
+
 import gleam/dict
 import gleam/list
 import gleam/option.{type Option, None, Some}

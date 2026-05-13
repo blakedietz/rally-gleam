@@ -1,3 +1,10 @@
+//// System database: observability and background jobs.
+////
+//// Opens a separate SQLite database (system.db) for message logging and
+//// the job queue. The connection is stored globally so any WS handler
+//// process can log messages. Uses synchronous=OFF because losing a few
+//// recent log entries on crash is acceptable for the throughput gain.
+
 import gleam/dynamic/decode
 import gleam/int
 import gleam/result

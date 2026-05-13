@@ -1,6 +1,6 @@
 # Realworld (Conduit)
 
-A [RealWorld](https://github.com/gothinkster/realworld) implementation built with Rally. Users can publish articles, comment, follow authors, and favorite posts. The app demonstrates most of Rally's features: file-based routing, SSR with hydration, bidirectional WebSocket messaging, session auth, and the shared ClientContext pattern.
+A [RealWorld](https://github.com/gothinkster/realworld) implementation built with Rally. Users can publish articles, comment, follow authors, and favorite posts. The app demonstrates most of Rally's features: file-based routing, SSR with hydration, session auth, the shared ClientContext pattern, and both of Rally's server communication models.
 
 ## Running it
 
@@ -15,17 +15,52 @@ This runs marmot codegen (SQL), Rally codegen (routes, handlers, client), builds
 
 ### Pages
 
-| File | Route | What it does |
-|------|-------|-------------|
-| `home_.gleam` | `/` | Global feed, your feed, tag filtering. SSR with `load`. |
-| `login.gleam` | `/login` | Email/password login, creates session |
-| `register.gleam` | `/register` | New user registration |
-| `editor.gleam` | `/editor` | Create article |
-| `editor/slug_.gleam` | `/editor/:slug` | Edit existing article |
-| `article/slug_.gleam` | `/article/:slug` | Article view with comments, favorites, follows |
-| `profile/username_.gleam` | `/profile/:username` | User profile with their articles |
-| `settings.gleam` | `/settings` | Update bio, image, password |
-| `layout.gleam` | (all pages) | Navbar + footer, auth-aware navigation |
+| File | Route | What it does | Server model |
+|------|-------|-------------|--------------|
+| `home_.gleam` | `/` | Global feed, your feed, tag filtering. SSR with `load`. | RPC |
+| `login.gleam` | `/login` | Email/password login, creates session | RPC |
+| `register.gleam` | `/register` | New user registration | RPC |
+| `editor.gleam` | `/editor` | Create article | RPC |
+| `editor/slug_.gleam` | `/editor/:slug` | Edit existing article | Stateful |
+| `article/slug_.gleam` | `/article/:slug` | Article view with comments, favorites, follows | Stateful |
+| `profile/username_.gleam` | `/profile/:username` | User profile with their articles | Stateful |
+| `settings.gleam` | `/settings` | Update bio, image, password | RPC |
+| `layout.gleam` | (all pages) | Navbar + footer, auth-aware navigation | -- |
+
+### Two server communication models
+
+Rally supports two ways for pages to talk to the server. This app uses both, so you can compare them side by side.
+
+**RPC (stateless request-response).** Define a single-variant message type and a `server_*` handler function. The client calls it with `rally_effect.rpc`, the server runs the function and returns the result. No server-side state between calls. Used by `login.gleam`, `register.gleam`, `home_.gleam`, `editor.gleam`, `settings.gleam`.
+
+```gleam
+// in login.gleam
+
+// The type is both the handler's input and the client's constructor
+pub type ServerLogin { ServerLogin(email: String, password: String) }
+
+// Libero discovers this handler automatically
+pub fn server_login(msg msg: ServerLogin, server_context server_context: ServerContext)
+  -> Result(#(String, String), List(String))
+
+// Client calls it directly
+rally_effect.rpc(ServerLogin(email: model.email, password: model.password), on_response: GotLogin)
+```
+
+**Stateful (bidirectional messaging).** Define `ToServer`/`ToClient` message types and a `ServerModel`. The server keeps a `ServerModel` per connection via `server_init`/`server_update`. The server can push `ToClient` messages to the client at any time. Used by `article/slug_.gleam`, `editor/slug_.gleam`, `profile/username_.gleam`, where the server tracks entity ownership for authorization between actions.
+
+```gleam
+// in article/slug_.gleam
+
+pub type ToServer { ToggleFavorite; AddComment(body: String); DeleteComment(id: Int) }
+pub type ToClient { ArticleUpdated(Article); CommentAdded(Comment); CommentDeleted(Int) }
+pub type ServerModel { ServerModel(article_id: Int, author_id: Int); ServerModelEmpty }
+
+pub fn server_init(slug, server_context) -> #(ServerModel, Effect(ToClient))
+pub fn server_update(model, msg, server_context) -> #(ServerModel, Effect(ToClient))
+```
+
+**When to use which:** Start with RPC. It's simpler, stateless, and covers most cases. Use stateful when you need the server to remember something between calls (like an entity ID for authorization) or push messages to the client without a request.
 
 ### Database
 
@@ -35,7 +70,7 @@ SQL files live in `src/sql/` organized by domain (`auth/`, `articles/`, `comment
 
 ### Server context
 
-`server_context.gleam` holds the database connection. Passed to all `server_update` and `load` functions.
+`server_context.gleam` holds the database connection. Passed to all `server_*` handlers and `load` functions.
 
 ### Client context
 
@@ -46,15 +81,18 @@ SQL files live in `src/sql/` organized by domain (`auth/`, `articles/`, `comment
 
 ## Architecture
 
-Each page follows the same pattern:
+Each page has a client side (standard Lustre TEA) and optionally a server side:
 
-1. **Client types**: `Model`, `Msg`, `ToServer`, `ToClient`
-2. **Client functions**: `init`, `update`, `view` (all receive `ClientContext`)
-3. **Server types**: `ServerModel`
-4. **Server functions**: `server_init`, `server_update` (receive `ServerContext`)
-5. **SSR** (optional): `load` returns initial `Model` from the database
+1. **Client types**: `Model`, `Msg` (all pages)
+2. **Client functions**: `init`, `update`, `view`, all receiving `ClientContext` (all pages)
+3. **SSR** (optional): `load` returns initial `Model` from the database
+4. **Server handlers** (one of):
+   - **RPC**: `ServerX` message type + `server_x` function per endpoint
+   - **Stateful**: `ToServer`/`ToClient`/`ServerModel` + `server_init`/`server_update`
 
-The login flow is a good example of how the pieces connect: the client sends `SubmitLogin(email, password)` as a `ToServer` message, `server_update` validates credentials and creates a session, then sends back `LoginSuccess(token)` as a `ToClient` message plus `send_to_client_context(SignedIn(user))` to update the navbar, and the client calls `navigate("/")` to go home.
+The login flow shows how RPC pages work: the client calls `rally_effect.rpc(ServerLogin(email, password), on_response: GotLogin)`. `server_login` validates credentials and creates a session. On success, the client receives `Ok(#(username, image))`, sends `send_to_client_context(SignedIn(user))` to update the navbar, and calls `navigate("/")`.
+
+The article page shows how stateful pages work: `server_init` loads the article and stores its ID in `ServerModel`. When the client sends `ToggleFavorite` via the `ToServer` channel, `server_update` uses the stored `article_id` for the database query and pushes an `ArticleUpdated` message back as `ToClient`.
 
 ## What Rally provides vs. what's hand-written
 

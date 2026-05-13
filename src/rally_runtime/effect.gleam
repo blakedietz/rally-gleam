@@ -1,3 +1,26 @@
+//// The API that page modules import for server communication, broadcast,
+//// and navigation.
+////
+//// This module has a split personality by design. Each function has two
+//// implementations: the server-side version here (which queues push frames
+//// via the process dictionary or is a no-op), and a client-side version
+//// in the generated rally_runtime/effect.gleam shim (which calls the
+//// browser WebSocket transport). The codegen rewrites imports so the
+//// client package uses the shim, not this file.
+////
+//// Two server communication models:
+////
+////   rpc(msg, on_response:)    Stateless request-response. Define a
+////                             ServerX message type and server_x handler.
+////                             Client sends, server returns a value.
+////                             Use this by default.
+////
+////   send_to_server(msg)       Stateful bidirectional. Define ToServer/
+////                             ToClient types and server_init/server_update.
+////                             Server keeps a ServerModel per connection
+////                             and can push ToClient messages any time.
+////                             Use when the server needs state between calls.
+
 import lustre/effect
 import rally_runtime/topics
 
@@ -13,15 +36,17 @@ pub fn from(f: fn(fn(a) -> Nil) -> Nil) -> Effect(a) {
 }
 
 /// Send a ToServer variant to the server over WebSocket.
+/// Part of the stateful model (ToServer/ToClient/ServerModel).
 /// On the server this is a no-op. On the client, the generated
 /// transport module provides the real implementation.
 pub fn send_to_server(_msg: a) -> Effect(b) {
   effect.none()
 }
 
-/// Call an RPC handler on the server. On the server this is a no-op
-/// (the update function is never called server-side). On the client,
-/// the generated views module replaces this with a typed transport call.
+/// Call a server_* RPC handler and deliver the return value to on_response.
+/// Part of the stateless RPC model (ServerX type + server_x function).
+/// On the server this is a no-op. On the client, the generated transport
+/// module encodes the message and sends it over WebSocket.
 pub fn rpc(_msg: a, on_response _on_response: fn(b) -> msg) -> Effect(msg) {
   effect.none()
 }
@@ -119,58 +144,79 @@ fn do_push(msg: a) -> Nil {
   push_outgoing_frame(frame)
 }
 
-// --- FFI bindings ---
+// --- FFI: WebSocket connection state ---
+// These store per-connection state in the Erlang process dictionary.
+// The generated WS handler calls these during connection init and
+// frame dispatch. Not part of the page-facing API.
 
+/// Store the WS connection handle, server context, and current page name.
 @external(erlang, "rally_runtime_ffi", "put_ws_state")
 pub fn put_ws_state(_conn: a, _server_context: b, _page: String) -> Nil {
   Nil
 }
 
+/// Retrieve the server context stored on the current WS process.
 @external(erlang, "rally_runtime_ffi", "get_stored_server_context")
 pub fn get_stored_server_context() -> Result(a, Nil) {
   Error(Nil)
 }
 
+/// Get the current page name for this WS connection.
 @external(erlang, "rally_runtime_ffi", "get_ws_page")
 pub fn get_ws_page() -> String {
   ""
 }
 
+/// Get the mist connection handle for this WS process.
 @external(erlang, "rally_runtime_ffi", "get_ws_conn")
 pub fn get_ws_conn() -> Result(a, Nil) {
   Error(Nil)
 }
+
+// --- FFI: push frame accumulator ---
+// Server effects queue outgoing frames in the process dictionary.
+// The WS handler drains them after each dispatch cycle.
 
 @external(erlang, "rally_runtime_ffi", "push_outgoing_frame")
 fn push_outgoing_frame(_frame: a) -> Nil {
   Nil
 }
 
+/// Drain all queued push frames. Called by the WS handler after dispatch.
 @external(erlang, "rally_runtime_ffi", "drain_outgoing_frames")
 pub fn drain_outgoing_frames() -> List(a) {
   []
 }
 
+// --- FFI: session state ---
+
+/// Store the session ID on the current WS process.
 @external(erlang, "rally_runtime_ffi", "put_ws_session")
 pub fn put_ws_session(_session_id: String) -> Nil {
   Nil
 }
 
+/// Get the session ID for the current WS connection.
 @external(erlang, "rally_runtime_ffi", "get_ws_session")
 pub fn get_ws_session() -> String {
   ""
 }
 
+// --- FFI: push frame encoding/decoding ---
+
+/// Decode an inbound push frame (ETF protocol).
 @external(erlang, "rally_runtime_ffi", "decode_rally_push")
 pub fn decode_rally_push(_msg: a) -> Result(BitArray, Nil) {
   Error(Nil)
 }
 
+/// Decode an inbound push frame (JSON protocol).
 @external(erlang, "rally_runtime_ffi", "decode_rally_push_json")
 pub fn decode_rally_push_json(_msg: a) -> Result(String, Nil) {
   Error(Nil)
 }
 
+/// Encode a value as a push frame tagged with a page name.
 @external(erlang, "rally_runtime_ffi", "encode_push_frame")
 fn encode_push_frame(_page: String, msg: a) -> a {
   msg

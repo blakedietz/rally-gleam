@@ -1,3 +1,7 @@
+//// APP_ENV parsing and environment-dependent behavior.
+//// Controls secure cookie policy and browser-side debug logging.
+//// Set APP_ENV=prod in production; everything else defaults to dev.
+
 import envoy
 import gleam/result
 import gleam/string

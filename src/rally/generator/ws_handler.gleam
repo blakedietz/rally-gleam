@@ -1,3 +1,11 @@
+//// WebSocket handler codegen.
+////
+//// Generates ws_handler.gleam: connection init (with optional auth resolve),
+//// frame decoding via protocol_wire, page-init handling (topic subscription,
+//// auth policy checks), RPC dispatch, push frame delivery, and reauth on
+//// stale sessions. The output wires together page dispatch, libero RPC
+//// dispatch, and the system message logger.
+
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string

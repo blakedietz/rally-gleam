@@ -92,9 +92,9 @@ fn generate_page_modules(
 /// and typed decoders for all discovered types.
 pub fn generate_json_codecs(
   discovered discovered: List(DiscoveredType),
-  endpoints endpoints: List(HandlerEndpoint),
+  endpoints _endpoints: List(HandlerEndpoint),
 ) -> List(CodecFile) {
-  case json_codegen.generate(discovered, endpoints, []) {
+  case json_codegen.generate(discovered) {
     Ok(content) -> [
       CodecFile("src/generated/json_codecs.gleam", content),
       generate_json_decode_dispatch(discovered),

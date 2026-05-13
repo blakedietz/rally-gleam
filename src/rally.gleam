@@ -1,3 +1,8 @@
+//// CLI entry point for Rally codegen. Reads [[tools.rally.clients]]
+//// from gleam.toml and runs one codegen pipeline per client namespace:
+//// scan routes, parse pages, discover handlers via libero, generate
+//// server and client code, tree-shake, resolve dependencies, write output.
+
 import gleam/dict
 import gleam/int
 import gleam/io
@@ -565,7 +570,7 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       sd_source:,
       ssr_source:,
       contracts:,
-      handler_endpoints:,
+      ns_endpoints:,
       rpc_dispatch_module:,
       auth_config:,
       from_session_module:,
@@ -905,21 +910,13 @@ fn do_write_files(
   sd_source sd_source: String,
   ssr_source ssr_source: String,
   contracts contracts: List(#(types.ScannedRoute, types.PageContract)),
-  handler_endpoints handler_endpoints: List(libero_scanner.HandlerEndpoint),
+  ns_endpoints ns_endpoints: List(libero_scanner.HandlerEndpoint),
   rpc_dispatch_module rpc_dispatch_module: String,
   auth_config auth_config: option.Option(types.AuthConfig),
   from_session_module from_session_module: String,
   protocol_wire_module protocol_wire_module: String,
   contract_hash contract_hash: String,
 ) -> Result(Nil, RallyError) {
-  let namespace_prefix =
-    config.pages_root
-    |> string.drop_start(4)
-    |> fn(p) { string.replace(p, "/pages", "") }
-  let ns_endpoints =
-    list.filter(handler_endpoints, fn(ep) {
-      string.starts_with(ep.module_path, namespace_prefix <> "/")
-    })
   let ws_source =
     ws_handler.generate(
       contracts,
