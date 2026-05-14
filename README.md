@@ -222,7 +222,7 @@ These are two different architectures for building full-stack Lustre apps.
 | **Real-time multi-user** | Built in (all subscribers see same state) | Requires explicit broadcast |
 | **Code to write** | One update function | Client update plus server handlers; stateful pages also define server_update |
 
-### When server components make more sense
+### When do Lustre server components make more sense?
 
 To be honest? Most of the time. For apps where interactions are button clicks, form submissions, and navigation, the server round-trip on same-region infra is 10-50ms and users won't notice. You get a simpler mental model (one update function, no client/server split decisions), a tiny client bundle, zero codec concerns, and real-time multi-user for free since all clients subscribe to the same server-side state.
 
