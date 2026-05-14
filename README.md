@@ -2,6 +2,9 @@
 
 # Rally
 
+[![Package Version](https://img.shields.io/hexpm/v/rally)](https://hex.pm/packages/rally)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/rally/)
+
 Rally is a full-stack web framework for Gleam on the BEAM. You write page modules where client code and server code live in the same file, and Rally generates the glue: routing, server-side rendering, WebSocket transport, and typed client-server messaging.
 
 Rally apps use SQLite by default. You get an embedded database, migrations, and type-safe SQL codegen without running a separate database server.
