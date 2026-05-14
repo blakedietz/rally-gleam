@@ -1,6 +1,6 @@
 import gleam/dynamic/decode
 import gleeunit/should
-import rally_runtime/system
+import rally_runtime/internal/system_db as system
 import sqlight
 
 pub fn open_creates_observability_tables_test() {

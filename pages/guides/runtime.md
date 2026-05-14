@@ -6,7 +6,7 @@ Most Rally apps import only a few `rally_runtime/*` modules directly. Generated 
 | --- | --- |
 | `rally_runtime/effect` | Page effects: RPC, server messages, navigation, broadcast, client context updates |
 | `rally_runtime/db` | SQLite open, timed query wrapper, nested transactions, SQL value helpers |
-| `rally_runtime/system` | App startup, message logging, background jobs |
+| `rally_runtime/system` | App startup and background jobs |
 | `rally_runtime/session` | Session IDs and session cookie headers |
 | `rally_runtime/auth` | Auth policy and load result types used by page modules |
 | `rally_runtime/env` | `APP_ENV` parsing and production cookie policy |

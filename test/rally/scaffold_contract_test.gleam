@@ -217,7 +217,7 @@ pub fn ws_handler_logs_decoded_rpc_value_test() {
     )
 
   output
-  |> string.contains("system.log_to_server(")
+  |> string.contains("system_db.log_to_server(")
   |> should.equal(True)
 
   output

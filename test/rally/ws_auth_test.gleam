@@ -221,9 +221,12 @@ pub fn ws_auth_on_init_stores_auth_state_test() {
       protocol: "etf",
     )
 
-  let assert True = string.contains(output, "effect.put_ws_identity(identity)")
-  let assert True = string.contains(output, "effect.put_ws_hostname(hostname)")
-  let assert True = string.contains(output, "effect.put_ws_auth_timestamp(")
+  let assert True =
+    string.contains(output, "effect_state.put_ws_identity(identity)")
+  let assert True =
+    string.contains(output, "effect_state.put_ws_hostname(hostname)")
+  let assert True =
+    string.contains(output, "effect_state.put_ws_auth_timestamp(")
 }
 
 // -- Page-init auth enforcement --
@@ -414,7 +417,10 @@ pub fn ws_page_init_no_auth_still_updates_state_test() {
 
   // No-auth page-init should still update state as before
   let assert True =
-    string.contains(output, "effect.put_ws_state(conn, server_context, page)")
+    string.contains(
+      output,
+      "effect_state.put_ws_state(conn, server_context, page)",
+    )
 }
 
 pub fn ws_auth_check_page_authorize_always_defined_test() {
@@ -476,7 +482,7 @@ pub fn ws_auth_rpc_dispatches_with_identity_test() {
     )
   let assert False = string.contains(output, "rpc_dispatch.handle(")
   // Must read identity before dispatch
-  let assert True = string.contains(output, "effect.get_ws_identity()")
+  let assert True = string.contains(output, "effect_state.get_ws_identity()")
   // Missing identity must fail closed
   let assert True = string.contains(output, "Error(Nil) -> {")
 }
@@ -740,7 +746,7 @@ pub fn ws_auth_rpc_missing_identity_fails_before_dispatch_test() {
 
   let assert Ok(#(_, rpc_branch)) = string.split_once(output, "Ok(envelope) ->")
   let assert Ok(#(_, after_identity_check)) =
-    string.split_once(rpc_branch, "case effect.get_ws_identity()")
+    string.split_once(rpc_branch, "case effect_state.get_ws_identity()")
   let assert Ok(#(missing_identity_branch, _)) =
     string.split_once(after_identity_check, "Ok(identity) ->")
   let assert True = string.contains(missing_identity_branch, "auth:forbidden")
@@ -861,13 +867,14 @@ pub fn ws_auth_checks_reauth_timestamp_test() {
     )
 
   // Must read auth timestamp (in reauth block, not just on_init)
-  let assert True = string.contains(output, "effect.get_ws_auth_timestamp()")
+  let assert True =
+    string.contains(output, "effect_state.get_ws_auth_timestamp()")
   // Must check staleness against reauth interval (30 min in ms)
   let assert True = string.contains(output, "1800000")
   // Must read hostname from stored state, not just on_init parameter
-  let assert True = string.contains(output, "effect.get_ws_hostname()")
+  let assert True = string.contains(output, "effect_state.get_ws_hostname()")
   // Must read current page to preserve it during reauth
-  let assert True = string.contains(output, "effect.get_ws_page()")
+  let assert True = string.contains(output, "effect_state.get_ws_page()")
 }
 
 pub fn ws_auth_reauth_reruns_resolve_test() {
@@ -923,8 +930,10 @@ pub fn ws_auth_reauth_stores_refreshed_state_test() {
     )
 
   // After successful reauth, must store refreshed identity and timestamp
-  let assert True = string.contains(output, "effect.put_ws_identity(identity)")
-  let assert True = string.contains(output, "effect.put_ws_auth_timestamp(now)")
+  let assert True =
+    string.contains(output, "effect_state.put_ws_identity(identity)")
+  let assert True =
+    string.contains(output, "effect_state.put_ws_auth_timestamp(now)")
   // Must call from_session with stored hostname (reauth-specific, not on_init)
   let assert True = string.contains(output, "hostname: hostname")
 }
@@ -953,7 +962,8 @@ pub fn ws_auth_reauth_failure_fails_closed_test() {
     )
 
   // On resolve failure during reauth, must clear auth state
-  let assert True = string.contains(output, "effect.clear_ws_auth_state()")
+  let assert True =
+    string.contains(output, "effect_state.clear_ws_auth_state()")
 }
 
 pub fn ws_auth_no_reauth_when_fresh_test() {
@@ -980,7 +990,7 @@ pub fn ws_auth_no_reauth_when_fresh_test() {
     )
 
   // When not stale, must skip re-resolve and use stored identity
-  let assert True = string.contains(output, "effect.get_ws_identity()")
+  let assert True = string.contains(output, "effect_state.get_ws_identity()")
 }
 
 pub fn json_protocol_generates_send_text_frame_for_pushes_test() {

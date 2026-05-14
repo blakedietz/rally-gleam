@@ -4,7 +4,7 @@ import generated/public/router
 import gleam/bytes_tree
 import gleam/http/response
 import mist.{type ResponseData}
-import rally_runtime/env
+import rally_runtime/internal/browser_env
 
 @external(erlang, "generated@public@rpc_atoms", "ensure")
 fn ensure_atoms() -> Nil
@@ -17,7 +17,7 @@ pub fn handle_request(_route: router.Route) -> response.Response(ResponseData) {
 fn serve_html_shell() -> response.Response(ResponseData) {
   let html =
     "<!DOCTYPE html><html><head><meta charset='utf-8'><script>(function(){var c=document.cookie;if(c.includes('__rally_dark_mode=1')||(!c.includes('__rally_dark_mode=')&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})()</script></head><body><div id='app'></div><script type='module' src='/client.js'></script></body></html>\n"
-    <> env.browser_env_script()
+    <> browser_env.script()
   response.new(200)
   |> response.set_header("content-type", "text/html")
   |> response.set_body(mist.Bytes(bytes_tree.from_string(html)))

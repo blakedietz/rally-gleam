@@ -121,17 +121,16 @@ Most Rally apps import only a few `rally_runtime/*` modules:
 |---|---|
 | `rally_runtime/effect` | Page effects: RPC, server messages, navigation, broadcast, client context updates |
 | `rally_runtime/db` | SQLite open, timed queries, nested transactions, SQL value helpers |
-| `rally_runtime/system` | App startup, message logging, background jobs |
+| `rally_runtime/system` | App startup and background jobs |
 | `rally_runtime/session` | Session cookie generation, parsing, response headers |
 | `rally_runtime/auth` | Auth policy and load result types |
 | `rally_runtime/env` | `APP_ENV` parsing, production cookie policy |
 | `rally_runtime/migrate` | Numbered SQLite migrations |
 | `rally_runtime/test_db` | Fast in-memory SQLite for tests |
-| `rally_runtime/topics` | OTP pg pub/sub for broadcast |
-| `rally_runtime/wire` | Thin wrapper over libero wire helpers |
-| `rally_runtime/codec` | Base64 ETF encode/decode for SSR flags |
-| `rally_runtime/ssr` | Lustre element to HTML string |
-| `rally_runtime/jobs` | Durable background job runner with retry |
+
+Generated code also imports internal runtime modules for wire encoding, SSR,
+topic fan-out, background jobs, and WebSocket process state. App code should
+treat those as private and import the modules above instead.
 
 ## Configuration
 

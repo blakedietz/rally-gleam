@@ -42,7 +42,3 @@ pub fn secure_cookies() -> Bool {
 pub fn secure_cookies_for(app_env: AppEnv) -> Bool {
   app_env == Prod
 }
-
-pub fn browser_env_script() -> String {
-  "<script>window.__APP_ENV__='" <> app_env_name() <> "'</script>"
-}

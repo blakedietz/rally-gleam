@@ -1,7 +1,7 @@
 import gleam/dynamic/decode
 import gleeunit/should
+import rally_runtime/internal/system_db as system
 import rally_runtime/jobs
-import rally_runtime/system
 import sqlight
 
 pub fn run_once_completes_ready_jobs_test() {

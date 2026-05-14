@@ -4,7 +4,7 @@ import generated/public/protocol_wire as wire
 import gleam/bytes_tree
 import gleam/http/response.{type Response}
 import mist.{type ResponseData}
-import rally_runtime/effect
+import rally_runtime/internal/effect_state
 import server_context.{type ServerContext}
 
 pub fn handle(
@@ -12,7 +12,7 @@ pub fn handle(
   server_context server_context: ServerContext,
   session_id session_id: String,
 ) -> Response(ResponseData) {
-  let Nil = effect.put_ws_session(session_id)
+  let Nil = effect_state.put_ws_session(session_id)
   case wire.decode_rpc_envelope(body) {
     Ok(envelope) -> {
       let #(result, _new_ctx) = wire.dispatch_rpc(envelope, server_context)

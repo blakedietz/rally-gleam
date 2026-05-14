@@ -313,7 +313,7 @@ pub fn json_wire_ws_handler_no_etf_imports_test() {
   ws |> string.contains("gleam/time/duration") |> should.be_true()
   ws |> string.contains("gleam/time/timestamp") |> should.be_true()
   ws |> string.contains("rpc_dispatch") |> should.be_false()
-  ws |> string.contains("rally_runtime/system") |> should.be_true()
+  ws |> string.contains("rally_runtime/internal/system_db") |> should.be_true()
 }
 
 pub fn json_wire_ws_handler_auth_has_timestamp_imports_test() {

@@ -11,9 +11,9 @@ import gleam/time/duration
 import gleam/time/timestamp
 import libero/json/error.{JsonError}
 import mist.{type WebsocketConnection, type WebsocketMessage}
-import rally_runtime/effect
 import rally_runtime/env
-import rally_runtime/system
+import rally_runtime/internal/effect_state
+import rally_runtime/internal/system_db
 import rally_runtime/topics
 import server_context.{type ServerContext}
 
@@ -28,8 +28,8 @@ pub fn on_init(
 ) {
   ensure_atoms()
   topics.start()
-  let Nil = effect.put_ws_state(conn, server_context, "")
-  let Nil = effect.put_ws_session(session_id)
+  let Nil = effect_state.put_ws_state(conn, server_context, "")
+  let Nil = effect_state.put_ws_session(session_id)
   topics.join("app")
   topics.join("session:" <> session_id)
   let selector =
@@ -65,17 +65,18 @@ pub fn handler(
         Ok(envelope) -> {
           let request_id = wire.rpc_request_id(envelope)
           debug_log("[rally:ws] RPC: request_id=" <> int.to_string(request_id))
-          let assert Ok(server_context) = effect.get_stored_server_context()
-          let current_page = effect.get_ws_page()
+          let assert Ok(server_context) =
+            effect_state.get_stored_server_context()
+          let current_page = effect_state.get_ws_page()
           let start = timestamp.system_time()
           let #(result, new_ctx) = wire.dispatch_rpc(envelope, server_context)
           let elapsed_ms =
             timestamp.difference(start, timestamp.system_time())
             |> duration.to_milliseconds()
 
-          let session_id = effect.get_ws_session()
-          let assert Ok(db_conn) = system.get_conn()
-          system.log_to_server(
+          let session_id = effect_state.get_ws_session()
+          let assert Ok(db_conn) = system_db.get_conn()
+          system_db.log_to_server(
             db: db_conn,
             session_id: session_id,
             user_id: Error(Nil),
@@ -85,7 +86,7 @@ pub fn handler(
             elapsed_ms: elapsed_ms,
           )
 
-          let Nil = effect.put_ws_state(conn, new_ctx, current_page)
+          let Nil = effect_state.put_ws_state(conn, new_ctx, current_page)
           wire.send_rpc_result(conn, result)
           send_pending_frames(conn)
           mist.continue(state)
@@ -99,7 +100,7 @@ pub fn handler(
       }
     }
     mist.Custom(msg) -> {
-      case effect.decode_rally_push_json(msg) {
+      case effect_state.decode_rally_push_json(msg) {
         Ok(frame) -> {
           let _send_result = mist.send_text_frame(conn, frame)
           mist.continue(state)
@@ -113,7 +114,7 @@ pub fn handler(
 }
 
 fn send_pending_frames(conn: WebsocketConnection) -> Nil {
-  let frames = effect.drain_outgoing_frames()
+  let frames = effect_state.drain_outgoing_frames()
   list.each(frames, fn(frame) {
     let _send_result = mist.send_text_frame(conn, frame)
     Nil

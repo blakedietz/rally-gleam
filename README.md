@@ -119,7 +119,7 @@ Most Rally apps use only a few modules directly:
 |---|---|
 | `rally_runtime/effect` | Page effects: RPC, server messages, navigation, broadcast, client context updates |
 | `rally_runtime/db` | SQLite open, timed queries, nested transactions, SQL value helpers |
-| `rally_runtime/system` | App startup, message logging, background jobs |
+| `rally_runtime/system` | App startup and background jobs |
 | `rally_runtime/session` | Session cookie generation, parsing, response headers |
 | `rally_runtime/auth` | Auth policy and load result types |
 | `rally_runtime/env` | `APP_ENV` parsing and production cookie policy |

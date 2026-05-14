@@ -10,7 +10,7 @@ import gleam/bytes_tree
 import gleam/http/response
 import mist.{type ResponseData}
 import generated/router
-import rally_runtime/env
+import rally_runtime/internal/browser_env
 
 @external(erlang, "generated/public/rpc_atoms", "ensure")
 fn ensure_atoms() -> Nil
@@ -40,7 +40,7 @@ pub fn handle_request(
       let flags_tag = "<script>window.__RALLY_FLAGS__='" <> flags <> "'</script>"
       let shell = shell_html()
       let full_html = insert_rendered(shell, rendered)
-        <> env.browser_env_script() <> ctx_tag <> flags_tag
+        <> browser_env.script() <> ctx_tag <> flags_tag
       response.new(200)
       |> response.set_header("content-type", "text/html")
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
@@ -54,7 +54,7 @@ pub fn handle_request(
       let flags_tag = "<script>window.__RALLY_FLAGS__='" <> flags <> "'</script>"
       let shell = shell_html()
       let full_html = insert_rendered(shell, rendered)
-        <> env.browser_env_script() <> ctx_tag <> flags_tag
+        <> browser_env.script() <> ctx_tag <> flags_tag
       response.new(200)
       |> response.set_header("content-type", "text/html")
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
@@ -68,7 +68,7 @@ pub fn handle_request(
       let flags_tag = "<script>window.__RALLY_FLAGS__='" <> flags <> "'</script>"
       let shell = shell_html()
       let full_html = insert_rendered(shell, rendered)
-        <> env.browser_env_script() <> ctx_tag <> flags_tag
+        <> browser_env.script() <> ctx_tag <> flags_tag
       response.new(200)
       |> response.set_header("content-type", "text/html")
       |> response.set_body(mist.Bytes(bytes_tree.from_string(full_html)))
