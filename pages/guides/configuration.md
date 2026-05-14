@@ -39,7 +39,7 @@ The server project remains the source of truth. The client package is an output 
 
 The `protocol` field in a client entry selects the wire format used between client and server.
 
-- **ETF** (Erlang Term Format) is the default. It's compact and fast on the BEAM. Use it when your clients are browser SPAs and you don't need human-readable payloads.
+- **ETF** (Erlang Term Format) is the default. It maps closely to BEAM terms. Use it when your clients are browser SPAs and you do not need to inspect payloads by eye.
 - **JSON** is available for clients and tools that need readable envelopes, or when you want to inspect traffic in browser devtools.
 
 The generated `protocol_wire.gleam` facade adapts at compile time based on the selected protocol. Your application code never branches on protocol at runtime.

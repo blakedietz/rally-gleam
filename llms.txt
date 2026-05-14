@@ -2,9 +2,11 @@
 
 ## Mental model
 
-Rally is a full-stack web framework for Gleam on the BEAM. You write Lustre page modules and `server_*` handler functions. Rally generates routing, server-side rendering, WebSocket transport, and typed client-server messaging.
+Rally is a Gleam package for building Lustre apps that render on the server and hydrate in the browser. You write page modules and `server_*` handler functions. Rally generates routing, server-side rendering, WebSocket transport, and typed client-server messaging.
 
-The page file is the contract. Client state, server calls, and the message types that cross the wire live together until you extract shared code. Libero scans server handler signatures, walks the type graph, and generates the wire protocol. Rally owns pages, routing, SSR, transport, and runtime. Libero owns the typed RPC contract, encode/decode, request envelopes, and response frames.
+The page file is the contract. Client state, server calls, and the message types that cross the wire live together until you extract shared code. Libero scans server handler signatures, walks the type graph, and generates the wire protocol. Rally handles pages, routing, SSR, transport, and runtime. Libero handles the typed RPC contract, encode/decode, request envelopes, and response frames.
+
+Rally apps use SQLite by default: embedded database, migrations, and type-safe SQL codegen, with no separate database server for development.
 
 ETF is the default wire format. JSON is available for non-Gleam clients.
 
@@ -177,7 +179,7 @@ Running `gleam run -m rally` produces:
 | `src/<namespace>/pages/*.gleam` | Tree-shaken page modules (server code stripped) |
 | `src/rally_runtime/effect.gleam` | Client-side effect shim |
 
-The client package is a standalone Gleam project. The server is the single source of truth.
+The client package is a standalone Gleam project. The server project is the input to codegen.
 
 ## Internals
 

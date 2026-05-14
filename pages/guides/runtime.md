@@ -11,7 +11,7 @@ Most Rally apps import only a few `rally_runtime/*` modules directly. Generated 
 | `rally_runtime/auth` | Auth policy and load result types used by page modules |
 | `rally_runtime/env` | `APP_ENV` parsing and production cookie policy |
 | `rally_runtime/migrate` | Numbered SQLite migrations |
-| `rally_runtime/test_db` | Fast in-memory SQLite setup for tests |
+| `rally_runtime/test_db` | In-memory SQLite setup for tests |
 
 ## `effect`
 
@@ -53,4 +53,4 @@ The `env` module parses the `APP_ENV` environment variable to determine which en
 
 ## `test_db`
 
-`test_db` gives you an in-memory SQLite database for tests. It applies your migrations the first time, then caches the schema so repeated test setups skip the migration step. This keeps test suites fast even as the number of migrations grows.
+`test_db` gives you an in-memory SQLite database for tests. It applies your migrations the first time, then caches the schema so repeated test setups skip the migration step.

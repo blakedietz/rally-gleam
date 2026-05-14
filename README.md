@@ -5,15 +5,17 @@
 [![Package Version](https://img.shields.io/hexpm/v/rally)](https://hex.pm/packages/rally)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/rally/)
 
-Rally is a full-stack web framework for Gleam on the BEAM. You write Lustre page modules and `server_*` handler functions. Rally generates routing, server-side rendering, WebSocket transport, and typed client-server messaging.
+Rally is a Gleam package for building Lustre apps that render on the server and hydrate in the browser. You write page modules and `server_*` handler functions. Rally generates routing, server-side rendering, WebSocket transport, and typed client-server messaging.
 
 The page file is the contract. Client state, server calls, and the message types that cross the wire all live together until you choose to extract shared code.
 
-## What Rally replaces
+Rally apps use SQLite by default: embedded database, migrations, and type-safe SQL codegen, with no separate database server for development.
 
-In a typical full-stack app you write routes, server handlers, client fetch calls, request encoders, response decoders, SSR boot code, hydration flags, and WebSocket glue by hand.
+## What Rally Generates
 
-Rally generates that plumbing from page modules. You still own your UI, SQL, auth policy, and server logic.
+Rally reads page modules and writes the routing, SSR, WebSocket transport, request and response encoding, and dispatch code around them.
+
+You still write the UI, SQL, auth policy, and server handlers.
 
 ## Create an app
 
@@ -25,7 +27,7 @@ gleam run -m rally init
 bin/dev
 ```
 
-`rally init` writes the starter app into the current Gleam project. `bin/dev` runs codegen, builds the JS client, and starts the server on port 8080. SQLite is the database; no separate service to install.
+`rally init` writes the starter app into the current Gleam project. `bin/dev` runs codegen, builds the JS client, and starts the server on port 8080. The starter app uses SQLite, so development does not need a database daemon.
 
 ## Writing a page
 
@@ -113,7 +115,7 @@ Most Rally apps use only a few modules directly:
 | `rally_runtime/migrate` | Numbered SQLite migrations |
 | `rally_runtime/test_db` | Fast in-memory SQLite for tests |
 
-The `rally/internal/...` modules are codegen implementation. App code should treat them as private. The generated files under `src/generated/` are the stable boundary between Rally's internals and your app.
+The `rally/internal/...` modules are codegen implementation. App code should treat them as private. The generated files under `src/generated/` are the boundary Rally presents to your app.
 
 ## Generated files
 
@@ -123,7 +125,7 @@ Running `gleam run -m rally` reads `[[tools.rally.clients]]` from gleam.toml and
 
 **Client-side** (in `.generated_clients/<namespace>/`): Lustre SPA entry, WebSocket transport, tree-shaken page modules, codec, effect shim.
 
-The client package is a standalone Gleam project. The server project is the single source of truth.
+The client package is a standalone Gleam project. The server project is the input to codegen.
 
 ## Examples
 
