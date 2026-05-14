@@ -88,6 +88,8 @@ pub fn server_update(model: ServerModel, msg: ToServer, server_context: ServerCo
 
 The client sends `ToServer` messages with `effect.send_to_server`. Use stateful when the server needs state between calls (entity ownership for authorization) or server-initiated push.
 
+Stateful page dispatch currently uses ETF. JSON clients can use RPC, but `ToServer`/`ToClient` page messages are not wired for JSON yet.
+
 ### Broadcast
 
 | Effect | Who receives it |

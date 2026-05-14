@@ -33,6 +33,8 @@ If you need to load data, validate a form, or run any one-shot server operation,
 
 Some pages need the server to hold onto state between messages. An example: after loading an article, you want to toggle favorites and add comments without re-fetching the article ID each time. The server keeps the `article_id` in its own model so subsequent messages can use it for authorization and queries.
 
+Stateful server pages currently use the ETF protocol. JSON clients can use RPC, but `ToServer`/`ToClient` page dispatch is not wired for JSON yet.
+
 Define three types and two lifecycle functions:
 
 ```gleam

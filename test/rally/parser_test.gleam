@@ -67,7 +67,7 @@ pub fn server_update(model: ServerModel, msg: ToServer, server_context: ServerCo
   contract.has_server_update |> should.be_true()
 }
 
-pub fn parse_page_rejects_server_update_without_server_init_test() {
+pub fn parse_page_allows_server_update_without_server_init_test() {
   let source =
     "
 pub type Model { Model }
@@ -76,8 +76,10 @@ pub type ToServer { Save }
 pub fn server_update(model: ServerModel, msg: ToServer, server_context: ServerContext) { todo }
 "
 
-  parser.parse_page(source, module_path: "test/page")
-  |> should.equal(Error("server_update requires server_init in test/page"))
+  let assert Ok(contract) = parser.parse_page(source, module_path: "test/page")
+
+  contract.has_server_init |> should.be_false()
+  contract.has_server_update |> should.be_true()
 }
 
 pub fn parse_page_without_load_test() {
