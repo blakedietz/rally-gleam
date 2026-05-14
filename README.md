@@ -41,7 +41,7 @@ import rally_runtime/effect.{type Effect}
 import rally_runtime/effect
 import server_context.{type ServerContext}
 
-// MODEL
+// MODEL -- client state for this page.
 
 pub type Model {
   Model(count: Int)
@@ -51,7 +51,7 @@ pub fn init() -> #(Model, Effect(Msg)) {
   #(Model(count: 0), effect.none())
 }
 
-// UPDATE
+// UPDATE -- client messages and how they change the model.
 
 pub type Msg {
   Increment
@@ -61,6 +61,8 @@ pub type Msg {
 pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     Increment ->
+      // effect.rpc sends ServerIncrement to server_increment and
+      // routes the response back through GotIncrement.
       #(model, effect.rpc(ServerIncrement(amount: 1), on_response: GotIncrement))
 
     GotIncrement(Ok(amount)) ->
@@ -71,13 +73,14 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   }
 }
 
-// VIEW
+// VIEW -- shared by server (SSR) and client (SPA).
 
 pub fn view(model: Model) -> Element(Msg) {
   html.button([], [text("Count: " <> int.to_string(model.count))])
 }
 
-// SERVER
+// SERVER -- message type and handler.
+// Libero scans the handler signature to generate the wire contract.
 
 pub type ServerIncrement {
   ServerIncrement(amount: Int)
