@@ -7,23 +7,22 @@ Rally pages communicate with the server in two ways: RPC and stateful server pag
 RPC lets a page call a server function and get a result back. Define a message type and a handler function in your page module:
 
 ```gleam
-pub type ServerLoadArticle {
-  ServerLoadArticle(slug: String)
+pub type ServerLoadTitle {
+  ServerLoadTitle(slug: String)
 }
 
-pub fn server_load_article(
-  msg msg: ServerLoadArticle,
-  server_context server_context: ServerContext,
-) -> Result(Article, List(String)) {
-  // query database, return result
-  todo
+pub fn server_load_title(
+  msg msg: ServerLoadTitle,
+  server_context _server_context: ServerContext,
+) -> Result(String, List(String)) {
+  Ok("Article: " <> msg.slug)
 }
 ```
 
 Then call it from the client:
 
 ```gleam
-effect.rpc(ServerLoadArticle(slug: "hello"), on_response: GotArticle)
+effect.rpc(ServerLoadTitle(slug: "hello"), on_response: GotTitle)
 ```
 
 Libero (Rally's code generation layer) reads the handler's function signature and derives the wire contract from it. The message type becomes the request shape. The return type becomes the response shape. You don't write a separate API definition, route, or serializer. The Gleam types are the contract.
@@ -43,8 +42,8 @@ pub type ToServer {
 }
 
 pub type ToClient {
-  ArticleUpdated(Article)
-  CommentAdded(Comment)
+  FavoriteToggled(article_id: Int)
+  CommentSaved(body: String)
 }
 
 pub type ServerModel {
@@ -53,19 +52,24 @@ pub type ServerModel {
 
 pub fn server_init(
   slug: String,
-  server_context: ServerContext,
+  server_context _server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
-  // look up the article, initialize server state
-  todo
+  let article_id = string.length(slug)
+  #(ServerModel(article_id:), effect.none())
 }
 
 pub fn server_update(
   model: ServerModel,
   msg: ToServer,
-  server_context: ServerContext,
+  server_context _server_context: ServerContext,
 ) -> #(ServerModel, Effect(ToClient)) {
-  // handle incoming messages, update state, push responses
-  todo
+  case msg {
+    ToggleFavorite ->
+      #(model, effect.send_to_client(FavoriteToggled(model.article_id)))
+
+    AddComment(body) ->
+      #(model, effect.send_to_client(CommentSaved(body)))
+  }
 }
 ```
 

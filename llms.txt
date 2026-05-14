@@ -221,7 +221,7 @@ Auth activates when `src/<namespace>/auth.gleam` exists. Required exports:
 | `is_authenticated` | `fn(Identity) -> Bool` | Whether identity is logged in |
 | `redirect_url` | `String` | Where to redirect unauthenticated users |
 
-Pages declare auth via `pub const page_auth = rally.Required` or `rally.Optional`. Pages can also export `pub fn authorize(server_context, identity) -> Bool`.
+Pages declare auth via `pub const page_auth = auth.Required` or `auth.Optional` after importing `rally_runtime/auth`. Pages can also export `pub fn authorize(server_context, identity) -> Bool`.
 
 Auth-enabled pages return `LoadResult(data)` instead of bare `data`, supporting `Page(data, cookies)` and `Redirect(url, cookies)` variants. Types live in `rally_runtime/auth.gleam`.
 

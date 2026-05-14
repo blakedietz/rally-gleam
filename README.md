@@ -33,7 +33,7 @@ A page file in `src/<namespace>/pages/` is a Lustre component with server calls:
 
 ```gleam
 import gleam/int
-import lustre/element.{type Element}
+import lustre/element.{type Element, text}
 import lustre/element/html
 import rally_runtime/effect.{type Effect}
 import rally_runtime/effect
@@ -61,8 +61,8 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     Increment ->
       #(model, effect.rpc(ServerIncrement(amount: 1), on_response: GotIncrement))
 
-    GotIncrement(Ok(new_count)) ->
-      #(Model(count: new_count), effect.none())
+    GotIncrement(Ok(amount)) ->
+      #(Model(count: model.count + amount), effect.none())
 
     GotIncrement(Error(_)) ->
       #(model, effect.none())
@@ -70,7 +70,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 }
 
 pub fn view(model: Model) -> Element(Msg) {
-  html.button([], [element.text("Count: " <> int.to_string(model.count))])
+  html.button([], [text("Count: " <> int.to_string(model.count))])
 }
 
 pub fn server_increment(
