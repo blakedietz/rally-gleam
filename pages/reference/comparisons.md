@@ -1,0 +1,60 @@
+# Comparisons
+
+Rally makes a specific set of architectural choices. This page explains those choices, what they cost, and how they compare to other approaches.
+
+## Single source, generated client
+
+You write one Gleam project. Libero (Rally's codegen) reads your source, extracts client-side types and functions, and generates a complete client package: its own `gleam.toml`, dependencies, transport layer, and codec. The output is a self-contained Gleam project that compiles to JavaScript for the browser.
+
+The tradeoff: you depend on the codegen to correctly split client from server. When something goes wrong at the boundary, debugging means reading generated code and understanding how the tree shaker decided what belongs where. The generated output is plain Gleam (not minified, not obfuscated), so it's readable, but it's still code you didn't write.
+
+## Colocation-first
+
+Types, state, and logic live in the page file until they need to be shared. There is no upfront shared domain layer. If two pages need the same type, extract it into a shared module at that point.
+
+This is a bet that premature extraction costs more than occasional duplication. You'll sometimes have the same type defined in two places for a while before you notice and consolidate. That's fine. Extract when duplication becomes a maintenance problem, not before.
+
+## SQLite ships with every app
+
+Every Rally app gets SQLite with WAL mode, busy timeout, and foreign keys enabled. One embedded database, configured once in `db.open`. No external database process to install, configure, or connect to during development.
+
+Marmot generates type-safe query functions from `.sql` files via live SQLite introspection. You write SQL, Marmot runs it against your actual schema, and generates Gleam functions with the correct argument and return types.
+
+## Lamdera-inspired
+
+Lamdera's architecture is the starting point: explicit server handler types as the client-server contract, server-side state per connection, TEA on both sides. If you've used Lamdera, the shape of a Rally app will feel familiar.
+
+Where they diverge: Gleam on the BEAM gives you OTP processes, `pg` groups, and native concurrency that Elm cannot access. Where the BEAM offers a better primitive, Rally uses it. Broadcast uses four levels of `pg` groups instead of custom fanout logic. Handler state lives in the process dictionary instead of a managed store. Messages encode with native ETF instead of JSON. Libero handles RPC dispatch instead of routing everything through a single update function.
+
+## Rally vs Lustre server components
+
+These are two different architectures for building full-stack apps with Lustre.
+
+**Lustre server components** run the TEA loop on the server. Model, update, and view all execute server-side. On first connect, the server sends the full VDOM. On each update, it diffs the old and new VDOM and sends only the patch. The client is a thin JavaScript shell (~10KB) that applies DOM patches and forwards browser events back to the server.
+
+**Rally** runs TEA in the browser for UI state. Server work is explicit: most pages call stateless `server_*` RPC handlers, while pages needing per-connection server state use `server_init`/`server_update` with `ToServer`/`ToClient` messages. The wire carries domain messages, not VDOM patches.
+
+| | Lustre server components | Rally |
+|---|---|---|
+| **Where UI runs** | Server (model + update + view) | Client (model + update + view) |
+| **What goes over the wire** | VDOM patches down, DOM events up | Domain messages in both directions |
+| **Interaction latency** | Every event round-trips to server | Local state changes are instant |
+| **Server memory** | Model + VDOM + event handler cache (shared across subscribers) | Optional ServerModel per connection for stateful pages; RPC pages keep no page model on the server |
+| **Client JS bundle** | Minimal (DOM patcher, ~10KB) | Full app logic (Lustre + page modules) |
+| **Real-time multi-user** | Built in (all subscribers see same state) | Requires explicit broadcast |
+
+## When to use Lustre server components
+
+For apps where interactions are button clicks, form submissions, and navigation, the server round-trip on same-region infra is 10-50ms. Users won't notice. You get a simpler mental model, a tiny client bundle, zero codec concerns, and real-time multi-user for free since all subscribers share the same server-side model.
+
+Server components can also embed client-side Lustre components as web components when you need local interactivity. So it's not all-or-nothing: a server-rendered page can include a client-side rich text editor or drag-and-drop widget.
+
+## When to use Rally
+
+Two cases stand out.
+
+**Multiple client surfaces.** The server handler layer is a typed API contract. Web clients, CLIs, and SDKs can all call the same handlers. With server components, the wire protocol is VDOM patches, and only a browser can consume them.
+
+**Responsive local interactions.** Typing with live feedback, drag-and-drop, rich editors, optimistic updates: anything where 10-50ms of server round-trip becomes perceptible. When state changes happen in the browser, there's no network in the loop.
+
+Rally asks more from you in exchange. Each page has a client update and (optionally) a server update. You decide which side owns each interaction. The browser ships more code. If your app has a single web frontend and interactions that tolerate a short round-trip, server components are the simpler path. If you need multiple client surfaces or local-first responsiveness, Rally's explicit message layer pays for itself.

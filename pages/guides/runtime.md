@@ -1,0 +1,56 @@
+# Runtime modules
+
+Most Rally apps import only a few `rally_runtime/*` modules directly. Generated code uses more of them behind the scenes.
+
+| Module | Use it for |
+| --- | --- |
+| `rally_runtime/effect` | Page effects: RPC, server messages, navigation, broadcast, client context updates |
+| `rally_runtime/db` | SQLite open, timed query wrapper, nested transactions, SQL value helpers |
+| `rally_runtime/system` | App startup, message logging, background jobs |
+| `rally_runtime/session` | Session IDs and session cookie headers |
+| `rally_runtime/auth` | Auth policy and load result types used by page modules |
+| `rally_runtime/env` | `APP_ENV` parsing and production cookie policy |
+| `rally_runtime/migrate` | Numbered SQLite migrations |
+| `rally_runtime/test_db` | Fast in-memory SQLite setup for tests |
+
+## `effect`
+
+`effect.rpc` is the primary way pages talk to the server. It sends a request and delivers the response back to your update function. For pages using the stateful server model, `send_to_server` sends a message to the persistent server process instead.
+
+Broadcast effects are for server handlers that need to push a message to more than one connection. Call them from your server-side handler when something changes that multiple clients care about.
+
+`effect.navigate` pushes a URL on the client side without a full page load. The standard Lustre helpers `effect.none()` and `effect.from(fn)` also work as expected.
+
+## `db`
+
+`db.open` creates a SQLite connection at startup. It configures WAL mode, sets a busy timeout, and enables foreign keys.
+
+`db.query` wraps your SQL calls with timing logs so slow queries show up in your system message log. `db.transaction` uses SAVEPOINTs, which means transactions can nest safely.
+
+`db.one` returns the single row from a result set, or `None` if the set is empty. For encoding values into SQL parameters, `db.bool_to_int` and `db.nullable_text` handle the common cases.
+
+## `system`
+
+`system.start` runs during app startup to initialize the system database. The system DB stores message logs and the job queue.
+
+When your app has background jobs, use `system.start_with_jobs` instead. It starts the job runner alongside the system DB.
+
+## `session`
+
+`session` handles generation and extraction of session cookies. It creates cryptographically random session IDs and produces the `Set-Cookie` header with the right flags for your environment. Auth flows depend on it to associate requests with sessions, and SSR uses it to identify the connection before the WebSocket upgrades.
+
+## `auth`
+
+Rally's auth system is convention-based: it activates when a file at `src/<namespace>/auth.gleam` exists in your project. The `auth` module defines policy types (`Required` and `Optional`) that page modules reference to declare whether a visitor must be authenticated. `LoadResult` carries the auth outcome into SSR so pages can render differently for logged-in and anonymous users. Your identity type threads through the whole pipeline, from the auth check to the page's model.
+
+## `env`
+
+The `env` module parses the `APP_ENV` environment variable to determine which environment the app is running in. In production, session cookies get the `Secure` flag and browser console logging stays off. During development these restrictions are relaxed so you can work over plain HTTP and see client-side log output.
+
+## `migrate`
+
+`migrate.run` scans your migrations directory for numbered `.sql` files and runs any that haven't been applied yet. It validates filenames to catch ordering mistakes before touching the database. Migrations run inside a transaction, so a failure rolls back cleanly.
+
+## `test_db`
+
+`test_db` gives you an in-memory SQLite database for tests. It applies your migrations the first time, then caches the schema so repeated test setups skip the migration step. This keeps test suites fast even as the number of migrations grows.

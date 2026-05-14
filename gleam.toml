@@ -8,6 +8,36 @@ links = [
   { title = "llms.txt", href = "https://raw.githubusercontent.com/pairshaped/rally-gleam/refs/heads/master/llms.txt" },
 ]
 
+[[documentation.pages]]
+title = "Pages"
+path = "guides/pages.html"
+source = "./pages/guides/pages.md"
+
+[[documentation.pages]]
+title = "Server Messaging"
+path = "guides/server-messaging.html"
+source = "./pages/guides/server-messaging.md"
+
+[[documentation.pages]]
+title = "Runtime"
+path = "guides/runtime.html"
+source = "./pages/guides/runtime.md"
+
+[[documentation.pages]]
+title = "Configuration"
+path = "guides/configuration.html"
+source = "./pages/guides/configuration.md"
+
+[[documentation.pages]]
+title = "Comparisons"
+path = "reference/comparisons.html"
+source = "./pages/reference/comparisons.md"
+
+[[documentation.pages]]
+title = "Internals"
+path = "reference/internals.html"
+source = "./pages/reference/internals.md"
+
 [dependencies]
 argv = ">= 1.0.0 and < 2.0.0"
 gleam_stdlib = ">= 0.60.0 and < 2.0.0"
