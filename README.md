@@ -41,43 +41,26 @@ import rally_runtime/effect.{type Effect}
 import rally_runtime/effect
 import server_context.{type ServerContext}
 
-// Client state for this page.
+// MODEL
+
 pub type Model {
   Model(count: Int)
 }
 
-// init creates the first client model for this page.
 pub fn init() -> #(Model, Effect(Msg)) {
   #(Model(count: 0), effect.none())
 }
 
-// Client messages handled by update.
+// UPDATE
+
 pub type Msg {
   Increment
   GotIncrement(Result(Int, List(String)))
 }
 
-// Message sent from the client to the server.
-pub type ServerIncrement {
-  ServerIncrement(amount: Int)
-}
-
-// This pub fn server_increment is the server handler.
-// It runs on the server and receives the ServerIncrement message.
-// Libero uses its signature as the wire contract.
-pub fn server_increment(
-  msg msg: ServerIncrement,
-  server_context _server_context: ServerContext,
-) -> Result(Int, List(String)) {
-  Ok(msg.amount)
-}
-
-// update is part of the shared page contract.
-// Client events call it in the browser after hydration.
 pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     Increment ->
-      // effect.rpc sends ServerIncrement to server_increment above.
       #(model, effect.rpc(ServerIncrement(amount: 1), on_response: GotIncrement))
 
     GotIncrement(Ok(amount)) ->
@@ -88,9 +71,23 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   }
 }
 
-// view is shared by server (SSR) and client (SPA).
+// VIEW
+
 pub fn view(model: Model) -> Element(Msg) {
   html.button([], [text("Count: " <> int.to_string(model.count))])
+}
+
+// SERVER
+
+pub type ServerIncrement {
+  ServerIncrement(amount: Int)
+}
+
+pub fn server_increment(
+  msg msg: ServerIncrement,
+  server_context _server_context: ServerContext,
+) -> Result(Int, List(String)) {
+  Ok(msg.amount)
 }
 ```
 
