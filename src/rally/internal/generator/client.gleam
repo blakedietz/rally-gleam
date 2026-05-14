@@ -147,7 +147,7 @@ fn client_gleam_toml(
   protocol: String,
 ) -> String {
   let header =
-    "name = \"client\"\nversion = \"0.1.0\"\ntarget = \"javascript\"\n\n[dependencies]\ngleam_stdlib = \">= 0.60.0 and < 2.0.0\"\nlustre = \">= 5.6.0 and < 7.0.0\"\nmodem = \">= 2.0.0 and < 3.0.0\"\n"
+    "name = \"client\"\nversion = \"0.1.0\"\ntarget = \"javascript\"\n\n[dependencies]\ngleam_stdlib = \">= 0.60.0 and < 2.0.0\"\nlustre = \">= 5.7.0 and < 7.0.0\"\nmodem = \">= 2.0.0 and < 3.0.0\"\n"
 
   let depth = list.length(string.split(client_root, "/"))
   let prefix = string.repeat("../", depth)

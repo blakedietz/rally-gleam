@@ -1,6 +1,8 @@
 import gleam/dynamic/decode
+import gleam/erlang/process
 import gleeunit/should
 import rally_runtime/internal/system_db as system
+import rally_runtime/system as runtime_system
 import sqlight
 
 pub fn open_creates_observability_tables_test() {
@@ -8,6 +10,17 @@ pub fn open_creates_observability_tables_test() {
 
   table_exists(conn, "messages") |> should.equal(True)
   table_exists(conn, "jobs") |> should.equal(True)
+}
+
+pub fn supervised_job_runner_returns_startable_child_spec_test() {
+  let child =
+    runtime_system.supervised_job_runner(path: ":memory:", handler: fn(_, _) {
+      Ok(Nil)
+    })
+
+  let assert Ok(started) = child.start()
+  process.unlink(started.pid)
+  process.kill(started.pid)
 }
 
 pub fn log_to_client_persists_message_test() {

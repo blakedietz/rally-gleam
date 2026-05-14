@@ -38,10 +38,6 @@ pub fn none() -> Effect(a) {
   effect.none()
 }
 
-pub fn from(f: fn(fn(a) -> Nil) -> Nil) -> Effect(a) {
-  effect.from(f)
-}
-
 pub fn get_ws_session() -> String {
   ""
 }

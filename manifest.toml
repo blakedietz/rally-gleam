@@ -26,7 +26,7 @@ packages = [
   { name = "justin", version = "1.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "justin", source = "hex", outer_checksum = "8B1C62269E8607D0A0ED698B7903984CE0BF7B6B3C0DEA3C6C8302B39402837B" },
   { name = "libero", version = "6.0.0", build_tools = ["gleam"], requirements = ["glance", "gleam_crypto", "gleam_json", "gleam_stdlib", "glexer", "simplifile", "tom"], otp_app = "libero", source = "hex", outer_checksum = "00962A178BF65AD93B54B4E2088EDDECE78C426B5889D13CEA7F22EDA573498B" },
   { name = "logging", version = "1.5.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "logging", source = "hex", outer_checksum = "BC5F18CE5DD9686100229FE5409BDC3DD5C46D5A7DF2F804AD2D8F0DD6C5060E" },
-  { name = "lustre", version = "5.6.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_json", "gleam_otp", "gleam_stdlib", "houdini"], otp_app = "lustre", source = "hex", outer_checksum = "EE558CD4DB9F09FCC16417ADF0183A3C2DAC3E4B21ED3AC0CAE859792AB810CA" },
+  { name = "lustre", version = "5.7.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_json", "gleam_otp", "gleam_stdlib", "houdini"], otp_app = "lustre", source = "hex", outer_checksum = "38C6FCBD7B7BACE994D5BF643202BB69B02576D44250B4C5DCE738387C0E8F87" },
   { name = "marmot", version = "1.4.1", build_tools = ["gleam"], requirements = ["argv", "gleam_stdlib", "gleam_time", "simplifile", "sqlight", "tom"], otp_app = "marmot", source = "hex", outer_checksum = "D56552D11D6AB9591E47BB3FE583E4E01B2AEB1DBA43511A9E8D80A6CA6A2B1A" },
   { name = "rank", version = "1.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "rank", source = "hex", outer_checksum = "B846D54D1512FB83A3994A07A8C7915FE74335A99BCE1EDC7943EA31ED710DFD" },
   { name = "simplifile", version = "2.4.0", build_tools = ["gleam"], requirements = ["filepath", "gleam_stdlib"], otp_app = "simplifile", source = "hex", outer_checksum = "7C18AFA4FED0B4CE1FA5B0B4BAC1FA1744427054EA993565F6F3F82E5453170D" },
@@ -54,7 +54,7 @@ global_value = { version = ">= 1.0.0 and < 2.0.0" }
 justin = { version = ">= 1.1.0 and < 2.0.0" }
 libero = { version = ">= 6.0.0 and < 7.0.0" }
 logging = { version = ">= 1.0.0 and < 2.0.0" }
-lustre = { version = ">= 5.6.0 and < 7.0.0" }
+lustre = { version = ">= 5.7.0 and < 7.0.0" }
 marmot = { version = ">= 1.4.1 and < 2.0.0" }
 simplifile = { version = ">= 2.0.0 and < 3.0.0" }
 sqlight = { version = ">= 1.0.0 and < 2.0.0" }

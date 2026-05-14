@@ -27,7 +27,7 @@ packages = [
   { name = "lustre", version = "5.7.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_json", "gleam_otp", "gleam_stdlib", "houdini"], otp_app = "lustre", source = "hex", outer_checksum = "38C6FCBD7B7BACE994D5BF643202BB69B02576D44250B4C5DCE738387C0E8F87" },
   { name = "marmot", version = "1.4.1", build_tools = ["gleam"], requirements = ["argv", "gleam_stdlib", "gleam_time", "simplifile", "sqlight", "tom"], otp_app = "marmot", source = "hex", outer_checksum = "D56552D11D6AB9591E47BB3FE583E4E01B2AEB1DBA43511A9E8D80A6CA6A2B1A" },
   { name = "mist", version = "6.0.3", build_tools = ["gleam"], requirements = ["exception", "gleam_erlang", "gleam_http", "gleam_otp", "gleam_stdlib", "glisten", "gramps", "hpack_erl", "logging"], otp_app = "mist", source = "hex", outer_checksum = "1B07F321D5FA0CB162D81496F2DE96AEB6EF8980F4F38230A4CC3F849497E020" },
-  { name = "rally", version = "1.1.0", build_tools = ["gleam"], requirements = ["argv", "envoy", "glance", "gleam_crypto", "gleam_erlang", "gleam_otp", "gleam_stdlib", "gleam_time", "glexer", "global_value", "justin", "libero", "logging", "lustre", "marmot", "simplifile", "sqlight", "tom"], source = "local", path = "../.." },
+  { name = "rally", version = "1.1.1", build_tools = ["gleam"], requirements = ["argv", "envoy", "glance", "gleam_crypto", "gleam_erlang", "gleam_otp", "gleam_stdlib", "gleam_time", "glexer", "global_value", "justin", "libero", "logging", "lustre", "marmot", "simplifile", "sqlight", "tom"], source = "local", path = "../.." },
   { name = "simplifile", version = "2.4.0", build_tools = ["gleam"], requirements = ["filepath", "gleam_stdlib"], otp_app = "simplifile", source = "hex", outer_checksum = "7C18AFA4FED0B4CE1FA5B0B4BAC1FA1744427054EA993565F6F3F82E5453170D" },
   { name = "splitter", version = "1.2.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "splitter", source = "hex", outer_checksum = "3DFD6B6C49E61EDAF6F7B27A42054A17CFF6CA2135FF553D0CB61C234D281DD0" },
   { name = "sqlight", version = "1.1.0", build_tools = ["gleam"], requirements = ["esqlite", "gleam_stdlib"], otp_app = "sqlight", source = "hex", outer_checksum = "ECA1A4B45C35EB9EFCEEB7FAAC7BF5D8B2C777A7C1FC8A9C12CB67D54CED42E7" },
@@ -41,6 +41,6 @@ gleam_json = { version = ">= 3.1.0 and < 4.0.0" }
 gleam_stdlib = { version = ">= 0.69.0 and < 2.0.0" }
 gleam_time = { version = ">= 1.7.0 and < 2.0.0" }
 libero = { version = ">= 6.0.0 and < 7.0.0" }
-lustre = { version = ">= 5.6.0 and < 7.0.0" }
+lustre = { version = ">= 5.7.0 and < 7.0.0" }
 mist = { version = ">= 6.0.0 and < 7.0.0" }
 rally = { path = "../.." }

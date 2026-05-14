@@ -19,7 +19,7 @@ Most Rally apps import only a few `rally_runtime/*` modules directly. Generated 
 
 Broadcast effects are for server handlers that need to push a message to more than one connection. Call them from your server-side handler when something changes that multiple clients care about.
 
-`effect.navigate` pushes a URL on the client side without a full page load. The standard Lustre helpers `effect.none()` and `effect.from(fn)` also work as expected.
+`effect.navigate` pushes a URL on the client side without a full page load. For arbitrary Lustre effects, import `lustre/effect` directly.
 
 ## `db`
 
@@ -33,7 +33,9 @@ Broadcast effects are for server handlers that need to push a message to more th
 
 `system.start` runs during app startup to initialize the system database. The system DB stores message logs and the job queue.
 
-When your app has background jobs, use `system.start_with_jobs` instead. It starts the job runner alongside the system DB.
+When your app has background jobs and no OTP supervision tree, use `system.start_with_jobs`. It starts the job runner alongside the system DB, but the runner is not supervised.
+
+If your app has a supervisor, use `system.supervised_job_runner` and add the returned child specification to your tree. `system.start_job_runner` is the direct start function behind that child specification.
 
 ## `session`
 

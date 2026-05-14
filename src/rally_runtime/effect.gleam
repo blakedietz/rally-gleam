@@ -32,10 +32,6 @@ pub fn none() -> Effect(a) {
   effect.none()
 }
 
-pub fn from(f: fn(fn(a) -> Nil) -> Nil) -> Effect(a) {
-  effect.from(f)
-}
-
 /// Send a ToServer variant to the server over WebSocket.
 /// Part of the stateful model (ToServer/ToClient/ServerModel).
 /// On the server this is a no-op. On the client, the generated
@@ -56,37 +52,39 @@ pub fn rpc(_msg: a, on_response _on_response: fn(b) -> msg) -> Effect(msg) {
 /// Encodes the message as a protocol-specific push frame and queues it for
 /// the WebSocket handler to send after the current dispatch.
 pub fn send_to_client(msg: a) -> Effect(b) {
-  do_push(msg)
-  effect.none()
+  deferred(fn() { do_push(msg) })
 }
 
 /// Broadcast a message to all connections viewing the current page.
 /// Broadcasts via pg topics for other connections, plus push_outgoing_frame
 /// for the sender's own connection (which isn't subscribed to its own topic).
 pub fn broadcast_to_page(msg: a) -> Effect(b) {
-  let page = effect_state.get_ws_page()
-  let frame = encode_push_frame(page, msg)
-  topics.broadcast("page:" <> page, frame)
-  effect_state.push_outgoing_frame(frame)
-  effect.none()
+  deferred(fn() {
+    let page = effect_state.get_ws_page()
+    let frame = encode_push_frame(page, msg)
+    topics.broadcast("page:" <> page, frame)
+    effect_state.push_outgoing_frame(frame)
+  })
 }
 
 /// Broadcast a message to every connection in the app.
 pub fn broadcast_to_app(msg: a) -> Effect(b) {
-  let page = effect_state.get_ws_page()
-  let frame = encode_push_frame(page, msg)
-  topics.broadcast("app", frame)
-  effect_state.push_outgoing_frame(frame)
-  effect.none()
+  deferred(fn() {
+    let page = effect_state.get_ws_page()
+    let frame = encode_push_frame(page, msg)
+    topics.broadcast("app", frame)
+    effect_state.push_outgoing_frame(frame)
+  })
 }
 
 /// Send a ClientContextMsg to update the client's shared context.
 /// On the server, encodes and queues a push frame tagged "__ClientContext__".
 /// On the client, the generated app dispatches it through client_context.update.
 pub fn send_to_client_context(msg: a) -> Effect(b) {
-  let frame = encode_push_frame("__ClientContext__", msg)
-  effect_state.push_outgoing_frame(frame)
-  effect.none()
+  deferred(fn() {
+    let frame = encode_push_frame("__ClientContext__", msg)
+    effect_state.push_outgoing_frame(frame)
+  })
 }
 
 /// Navigate to a new URL path. Pushes a new history entry and triggers
@@ -131,12 +129,13 @@ pub fn read_lang() -> String {
 
 /// Broadcast a message to all connections in the current browser session.
 pub fn broadcast_to_session(msg: a) -> Effect(b) {
-  let page = effect_state.get_ws_page()
-  let session = get_ws_session()
-  let frame = encode_push_frame(page, msg)
-  topics.broadcast("session:" <> session, frame)
-  effect_state.push_outgoing_frame(frame)
-  effect.none()
+  deferred(fn() {
+    let page = effect_state.get_ws_page()
+    let session = get_ws_session()
+    let frame = encode_push_frame(page, msg)
+    topics.broadcast("session:" <> session, frame)
+    effect_state.push_outgoing_frame(frame)
+  })
 }
 
 fn do_push(msg: a) -> Nil {
@@ -152,4 +151,8 @@ pub fn get_ws_session() -> String {
 
 fn encode_push_frame(page: String, msg: a) -> a {
   effect_state.encode_push_frame(page, msg)
+}
+
+fn deferred(run: fn() -> Nil) -> Effect(a) {
+  effect.from(fn(_dispatch) { run() })
 }

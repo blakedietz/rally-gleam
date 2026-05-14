@@ -111,7 +111,7 @@ From `rally_runtime/effect`:
 - `navigate(path)`: client-side URL push via modem
 - `get_ws_session()`: session ID for current connection (server-side only)
 - `read_lang()`: language cookie, then browser language, then `"en"`
-- `effect.none()` / `effect.from(fn)`: standard Lustre effects
+- `none()`: no-op Rally effect. Import `lustre/effect` directly for arbitrary Lustre effects.
 
 ## Runtime modules
 
