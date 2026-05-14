@@ -59,12 +59,7 @@ pub fn generate_package_with_client_context_contract(
   [
     GeneratedFile(
       config.client_root <> "/gleam.toml",
-      client_gleam_toml(
-        server_deps,
-        config.client_root,
-        protocol,
-        config.rally_package_path,
-      ),
+      client_gleam_toml(server_deps, config.client_root, protocol),
     ),
     GeneratedFile(
       config.client_root <> "/src/generated/transport_ffi.mjs",
@@ -150,7 +145,6 @@ fn client_gleam_toml(
   server_deps: dict.Dict(String, tom.Toml),
   client_root: String,
   protocol: String,
-  rally_package_path: String,
 ) -> String {
   let header =
     "name = \"client\"\nversion = \"0.1.0\"\ntarget = \"javascript\"\n\n[dependencies]\ngleam_stdlib = \">= 0.60.0 and < 2.0.0\"\nlustre = \">= 5.6.0 and < 7.0.0\"\nmodem = \">= 2.0.0 and < 3.0.0\"\n"
@@ -159,14 +153,9 @@ fn client_gleam_toml(
   let prefix = string.repeat("../", depth)
 
   // JSON protocol requires gleam_json and libero for typed codecs.
-  // The libero path is derived from rally_package_path (path to rally).
-  // Libero lives at ../libero relative to the rally package.
   let json_deps = case protocol {
     "json" ->
-      "gleam_json = \">= 3.1.0 and < 4.0.0\"\nlibero = { path = \""
-      <> prefix
-      <> rally_package_path
-      <> "/../libero\" }\n"
+      "gleam_json = \">= 3.1.0 and < 4.0.0\"\nlibero = \">= 6.0.0 and < 7.0.0\"\n"
     _ -> ""
   }
 

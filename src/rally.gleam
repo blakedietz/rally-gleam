@@ -3,6 +3,7 @@
 //// scan routes, parse pages, discover handlers via libero, generate
 //// server and client code, tree-shake, resolve dependencies, write output.
 
+import argv
 import gleam/dict
 import gleam/int
 import gleam/io
@@ -25,6 +26,7 @@ import rally/generator/codec
 import rally/generator/http_handler
 import rally/generator/ssr_handler
 import rally/generator/ws_handler
+import rally/init as rally_init
 import rally/parser
 import rally/scanner
 import rally/tree_shaker
@@ -37,7 +39,8 @@ type RallyError {
 }
 
 pub fn main() -> Nil {
-  case run() {
+  let args = argv.load().arguments
+  case run(args) {
     Ok(msg) -> io.println("rally: " <> msg)
     Error(RallyError(msg)) -> {
       io.println_error("rally error: " <> msg)
@@ -231,10 +234,25 @@ fn read_legacy_config(
   )
 }
 
-fn run() -> Result(String, RallyError) {
-  use configs <- result.try(read_configs())
-  use Nil <- result.try(list.try_each(configs, generate_for_config))
-  Ok(int.to_string(list.length(configs)) <> " client(s)")
+fn run(args: List(String)) -> Result(String, RallyError) {
+  case args {
+    ["init"] -> {
+      use Nil <- result.try(
+        rally_init.init_project(".")
+        |> result.map_error(fn(msg) { RallyError("init error: " <> msg) }),
+      )
+      Ok("initialized project")
+    }
+    [] | ["gen"] -> {
+      use configs <- result.try(read_configs())
+      use Nil <- result.try(list.try_each(configs, generate_for_config))
+      Ok(int.to_string(list.length(configs)) <> " client(s)")
+    }
+    _ ->
+      Error(RallyError(
+        "Unknown command. Run `gleam run -m rally` for codegen or `gleam run -m rally init` to scaffold the current project.",
+      ))
+  }
 }
 
 fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {

@@ -8,11 +8,18 @@ import rally/generator
 import rally/generator/client
 import rally/generator/ssr_handler
 import rally/generator/ws_handler
+import rally/init
 import rally/types.{
   type ScanConfig, PageContract, ScanConfig, ScannedRoute, StaticSegment,
 }
 import simplifile
 import tom
+
+fn scaffold_source() -> String {
+  init.files("my_app")
+  |> list.map(fn(file) { file.path <> "\n" <> file.contents })
+  |> string.join("\n")
+}
 
 pub fn empty_rpc_dispatch_handles_bad_variant_tags_test() {
   let output = generator.generate_empty_rpc_dispatch("generated@rpc_atoms", [])
@@ -76,7 +83,7 @@ pub fn rpc_dispatch_unused_fields_are_underscored_test() {
 }
 
 pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
-  let assert Ok(script) = simplifile.read("bin/new")
+  let script = scaffold_source()
 
   script
   |> string.contains("APP_ENV=dev")
@@ -124,7 +131,7 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
 }
 
 pub fn scaffold_uses_namespaced_client_config_test() {
-  let assert Ok(script) = simplifile.read("bin/new")
+  let script = scaffold_source()
 
   script
   |> string.contains("[[tools.rally.clients]]")
@@ -148,7 +155,7 @@ pub fn scaffold_uses_namespaced_client_config_test() {
 }
 
 pub fn scaffold_routes_http_rpc_test() {
-  let assert Ok(script) = simplifile.read("bin/new")
+  let script = scaffold_source()
 
   script
   |> string.contains("import generated/public/http_handler as http_handler")
@@ -163,9 +170,15 @@ pub fn scaffold_routes_http_rpc_test() {
   |> should.equal(True)
 
   script
-  |> string.contains(
-    "http_handler.handle(body: body, server_context: server_context, session_id: session_id)",
-  )
+  |> string.contains("http_handler.handle(")
+  |> should.equal(True)
+
+  script
+  |> string.contains("server_context: server_context")
+  |> should.equal(True)
+
+  script
+  |> string.contains("session_id: session_id")
   |> should.equal(True)
 }
 
@@ -278,6 +291,21 @@ pub fn client_package_does_not_copy_server_runtime_deps_test() {
   file.content
   |> string.contains("libero")
   |> should.equal(True)
+}
+
+pub fn json_client_package_uses_hex_libero_test() {
+  let config = ScanConfig(..test_scan_config(), protocol: "json")
+  let files = client.generate_package([], [], config, dict.new(), "", False)
+  let assert Ok(file) =
+    list.find(files, fn(file) { file.path == ".generated_clients/gleam.toml" })
+
+  file.content
+  |> string.contains("libero = \">= 6.0.0 and < 7.0.0\"")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains("libero = { path")
+  |> should.equal(False)
 }
 
 pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {

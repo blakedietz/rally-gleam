@@ -46,6 +46,51 @@ fn run_gleam(cwd: String, args: List(String)) -> #(Int, String) {
   }
 }
 
+fn build_client_fixture() {
+  let client_dir = fixture_root <> "/.generated_clients/public"
+  let #(build_status, build_output) = run_gleam(client_dir, ["build"])
+  case build_status {
+    0 -> Nil
+    _ -> {
+      case string.contains(build_output, "build/packages/libero/gleam.toml") {
+        True -> clean_and_rebuild_client_fixture(client_dir, build_output)
+        False -> {
+          let msg = "Client fixture gleam build failed:\n" <> build_output
+          panic as msg
+        }
+      }
+    }
+  }
+}
+
+fn clean_and_rebuild_client_fixture(client_dir: String, first_output: String) {
+  let #(clean_status, clean_output) = run_gleam(client_dir, ["clean"])
+  case clean_status {
+    0 -> {
+      let #(build_status, build_output) = run_gleam(client_dir, ["build"])
+      case build_status {
+        0 -> Nil
+        _ -> {
+          let msg =
+            "Client fixture gleam build failed after cleaning stale packages:\n"
+            <> first_output
+            <> "\n--- after clean ---\n"
+            <> build_output
+          panic as msg
+        }
+      }
+    }
+    _ -> {
+      let msg =
+        "Client fixture gleam clean failed after stale package build error:\n"
+        <> first_output
+        <> "\n--- clean output ---\n"
+        <> clean_output
+      panic as msg
+    }
+  }
+}
+
 fn json_config() -> ScanConfig {
   ScanConfig(
     pages_root: fixture_root <> "/src/public/pages",
@@ -675,12 +720,7 @@ pub fn json_wire_js_runtime_identity_mismatch_rejected_test() {
     0 -> Nil
     _ -> panic as "Fixture rally gen failed"
   }
-  let client_dir = fixture_root <> "/.generated_clients/public"
-  let #(build_status, _build_output) = run_gleam(client_dir, ["build"])
-  case build_status {
-    0 -> Nil
-    _ -> panic as "Client fixture gleam build failed"
-  }
+  build_client_fixture()
 
   // Run the JS identity decode test via Node.js.
   case find_executable("node") {
@@ -758,12 +798,7 @@ pub fn json_wire_push_frame_decode_runtime_probe_test() {
     0 -> Nil
     _ -> panic as "Fixture rally gen failed"
   }
-  let client_dir = fixture_root <> "/.generated_clients/public"
-  let #(build_status, _build_output) = run_gleam(client_dir, ["build"])
-  case build_status {
-    0 -> Nil
-    _ -> panic as "Client fixture gleam build failed"
-  }
+  build_client_fixture()
 
   case find_executable("node") {
     Some(node) -> {
@@ -837,12 +872,7 @@ pub fn json_wire_push_decode_preserves_cross_module_identity_test() {
     0 -> Nil
     _ -> panic as "Fixture rally gen failed"
   }
-  let client_dir = fixture_root <> "/.generated_clients/public"
-  let #(build_status, _build_output) = run_gleam(client_dir, ["build"])
-  case build_status {
-    0 -> Nil
-    _ -> panic as "Client fixture gleam build failed"
-  }
+  build_client_fixture()
 
   case find_executable("node") {
     Some(node) -> {
