@@ -222,13 +222,13 @@ These are two different architectures for building full-stack Lustre apps.
 | **Real-time multi-user** | Built in (all subscribers see same state) | Requires explicit broadcast |
 | **Code to write** | One update function | Client update plus server handlers; stateful pages also define server_update |
 
-### When do Lustre server components make more sense?
+### When to use Lustre server components
 
 To be honest? Most of the time. For apps where interactions are button clicks, form submissions, and navigation, the server round-trip on same-region infra is 10-50ms and users won't notice. You get a simpler mental model (one update function, no client/server split decisions), a tiny client bundle, zero codec concerns, and real-time multi-user for free since all clients subscribe to the same server-side state.
 
 Server components can also embed client-side Lustre components as web components for spots that need local interactivity, with the server pushing data via attributes and context providers. For apps that are 90% server-driven with a few interactive widgets, this hybrid approach works well.
 
-### When Rally makes more sense
+### When to use Rally
 
 **Multiple client surfaces.** The explicit server handler layer is a typed API contract. A web client calls handlers over WebSocket. A CLI calls the same handlers over HTTP. An AI agent uses the CLI. A JS SDK calls the same endpoints from a static site. One set of `server_*` functions serves all of them.
 
