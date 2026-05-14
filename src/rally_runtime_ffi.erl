@@ -6,6 +6,7 @@
 
 -module(rally_runtime_ffi).
 -export([put_ws_state/3, get_ws_conn/0, get_ws_page/0, get_stored_server_context/0,
+         put_ws_server_model/1, get_ws_server_model/0,
          push_outgoing_frame/1, drain_outgoing_frames/0,
          put_ws_session/1, get_ws_session/0, decode_rally_push/1, decode_rally_push_json/1,
          store_system_conn/1, get_system_conn/0, encode_push_payload/2, encode_push_frame/2,
@@ -32,6 +33,16 @@ get_ws_page() ->
     end.
 get_stored_server_context() ->
     case get(rally_ws_ctx) of
+        undefined -> {error, nil};
+        Val -> {ok, Val}
+    end.
+
+put_ws_server_model(Model) ->
+    put(rally_ws_server_model, Model),
+    nil.
+
+get_ws_server_model() ->
+    case get(rally_ws_server_model) of
         undefined -> {error, nil};
         Val -> {ok, Val}
     end.

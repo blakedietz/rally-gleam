@@ -222,6 +222,8 @@ fn page_contract(has_model: Bool) -> PageContract {
     has_load: False,
     has_init: has_model,
     has_init_loaded: False,
+    has_server_init: False,
+    has_server_update: False,
     has_model:,
     updates_client_context: False,
     param_names: [],
@@ -328,6 +330,23 @@ pub fn generate_etf_protocol_wire_includes_decode_request_stub_test() {
 
   let assert True =
     string.contains(output, "pub fn decode_request(data: BitArray)")
+}
+
+pub fn etf_protocol_wire_only_decodes_rpc_module_as_rpc_test() {
+  let output =
+    generator.generate_protocol_wire(
+      "etf",
+      "generated@rpc_atoms",
+      "hash",
+      "generated/rpc_dispatch",
+      [],
+      None,
+      "generated/protocol_wire",
+    )
+
+  let assert True =
+    string.contains(output, "Ok(#(\"rpc\", request_id, raw)) ->")
+  let assert True = string.contains(output, "Ok(#(_, _, _)) -> Error(Nil)")
 }
 
 pub fn json_protocol_wire_no_endpoints_compiles_test() {

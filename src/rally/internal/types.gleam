@@ -138,6 +138,10 @@ pub type PageContract {
     has_init: Bool,
     /// Page exports pub fn init_loaded (client init from SSR-loaded data).
     has_init_loaded: Bool,
+    /// Page exports pub fn server_init (server-side stateful page init).
+    has_server_init: Bool,
+    /// Page exports pub fn server_update (server-side stateful page update).
+    has_server_update: Bool,
     /// Page defines a Model type (custom type or alias). Pages without
     /// a Model are static content with no client-side state.
     has_model: Bool,

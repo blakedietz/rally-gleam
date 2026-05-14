@@ -28,6 +28,18 @@ pub fn get_ws_conn() -> Result(a, Nil) {
   Error(Nil)
 }
 
+/// Store the server-side model for the current WS page.
+@external(erlang, "rally_runtime_ffi", "put_ws_server_model")
+pub fn put_ws_server_model(_model: a) -> Nil {
+  Nil
+}
+
+/// Retrieve the server-side model for the current WS page.
+@external(erlang, "rally_runtime_ffi", "get_ws_server_model")
+pub fn get_ws_server_model() -> Result(a, Nil) {
+  Error(Nil)
+}
+
 @external(erlang, "rally_runtime_ffi", "push_outgoing_frame")
 pub fn push_outgoing_frame(_frame: a) -> Nil {
   Nil

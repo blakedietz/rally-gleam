@@ -51,6 +51,35 @@ pub fn load(id: Int, ctx: ServerContext) -> Result(Model, LoadError) { todo }
   contract.param_names |> should.equal(["id"])
 }
 
+pub fn parse_page_detects_stateful_server_functions_test() {
+  let source =
+    "
+pub type Model { Model }
+pub type ServerModel { ServerModel }
+pub type ToServer { Save }
+pub type ToClient { Saved }
+pub fn server_init(server_context: ServerContext) { todo }
+pub fn server_update(model: ServerModel, msg: ToServer, server_context: ServerContext) { todo }
+"
+  let assert Ok(contract) = parser.parse_page(source, module_path: "test/page")
+
+  contract.has_server_init |> should.be_true()
+  contract.has_server_update |> should.be_true()
+}
+
+pub fn parse_page_rejects_server_update_without_server_init_test() {
+  let source =
+    "
+pub type Model { Model }
+pub type ServerModel { ServerModel }
+pub type ToServer { Save }
+pub fn server_update(model: ServerModel, msg: ToServer, server_context: ServerContext) { todo }
+"
+
+  parser.parse_page(source, module_path: "test/page")
+  |> should.equal(Error("server_update requires server_init in test/page"))
+}
+
 pub fn parse_page_without_load_test() {
   let source =
     "

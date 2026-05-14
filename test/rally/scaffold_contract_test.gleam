@@ -10,7 +10,8 @@ import rally/internal/generator/ssr_handler
 import rally/internal/generator/ws_handler
 import rally/internal/init
 import rally/internal/types.{
-  type ScanConfig, PageContract, ScanConfig, ScannedRoute, StaticSegment,
+  type ScanConfig, DynamicSegment, PageContract, ScanConfig, ScannedRoute,
+  StaticSegment, StringParam,
 }
 import simplifile
 import tom
@@ -233,6 +234,74 @@ pub fn ws_handler_logs_decoded_rpc_value_test() {
   |> should.equal(False)
 }
 
+pub fn ws_handler_wires_stateful_page_effects_test() {
+  let route =
+    ScannedRoute(
+      segments: [StaticSegment("article"), DynamicSegment("slug", StringParam)],
+      variant_name: "ArticleSlug",
+      params: [#("slug", StringParam)],
+      layout_module: None,
+      module_path: "public/pages/article/slug_",
+    )
+  let contract =
+    PageContract(
+      model_variants: [],
+      msg_variants: [],
+      has_load: False,
+      has_init: True,
+      has_init_loaded: False,
+      has_server_init: True,
+      has_server_update: True,
+      has_model: True,
+      updates_client_context: False,
+      param_names: ["slug"],
+      source: "pub fn server_init(\n  server_context: ServerContext,\n  slug: String,\n) { todo }\n\npub fn server_update(\n  model: ServerModel,\n  msg: ToServer,\n  server_context: ServerContext,\n) { todo }\n",
+      view_source: "",
+      init_source: "",
+      update_source: "",
+      has_page_auth: False,
+      page_auth_required: False,
+      has_authorize: False,
+    )
+  let output =
+    ws_handler.generate(
+      [#(route, contract)],
+      "generated@rpc_atoms",
+      "generated/rpc_dispatch",
+      option.None,
+      from_session_module: "server_context",
+      endpoints: [],
+      wire_import_module: "generated/protocol_wire",
+      protocol: "etf",
+    )
+
+  output
+  |> string.contains("import rally_runtime/internal/effect_runner")
+  |> should.equal(True)
+
+  output
+  |> string.contains("let Nil = run_server_init(page, value, server_context)")
+  |> should.equal(True)
+
+  output
+  |> string.contains(
+    "public_pages_article_slug_.server_init(server_context, param_0)",
+  )
+  |> should.equal(True)
+
+  output
+  |> string.contains("let Nil = effect_state.put_ws_server_model(server_model)")
+  |> should.equal(True)
+
+  output
+  |> string.contains("effect_runner.perform(server_effect)")
+  |> should.equal(True)
+
+  output
+  |> string.contains("public_pages_article_slug_.server_update(")
+  |> should.equal(True)
+}
+
 pub fn codegen_resets_generated_client_src_test() {
   let assert Ok(source) = simplifile.read("src/rally.gleam")
 
@@ -324,6 +393,8 @@ pub fn ssr_omits_layout_import_when_no_load_arm_uses_it_test() {
       has_load: False,
       has_init: True,
       has_init_loaded: False,
+      has_server_init: False,
+      has_server_update: False,
       has_model: True,
       updates_client_context: False,
       param_names: [],
@@ -386,6 +457,8 @@ pub fn ssr_missing_app_marker_falls_back_to_shell_test() {
             has_load: True,
             has_init: True,
             has_init_loaded: False,
+            has_server_init: False,
+            has_server_update: False,
             has_model: True,
             updates_client_context: False,
             param_names: [],
@@ -435,6 +508,8 @@ pub fn ssr_app_marker_preserves_tag_order_test() {
             has_load: True,
             has_init: True,
             has_init_loaded: False,
+            has_server_init: False,
+            has_server_update: False,
             has_model: True,
             updates_client_context: False,
             param_names: [],

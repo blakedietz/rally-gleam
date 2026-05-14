@@ -52,6 +52,8 @@ fn make_contract(
     has_load: True,
     has_init: True,
     has_init_loaded: True,
+    has_server_init: False,
+    has_server_update: False,
     has_model: True,
     updates_client_context: False,
     param_names: [],

@@ -51,6 +51,12 @@ pub fn parse_page(
   let has_load = has_function(functions_list, "load")
   let has_init = has_function(functions_list, "init")
   let has_init_loaded = has_function(functions_list, "init_loaded")
+  let has_server_init = has_function(functions_list, "server_init")
+  let has_server_update = has_function(functions_list, "server_update")
+  use _ <- result.try(case has_server_update && !has_server_init {
+    True -> Error("server_update requires server_init in " <> module_path)
+    False -> Ok(Nil)
+  })
   let has_model =
     has_custom_type(ast.custom_types, "Model")
     || has_type_alias(ast.type_aliases, "Model")
@@ -86,6 +92,8 @@ pub fn parse_page(
     has_load:,
     has_init:,
     has_init_loaded:,
+    has_server_init:,
+    has_server_update:,
     has_model:,
     updates_client_context:,
     param_names:,

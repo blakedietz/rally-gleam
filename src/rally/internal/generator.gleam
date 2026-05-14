@@ -1046,11 +1046,12 @@ pub fn rpc_raw_payload(envelope: RpcEnvelope) -> BitArray { envelope.raw }
 
 pub fn decode_rpc_envelope(data: BitArray) -> Result(RpcEnvelope, Nil) {
   case libero_wire.decode_request(data) {
-    Ok(#(_module, request_id, raw)) ->
+    Ok(#(\"rpc\", request_id, raw)) ->
       case libero_wire.variant_tag(raw) {
         Ok(tag) -> Ok(RpcEnvelope(request_id:, identity: tag, raw: data))
         Error(Nil) -> Error(Nil)
       }
+    Ok(#(_, _, _)) -> Error(Nil)
     Error(_) -> Error(Nil)
   }
 }
@@ -1242,15 +1243,20 @@ fn decode_rpc_envelope_text(data: String) -> Result(RpcEnvelope, Nil) {
   case json_wire.decode_request(data, contract_hash) {
     Error(_) -> Error(Nil)
     Ok(envelope) ->
-      case extract_message_type(envelope.message) {
-        Error(_) -> Error(Nil)
-        Ok(type_str) ->
-          Ok(RpcEnvelope(
-            request_id: envelope.request_id,
-            identity: type_str,
-            message: envelope.message,
-            raw_text: data,
-          ))
+      case envelope.module == \"rpc\" {
+        False -> Error(Nil)
+        True -> {
+          case extract_message_type(envelope.message) {
+            Error(_) -> Error(Nil)
+            Ok(type_str) ->
+              Ok(RpcEnvelope(
+                request_id: envelope.request_id,
+                identity: type_str,
+                message: envelope.message,
+                raw_text: data,
+              ))
+          }
+        }
       }
   }
 }

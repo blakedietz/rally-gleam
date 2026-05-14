@@ -42,6 +42,9 @@ pub fn main() -> Nil {
     case path {
       "/ws" -> {
         let session_id = session_id(req)
+        let hostname =
+          request.get_header(req, "host")
+          |> result.unwrap("")
         mist.websocket(
           req,
           ws_handler.handler,
@@ -50,6 +53,7 @@ pub fn main() -> Nil {
               conn: conn,
               server_context: server_context,
               session_id: session_id,
+              hostname: hostname,
             )
           },
           ws_handler.on_close,
