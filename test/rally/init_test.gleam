@@ -24,7 +24,7 @@ pub fn init_project_writes_hex_scaffold_test() {
   |> string.contains("name = \"rally_init_test_hex_scaffold\"")
   |> should.be_true()
   toml
-  |> string.contains("rally = \">= 0.1.0 and < 1.0.0\"")
+  |> string.contains("rally = \">= 1.0.0 and < 2.0.0\"")
   |> should.be_true()
   toml
   |> string.contains("libero = \">= 6.0.0 and < 7.0.0\"")
