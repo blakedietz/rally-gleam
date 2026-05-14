@@ -24,10 +24,10 @@ gleam new my_app
 cd my_app
 gleam add rally libero
 gleam run -m rally init
-bin/dev
+./bin/dev
 ```
 
-`rally init` writes the starter app into the current Gleam project. `bin/dev` runs codegen, builds the JS client, and starts the server on port 8080. The starter app uses SQLite, so development does not need a database daemon.
+`rally init` writes the starter app into the current Gleam project, including `bin/dev`. After that, `./bin/dev` runs codegen, builds the JS client, and starts the server on port 8080. The starter app uses SQLite, so development does not need a database daemon.
 
 ## Writing a page
 
