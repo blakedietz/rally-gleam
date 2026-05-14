@@ -236,7 +236,7 @@ With server components, the wire protocol is VDOM patches: only a browser can co
 
 **Responsive local interactions.** For continuous client interactions (typing with live feedback, drag-and-drop, editors, optimistic updates), the server round-trip becomes perceptible. Rally keeps those interactions local and only crosses the network for things that actually need the server.
 
-The cost is real: you write two update functions per page, you decide what belongs on the client vs. server for every interaction, the client bundle is larger, and you need a broadcast system for real-time multi-user features. But if your app has multiple client surfaces, the "overhead" of explicit domain messages is actually the architecture that enables them.
+Rally unfortunately needs a bit more from you. Each page has a client update and a server update. You have to decide which side owns each interaction. The browser ships more code. Real-time multi-user work goes through broadcast. If your app has more than one client, that explicit message layer pays for itself.
 
 ## Examples
 
