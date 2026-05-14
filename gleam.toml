@@ -1,5 +1,7 @@
 name = "rally"
 version = "1.0.0"
+description = "A web framework for building server-rendered Lustre apps in Gleam."
+licences = ["MIT"]
 target = "erlang"
 repository = { type = "github", user = "pairshaped", repo = "rally-gleam" }
 links = [
