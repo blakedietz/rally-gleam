@@ -127,16 +127,16 @@ The client package is a standalone Gleam project. The server project is the sing
 
 ## Examples
 
-- `examples/realworld/`: [RealWorld](https://github.com/gothinkster/realworld) (Conduit) clone with auth, articles, comments, tags, favorites, follows. Uses both RPC and stateful server models. See [its README](examples/realworld/README.md).
+- `examples/realworld/`: [RealWorld](https://github.com/gothinkster/realworld) (Conduit) clone with auth, articles, comments, tags, favorites, follows. Uses both RPC and stateful server models. See [its README](https://github.com/pairshaped/rally-gleam/blob/master/examples/realworld/README.md).
 
 ## More docs
 
-- [Pages](https://hexdocs.pm/rally/guides/pages.html): routing, page lifecycle, SSR loading, and layouts
-- [Server messaging](https://hexdocs.pm/rally/guides/server-messaging.html): RPC, stateful server pages, and broadcast
-- [Runtime](https://hexdocs.pm/rally/guides/runtime.html): the `rally_runtime/*` modules app code imports
-- [Configuration](https://hexdocs.pm/rally/guides/configuration.html): `gleam.toml`, generated paths, and protocols
-- [Comparisons](https://hexdocs.pm/rally/reference/comparisons.html): Rally, Lustre server components, and Lamdera-style apps
-- [Internals](https://hexdocs.pm/rally/reference/internals.html): codegen pipeline and contributor reading order
+- [Pages](https://github.com/pairshaped/rally-gleam/blob/master/pages/guides/pages.md): routing, page lifecycle, SSR loading, and layouts
+- [Server messaging](https://github.com/pairshaped/rally-gleam/blob/master/pages/guides/server-messaging.md): RPC, stateful server pages, and broadcast
+- [Runtime](https://github.com/pairshaped/rally-gleam/blob/master/pages/guides/runtime.md): the `rally_runtime/*` modules app code imports
+- [Configuration](https://github.com/pairshaped/rally-gleam/blob/master/pages/guides/configuration.md): `gleam.toml`, generated paths, and protocols
+- [Comparisons](https://github.com/pairshaped/rally-gleam/blob/master/pages/reference/comparisons.md): Rally, Lustre server components, and Lamdera-style apps
+- [Internals](https://github.com/pairshaped/rally-gleam/blob/master/pages/reference/internals.md): codegen pipeline and contributor reading order
 - [llms.txt](https://raw.githubusercontent.com/pairshaped/rally-gleam/refs/heads/master/llms.txt): raw context for language models
 
 ## Contributing
@@ -162,4 +162,4 @@ Rally depends on [Libero](https://hexdocs.pm/libero/). App projects should add b
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/pairshaped/rally-gleam/blob/master/LICENSE).
