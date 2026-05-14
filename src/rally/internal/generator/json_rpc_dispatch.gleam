@@ -7,6 +7,7 @@
 import gleam/list
 import gleam/option.{Some}
 import gleam/string
+import justin
 import libero/field_type.{
   type FieldType, BitArrayField, BoolField, DictOf, FloatField, IntField, ListOf,
   NilField, OptionOf, ResultOf, StringField, TupleOf, TypeVar, UserType,
@@ -14,35 +15,19 @@ import libero/field_type.{
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker
 
-pub fn to_pascal_case(name: String) -> String {
-  name
-  |> string.split("_")
-  |> list.map(fn(word) {
-    case string.pop_grapheme(word) {
-      Ok(#(first, rest)) -> string.uppercase(first) <> rest
-      Error(Nil) -> word
-    }
-  })
-  |> string.join("")
-}
-
-pub fn handler_alias(module_path: String) -> String {
+fn handler_alias(module_path: String) -> String {
   string.replace(module_path, "/", "_") <> "_handler"
 }
 
 pub fn endpoint_json_tag(endpoint: HandlerEndpoint) -> String {
   let #(module_path, type_name) = case endpoint.msg_type {
     Some(#(module_path, type_name)) -> #(module_path, type_name)
-    _ -> #(endpoint.module_path, to_pascal_case("server_" <> endpoint.fn_name))
+    _ -> #(
+      endpoint.module_path,
+      justin.pascal_case("server_" <> endpoint.fn_name),
+    )
   }
   module_path <> "." <> type_name
-}
-
-pub fn generate_json_dispatch_function(
-  endpoints: List(HandlerEndpoint),
-  has_auth: Bool,
-) -> String {
-  generate_json_dispatch_function_with_prefix(endpoints, has_auth, "wire.")
 }
 
 pub fn generate_json_dispatch_function_with_prefix(
@@ -90,7 +75,7 @@ pub fn generate_json_dispatch_function_with_prefix(
   }
 }
 
-pub fn json_dispatch_arm(
+fn json_dispatch_arm(
   e: HandlerEndpoint,
   has_auth: Bool,
   encode_prefix: String,
@@ -98,7 +83,7 @@ pub fn json_dispatch_arm(
   let alias = handler_alias(e.module_path)
   let #(type_module, type_name) = case e.msg_type {
     Some(#(mod, name)) -> #(mod, name)
-    _ -> #(e.module_path, to_pascal_case("server_" <> e.fn_name))
+    _ -> #(e.module_path, justin.pascal_case("server_" <> e.fn_name))
   }
   let type_str = type_module <> "." <> type_name
   let msg_decoder =
@@ -136,7 +121,7 @@ pub fn json_dispatch_arm(
     }"
 }
 
-pub fn json_handler_call(
+fn json_handler_call(
   e: HandlerEndpoint,
   alias: String,
   has_auth: Bool,
@@ -169,7 +154,7 @@ pub fn json_handler_call(
   }
 }
 
-pub fn json_response_encode(e: HandlerEndpoint) -> String {
+fn json_response_encode(e: HandlerEndpoint) -> String {
   let ok_encoder = json_encoder_for_fieldtype(e.return_ok, "x")
   let err_encoder = json_encoder_for_fieldtype(e.return_err, "x")
   let ok_param = closure_param_for_fieldtype(e.return_ok)
@@ -185,14 +170,14 @@ pub fn json_response_encode(e: HandlerEndpoint) -> String {
   <> " })"
 }
 
-pub fn closure_param_for_fieldtype(ft: FieldType) -> String {
+fn closure_param_for_fieldtype(ft: FieldType) -> String {
   case ft {
     NilField -> "_x"
     _ -> "x"
   }
 }
 
-pub fn json_encoder_for_fieldtype(ft: FieldType, var: String) -> String {
+fn json_encoder_for_fieldtype(ft: FieldType, var: String) -> String {
   case ft {
     StringField -> "json.string(" <> var <> ")"
     IntField -> "json.int(" <> var <> ")"

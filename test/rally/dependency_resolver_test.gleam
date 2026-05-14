@@ -1,7 +1,7 @@
 import gleam/list
 import gleam/string
 import gleeunit/should
-import rally/dependency_resolver
+import rally/internal/dependency_resolver
 import simplifile
 
 fn make_temp_dir(name: String) -> String {

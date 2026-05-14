@@ -1,8 +1,8 @@
 import gleam/dict
 import gleam/option.{None}
 import gleam/string
-import rally/generator
-import rally/types.{
+import rally/internal/generator
+import rally/internal/types.{
   type PageContract, type ScannedRoute, DynamicSegment, IntParam, PageContract,
   ScanConfig, ScannedRoute, StaticSegment, StringParam,
 }

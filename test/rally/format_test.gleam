@@ -1,6 +1,6 @@
 import gleam/string
 import gleeunit/should
-import rally/format
+import rally/internal/format
 
 pub fn format_gleam_keeps_valid_syntax_test() {
   let source = "pub fn add(x: Int, y: Int) -> Int {\n  x + y\n}\n"

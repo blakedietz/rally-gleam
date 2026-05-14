@@ -1,8 +1,8 @@
 import gleam/list
 import gleeunit/should
 import libero/field_type.{IntField, StringField}
-import rally/parser
-import rally/types.{type VariantInfo, VariantField, VariantInfo}
+import rally/internal/parser
+import rally/internal/types.{type VariantInfo, VariantField, VariantInfo}
 
 pub fn parse_page_with_model_and_msg_test() {
   let source =

@@ -2,8 +2,8 @@ import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
-import rally/scanner
-import rally/types.{
+import rally/internal/scanner
+import rally/internal/types.{
   type ScanConfig, DynamicSegment, IntParam, ScanConfig, ScannedRoute,
   StaticSegment, StringParam,
 }

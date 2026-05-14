@@ -4,8 +4,8 @@ import gleam/string
 import gleeunit/should
 import libero/field_type.{IntField}
 import libero/walker.{type DiscoveredType, DiscoveredType, DiscoveredVariant}
-import rally/generator
-import rally/generator/codec.{
+import rally/internal/generator
+import rally/internal/generator/codec.{
   generate_json_codecs, generate_json_decode_dispatch,
   generate_json_type_registry_js,
 }

@@ -8,9 +8,10 @@
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import justin
 import libero/scanner.{type HandlerEndpoint}
 import libero/wire_identity
-import rally/types.{
+import rally/internal/types.{
   type AuthConfig, type PageContract, type ScannedRoute, AuthConfig,
 }
 
@@ -216,22 +217,10 @@ fn endpoint_json_tag(endpoint: HandlerEndpoint) -> String {
     Some(#(module_path, type_name)) -> #(module_path, type_name)
     None -> #(
       endpoint.module_path,
-      to_pascal_case("server_" <> endpoint.fn_name),
+      justin.pascal_case("server_" <> endpoint.fn_name),
     )
   }
   module_path <> "." <> type_name
-}
-
-fn to_pascal_case(name: String) -> String {
-  name
-  |> string.split("_")
-  |> list.map(fn(word) {
-    case string.pop_grapheme(word) {
-      Ok(#(first, rest)) -> string.uppercase(first) <> rest
-      Error(Nil) -> word
-    }
-  })
-  |> string.join("")
 }
 
 fn generate_authorize_imports(map: List(PageAuthInfo)) -> String {

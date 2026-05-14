@@ -1,7 +1,7 @@
 import gleam/list
 import gleeunit/should
-import rally/parser
-import rally/types.{VariantInfo}
+import rally/internal/parser
+import rally/internal/types.{VariantInfo}
 
 pub fn parse_client_context_test() {
   let source =

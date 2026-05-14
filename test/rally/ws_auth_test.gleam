@@ -12,8 +12,8 @@ import gleam/string
 import libero/field_type
 import libero/scanner
 import libero/wire_identity
-import rally/generator/ws_handler
-import rally/types.{
+import rally/internal/generator/ws_handler
+import rally/internal/types.{
   type PageContract, type ScannedRoute, AuthConfig, PageContract, ScannedRoute,
   StaticSegment,
 }

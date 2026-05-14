@@ -18,19 +18,19 @@ import libero/field_type
 import libero/gen_error
 import libero/json/contract as json_contract
 import libero/scanner as libero_scanner
-import rally/dependency_resolver
-import rally/format
-import rally/generator
-import rally/generator/client
-import rally/generator/codec
-import rally/generator/http_handler
-import rally/generator/ssr_handler
-import rally/generator/ws_handler
-import rally/init as rally_init
-import rally/parser
-import rally/scanner
-import rally/tree_shaker
-import rally/types.{type ScanConfig, ScanConfig}
+import rally/internal/dependency_resolver
+import rally/internal/format
+import rally/internal/generator
+import rally/internal/generator/client
+import rally/internal/generator/codec
+import rally/internal/generator/http_handler
+import rally/internal/generator/ssr_handler
+import rally/internal/generator/ws_handler
+import rally/internal/init as rally_init
+import rally/internal/parser
+import rally/internal/scanner
+import rally/internal/tree_shaker
+import rally/internal/types.{type ScanConfig, ScanConfig}
 import simplifile
 import tom
 

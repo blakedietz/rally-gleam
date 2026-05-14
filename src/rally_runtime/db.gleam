@@ -9,9 +9,8 @@ import gleam/time/timestamp
 import logging
 import sqlight
 
-// WAL allows concurrent readers during writes. busy_timeout prevents
-// immediate SQLITE_BUSY failures under contention. foreign_keys is
-// per-connection in SQLite (off by default), so we enable it here.
+/// Open a SQLite connection with Rally's default pragmas:
+/// WAL, busy timeout, and foreign key enforcement.
 pub fn open(path: String) -> Result(sqlight.Connection, sqlight.Error) {
   use conn <- result.try(sqlight.open(path))
   use _ <- result.try(sqlight.exec("PRAGMA journal_mode=WAL;", on: conn))
@@ -20,6 +19,8 @@ pub fn open(path: String) -> Result(sqlight.Connection, sqlight.Error) {
   Ok(conn)
 }
 
+/// Return the only row in a result set, or None when the query returned
+/// zero rows or more than one row.
 pub fn one(rows: List(a)) -> Option(a) {
   case rows {
     [row] -> Some(row)
@@ -27,6 +28,7 @@ pub fn one(rows: List(a)) -> Option(a) {
   }
 }
 
+/// Encode a Bool as a SQLite integer value, using 1 for True and 0 for False.
 pub fn bool_to_int(val: Bool) -> sqlight.Value {
   sqlight.int(case val {
     True -> 1
@@ -34,6 +36,7 @@ pub fn bool_to_int(val: Bool) -> sqlight.Value {
   })
 }
 
+/// Encode optional text as a SQLite value.
 pub fn nullable_text(val: Option(String)) -> sqlight.Value {
   case val {
     Some(s) -> sqlight.text(s)
@@ -61,8 +64,7 @@ pub fn query(
   result
 }
 
-// SAVEPOINT instead of BEGIN/COMMIT so transaction() calls can nest safely.
-// Each gets a unique name to avoid collisions in recursive calls.
+/// Run a nested-safe SQLite transaction using SAVEPOINT.
 pub fn transaction(
   conn: sqlight.Connection,
   body: fn() -> Result(a, sqlight.Error),
@@ -122,7 +124,7 @@ fn log_result(result: Result(List(a), sqlight.Error)) -> Nil {
   }
 }
 
-pub fn collapse_whitespace(sql: String) -> String {
+fn collapse_whitespace(sql: String) -> String {
   sql
   |> string.replace("\n", " ")
   |> string.replace("\t", " ")

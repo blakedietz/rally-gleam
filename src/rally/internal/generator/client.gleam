@@ -12,8 +12,8 @@ import gleam/result
 import gleam/set
 import gleam/string
 import libero/field_type.{UserType}
-import rally/generator
-import rally/types.{
+import rally/internal/generator
+import rally/internal/types.{
   type ClientContextContract, type PageContract, type ScanConfig,
   type ScannedRoute, ClientContextContract,
 }

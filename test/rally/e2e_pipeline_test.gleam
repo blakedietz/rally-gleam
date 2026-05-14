@@ -2,10 +2,10 @@ import gleam/dict
 import gleam/list
 import gleam/string
 import gleeunit/should
-import rally/generator
-import rally/parser
-import rally/scanner
-import rally/types.{type ScanConfig, ScanConfig, StringParam}
+import rally/internal/generator
+import rally/internal/parser
+import rally/internal/scanner
+import rally/internal/types.{type ScanConfig, ScanConfig, StringParam}
 import simplifile
 
 fn make_temp_dir(name: String) -> String {

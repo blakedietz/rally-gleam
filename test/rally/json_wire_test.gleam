@@ -14,13 +14,13 @@ import gleam/string
 import gleeunit/should
 import libero/field_type as libero_field_type
 import libero/scanner.{HandlerEndpoint}
-import rally/generator
-import rally/generator/codec
-import rally/generator/ssr_handler
-import rally/generator/ws_handler
-import rally/parser
-import rally/scanner as rally_scanner
-import rally/types.{type ScanConfig, ScanConfig, ScannedRoute}
+import rally/internal/generator
+import rally/internal/generator/codec
+import rally/internal/generator/ssr_handler
+import rally/internal/generator/ws_handler
+import rally/internal/parser
+import rally/internal/scanner as rally_scanner
+import rally/internal/types.{type ScanConfig, ScanConfig, ScannedRoute}
 import simplifile
 
 const fixture_root = "fixtures/json_protocol"

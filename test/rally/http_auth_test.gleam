@@ -13,8 +13,8 @@ import libero
 import libero/field_type
 import libero/scanner
 import libero/wire_identity
-import rally/generator/http_handler
-import rally/types.{
+import rally/internal/generator/http_handler
+import rally/internal/types.{
   type PageContract, type ScannedRoute, AuthConfig, PageContract, ScannedRoute,
   StaticSegment,
 }

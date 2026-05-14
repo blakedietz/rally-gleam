@@ -1,7 +1,7 @@
 import gleam/option.{None, Some}
 import gleam/string
-import rally/generator/ssr_handler
-import rally/types.{
+import rally/internal/generator/ssr_handler
+import rally/internal/types.{
   type PageContract, type ScannedRoute, AuthConfig, PageContract, ScannedRoute,
   StaticSegment,
 }

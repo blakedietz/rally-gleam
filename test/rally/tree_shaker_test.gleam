@@ -1,6 +1,6 @@
 import gleam/string
 import gleeunit/should
-import rally/tree_shaker
+import rally/internal/tree_shaker
 
 // -- Test: client-only page passes through unchanged --
 

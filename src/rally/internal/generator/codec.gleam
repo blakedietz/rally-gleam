@@ -14,6 +14,7 @@ import gleam/io
 import gleam/list
 import gleam/option
 import gleam/string
+import justin
 import libero/codegen
 import libero/codegen_decoders
 import libero/field_type.{
@@ -23,8 +24,10 @@ import libero/field_type.{
 import libero/json/codegen as json_codegen
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType, qualified_atom_name}
-import rally/tree_shaker
-import rally/types.{type PageContract, type ScannedRoute, type VariantInfo}
+import rally/internal/tree_shaker
+import rally/internal/types.{
+  type PageContract, type ScannedRoute, type VariantInfo,
+}
 
 pub type CodecFile {
   CodecFile(path: String, content: String)
@@ -617,18 +620,6 @@ export function readLangCookie() {
 "
 }
 
-fn to_pascal_case(name: String) -> String {
-  name
-  |> string.split("_")
-  |> list.map(fn(word) {
-    case string.pop_grapheme(word) {
-      Ok(#(first, rest)) -> string.uppercase(first) <> rest
-      Error(Nil) -> word
-    }
-  })
-  |> string.join("")
-}
-
 // ---------- JS typed decoders (codec_ffi.mjs) ----------
 
 fn emit_codec_ffi_with_endpoints(
@@ -658,7 +649,7 @@ fn emit_types_gleam(
     _ -> {
       let variants =
         list.map(endpoints, fn(e) {
-          let variant_name = to_pascal_case("server_" <> e.fn_name)
+          let variant_name = justin.pascal_case("server_" <> e.fn_name)
           case e.params {
             [] -> "  " <> variant_name
             params -> {
@@ -684,7 +675,7 @@ fn emit_types_gleam(
           let json_import = "import gleam/json\n"
           let arms =
             list.map(endpoints, fn(e) {
-              let variant_name = to_pascal_case("server_" <> e.fn_name)
+              let variant_name = justin.pascal_case("server_" <> e.fn_name)
               case e.msg_type {
                 option.Some(#(type_module, type_name)) -> {
                   let param_pattern = case e.params {
@@ -747,10 +738,10 @@ fn emit_types_gleam(
                   <> "        #(\"type\", json.string(\""
                   <> e.module_path
                   <> "."
-                  <> to_pascal_case("server_" <> e.fn_name)
+                  <> justin.pascal_case("server_" <> e.fn_name)
                   <> "\")),\n"
                   <> "        #(\"variant\", json.string(\""
-                  <> to_pascal_case("server_" <> e.fn_name)
+                  <> justin.pascal_case("server_" <> e.fn_name)
                   <> "\")),\n"
                   <> "        #(\"fields\", json.object(["
                   <> string.join(field_encoders, ", ")

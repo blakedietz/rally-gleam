@@ -9,7 +9,7 @@
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
-import rally/types.{
+import rally/internal/types.{
   type AuthConfig, type PageContract, type ScannedRoute, AuthConfig,
 }
 

@@ -1,6 +1,6 @@
 import gleam/string
 import gleeunit/should
-import rally/init
+import rally/internal/init
 import simplifile
 
 fn make_temp_dir(name: String) -> String {

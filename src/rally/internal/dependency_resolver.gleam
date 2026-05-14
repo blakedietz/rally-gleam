@@ -12,7 +12,7 @@ import gleam/int
 import gleam/list
 import gleam/set.{type Set}
 import gleam/string
-import rally/generator/client
+import rally/internal/generator/client
 import simplifile
 
 pub fn resolve(

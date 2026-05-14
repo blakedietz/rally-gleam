@@ -107,6 +107,25 @@ A page can optionally export `load` (server-side data fetch) and `init_loaded` (
 
 ---
 
+## What to import
+
+Most Rally apps use only a small set of modules directly:
+
+| Module | Use it for |
+|---|---|
+| `rally_runtime/effect` | Page effects: RPC, server messages, navigation, broadcast, and client context updates |
+| `rally_runtime/db` | Opening SQLite, timed queries, nested transactions, and small SQL value helpers |
+| `rally_runtime/system` | App startup, message logging, and background jobs |
+| `rally_runtime/session` | Session cookie generation, parsing, and response headers |
+| `rally_runtime/auth` | Auth policy and load result types used by page modules |
+| `rally_runtime/env` | `APP_ENV` parsing and production cookie policy |
+| `rally_runtime/migrate` | Running numbered SQLite migrations |
+| `rally_runtime/test_db` | Fast in-memory SQLite setup for tests |
+
+The `rally/internal/...` modules are Rally's codegen implementation. They are tested, but app code should treat them as private. The generated files under `src/generated/` are the stable boundary between Rally's internals and your app.
+
+---
+
 ## Under the hood
 
 This section covers what Rally generates and how the codegen pipeline works. You don't need this to start building, but it helps when debugging or contributing.
@@ -174,7 +193,7 @@ gleam.toml config
                     with `gleam format`, skips unchanged files.
 ```
 
-The types that flow through this pipeline are defined in `src/rally/types.gleam`.
+The types that flow through this pipeline are defined in `src/rally/internal/types.gleam`.
 
 ### Libero and the wire protocol
 
@@ -320,20 +339,20 @@ test/
   js/                            # Browser-side JS tests (auth errors, frame decode)
 ```
 
-**Two module trees, two audiences.** `rally/` is the codegen tool that app developers run at build time. `rally_runtime/` is the library that ships with every Rally app and runs at request time. Contributors working on routing or code generation stay in `rally/`. Contributors working on WebSocket behavior, broadcasts, or database helpers stay in `rally_runtime/`.
+**Two module trees, two audiences.** `rally/internal/` is the codegen tool that app developers run at build time. `rally_runtime/` is the library that ships with every Rally app and runs at request time. Contributors working on routing or code generation stay in `rally/internal/`. Contributors working on WebSocket behavior, broadcasts, or database helpers stay in `rally_runtime/`.
 
 ### Where to start reading
 
 If you're new to the codebase, read in this order:
 
-1. **`src/rally/types.gleam`**: the type vocabulary. Every pipeline type is documented here. Read this first so the rest of the code makes sense.
-2. **`src/rally/scanner.gleam`**: the simplest module in the pipeline. Walks the filesystem, returns routes. Good warmup.
-3. **`src/rally/parser.gleam`**: uses Glance AST to extract the page contract. Shows how Rally discovers what a page exports.
+1. **`src/rally/internal/types.gleam`**: the type vocabulary. Every pipeline type is documented here. Read this first so the rest of the code makes sense.
+2. **`src/rally/internal/scanner.gleam`**: the simplest module in the pipeline. Walks the filesystem, returns routes. Good warmup.
+3. **`src/rally/internal/parser.gleam`**: uses Glance AST to extract the page contract. Shows how Rally discovers what a page exports.
 4. **`src/rally.gleam`**: the orchestrator. Long file, but it shows how scanner, parser, libero, generators, tree shaker, and dependency resolver connect.
 5. **`src/rally_runtime/effect.gleam`**: the API that app developers call. Shows how server push, broadcast, and RPC work from the app's perspective.
 6. **`examples/realworld/`**: a full app built with Rally. See `examples/realworld/README.md` for a walkthrough of the pages and patterns.
 
-For the codegen generators (`generator/*.gleam`): these files build Gleam/Erlang/JS source as strings. They're inherently harder to read than normal code. Start with `generator.gleam` (route type and parse function), which is the simplest, before moving to `generator/ws_handler.gleam` or `generator/ssr_handler.gleam`.
+For the codegen generators (`internal/generator/*.gleam`): these files build Gleam/Erlang/JS source as strings. They're inherently harder to read than normal code. Start with `internal/generator.gleam` (route type and parse function), which is the simplest, before moving to `internal/generator/ws_handler.gleam` or `internal/generator/ssr_handler.gleam`.
 
 ## Influences and credits
 

@@ -12,11 +12,11 @@ import gleam/string
 import gleeunit/should
 import libero/field_type.{BoolField, IntField, StringField, UserType}
 import libero/scanner
-import rally/generator
-import rally/generator/client
-import rally/generator/codec
-import rally/generator/ssr_handler
-import rally/types.{
+import rally/internal/generator
+import rally/internal/generator/client
+import rally/internal/generator/codec
+import rally/internal/generator/ssr_handler
+import rally/internal/types.{
   type ClientContextContract, type PageContract, type ScanConfig,
   type ScannedRoute, ClientContextContract, DynamicSegment, IntParam,
   PageContract, ScanConfig, ScannedRoute, StaticSegment, StringParam,

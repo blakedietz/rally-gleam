@@ -11,7 +11,7 @@ import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
 import libero/glance_type_resolver.{RejectUnsupported}
-import rally/types.{
+import rally/internal/types.{
   type ClientContextContract, type PageContract, type VariantInfo,
   ClientContextContract, PageContract, VariantField, VariantInfo,
 }

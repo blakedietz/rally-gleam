@@ -11,8 +11,8 @@ import gleam/order
 import gleam/string
 import libero/codegen_dispatch
 import libero/scanner.{type HandlerEndpoint}
-import rally/generator/json_rpc_dispatch
-import rally/types.{
+import rally/internal/generator/json_rpc_dispatch
+import rally/internal/types.{
   type AuthConfig, type PageContract, type ScannedRoute, type UrlSegment,
   AuthConfig, DynamicSegment, IntParam, ScannedRoute, StaticSegment, StringParam,
 }

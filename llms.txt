@@ -152,23 +152,25 @@ Running `gleam run -m rally` produces:
 
 ## Architecture
 
-### Codegen tool (`src/rally/`)
+### Codegen tool (`src/rally/internal/`)
+
+Most Rally apps only import from `rally_runtime/*` modules (effect, db, system, session, auth, env, migrate, test_db). The `rally/internal/...` modules are Rally's codegen implementation and should be treated as private by app code.
 
 | Module | Role |
 |---|---|
 | `rally.gleam` | CLI entry point, reads `[[tools.rally.clients]]` from gleam.toml, runs one pipeline per client |
-| `scanner.gleam` | Recursively walks pages directory, produces `List(ScannedRoute)` |
-| `parser.gleam` | Glance AST parser: extracts Model/Msg types via `libero/glance_type_resolver`, detects function signatures |
-| `generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
-| `generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam |
-| `generator/codec.gleam` | Client codegen: per-page modules (tree-shaken), types.gleam (ClientMsg), codec_ffi.mjs (ETF decoders), codec.gleam (decode_flags), rally_effect shim |
-| `dependency_resolver.gleam` | Follows import chains from tree-shaken client pages to copy shared modules into the client package, catching @external(erlang) imports that can't compile for JS |
-| `types.gleam` | Shared types: ScannedRoute, PageContract, ScanConfig, ClientContextContract, segment and variant field representations |
-| `tree_shaker.gleam` | Source-level tree shaker: extracts client-safe code from page modules using Glance AST |
-| `generator/ssr_handler.gleam` | SSR handler generation |
-| `generator/ws_handler.gleam` | WebSocket handler: decodes and dispatches RPC frames through protocol_wire, drains push frames |
-| `generator/http_handler.gleam` | HTTP RPC handler generation |
-| `format.gleam` | `gleam format` runner for generated code |
+| `internal/scanner.gleam` | Recursively walks pages directory, produces `List(ScannedRoute)` |
+| `internal/parser.gleam` | Glance AST parser: extracts Model/Msg types via `libero/glance_type_resolver`, detects function signatures |
+| `internal/generator.gleam` | Route type + parse_route + route_to_path + page dispatch codegen |
+| `internal/generator/client.gleam` | Client package generation: gleam.toml, transport.gleam, app.gleam |
+| `internal/generator/codec.gleam` | Client codegen: per-page modules (tree-shaken), types.gleam (ClientMsg), codec_ffi.mjs (ETF decoders), codec.gleam (decode_flags), rally_effect shim |
+| `internal/dependency_resolver.gleam` | Follows import chains from tree-shaken client pages to copy shared modules into the client package, catching @external(erlang) imports that can't compile for JS |
+| `internal/types.gleam` | Shared types: ScannedRoute, PageContract, ScanConfig, ClientContextContract, segment and variant field representations |
+| `internal/tree_shaker.gleam` | Source-level tree shaker: extracts client-safe code from page modules using Glance AST |
+| `internal/generator/ssr_handler.gleam` | SSR handler generation |
+| `internal/generator/ws_handler.gleam` | WebSocket handler: decodes and dispatches RPC frames through protocol_wire, drains push frames |
+| `internal/generator/http_handler.gleam` | HTTP RPC handler generation |
+| `internal/format.gleam` | `gleam format` runner for generated code |
 
 Libero provides: scanner (discovers server_ handlers), codegen_dispatch (generates dispatch source), walker (BFS type graph), codegen_decoders (JS type registration), field_type (type representation), glance_type_resolver (shared Glance type resolution for page and handler contracts), wire_identity (canonical type hashing for RPC dispatch and auth routing), wire/protocol helpers, and trace (panic catching). Rally delegates typed protocol code to Libero so response decoders, constructor registrations, and future protocol options stay in sync with Libero's contract boundary. `HandlerEndpoint.msg_type` and params are part of the contract between scanner, wire decode, and Rally auth routing.
 

@@ -1,4 +1,4 @@
-import rally/parser
+import rally/internal/parser
 
 pub fn parse_page_auth_required_test() {
   let source =

@@ -3,19 +3,12 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/set
 import gleam/string
-import rally/types.{
+import justin
+import rally/internal/types.{
   type ParamType, type ScanConfig, type ScannedRoute, type UrlSegment,
   DynamicSegment, IntParam, ScannedRoute, StaticSegment, StringParam,
 }
 import simplifile
-
-/// Convert a snake_case name to PascalCase.
-fn to_pascal_case(name: String) -> String {
-  name
-  |> string.split("_")
-  |> list.map(string.capitalise)
-  |> string.join("")
-}
 
 /// Determine param type: "id" or anything ending in "_id" -> IntParam, else StringParam.
 fn param_type_for(name: String) -> ParamType {
@@ -57,8 +50,8 @@ fn build_route(
     segments
     |> list.map(fn(seg) {
       case seg {
-        StaticSegment(name) -> to_pascal_case(name)
-        DynamicSegment(param_name, _) -> to_pascal_case(param_name)
+        StaticSegment(name) -> justin.pascal_case(name)
+        DynamicSegment(param_name, _) -> justin.pascal_case(param_name)
       }
     })
     |> string.join("")

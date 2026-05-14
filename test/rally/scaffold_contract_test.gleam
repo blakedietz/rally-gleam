@@ -4,12 +4,12 @@ import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
 import libero/codegen_dispatch
-import rally/generator
-import rally/generator/client
-import rally/generator/ssr_handler
-import rally/generator/ws_handler
-import rally/init
-import rally/types.{
+import rally/internal/generator
+import rally/internal/generator/client
+import rally/internal/generator/ssr_handler
+import rally/internal/generator/ws_handler
+import rally/internal/init
+import rally/internal/types.{
   type ScanConfig, PageContract, ScanConfig, ScannedRoute, StaticSegment,
 }
 import simplifile

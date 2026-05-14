@@ -3,11 +3,6 @@ import gleeunit/should
 import rally_runtime/db
 import sqlight
 
-pub fn collapse_whitespace_collapses_runs_test() {
-  db.collapse_whitespace(" select   *\n\tfrom    users ")
-  |> should.equal("select * from users")
-}
-
 pub fn transaction_rolls_back_failed_body_test() {
   let assert Ok(conn) = sqlight.open(":memory:")
   let assert Ok(_) =
