@@ -13,6 +13,8 @@ import public/client_context.{type ClientContext, SignedIn, SignedOut, User}
 import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 
+// MODEL
+
 pub type Model {
   Model(
     image: String,
@@ -24,6 +26,15 @@ pub type Model {
   )
 }
 
+pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
+  #(
+    Model(image: "", username: "", bio: "", email: "", password: "", errors: []),
+    effect.none(),
+  )
+}
+
+// UPDATE
+
 pub type Msg {
   UpdatedImage(String)
   UpdatedUsername(String)
@@ -34,27 +45,6 @@ pub type Msg {
   ClickedLogout
   GotUpdate(Result(#(String, String), List(String)))
   GotLogout(Result(Nil, Nil))
-}
-
-pub type ServerUpdateSettings {
-  ServerUpdateSettings(
-    image: String,
-    username: String,
-    bio: String,
-    email: String,
-    password: String,
-  )
-}
-
-pub type ServerLogout {
-  ServerLogout
-}
-
-pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
-  #(
-    Model(image: "", username: "", bio: "", email: "", password: "", errors: []),
-    effect.none(),
-  )
 }
 
 pub fn update(
@@ -100,6 +90,8 @@ pub fn update(
     GotLogout(Error(_error)) -> #(model, effect.none())
   }
 }
+
+// VIEW
 
 pub fn view(_client_context: ClientContext, model: Model) -> Element(Msg) {
   html.div([attr.class("settings-page")], [
@@ -187,7 +179,21 @@ fn error_list(errors: List(String)) -> Element(msg) {
   })
 }
 
-// --- Server handlers ---
+// SERVER
+
+pub type ServerUpdateSettings {
+  ServerUpdateSettings(
+    image: String,
+    username: String,
+    bio: String,
+    email: String,
+    password: String,
+  )
+}
+
+pub type ServerLogout {
+  ServerLogout
+}
 
 pub fn server_update_settings(
   msg msg: ServerUpdateSettings,

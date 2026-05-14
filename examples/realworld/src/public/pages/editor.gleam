@@ -16,6 +16,8 @@ import server_context.{type ServerContext}
 import slug
 import sqlight
 
+// MODEL
+
 pub type Model {
   Model(
     title: String,
@@ -24,26 +26,6 @@ pub type Model {
     tag_input: String,
     tags: List(String),
     errors: List(String),
-  )
-}
-
-pub type Msg {
-  UpdatedTitle(String)
-  UpdatedDescription(String)
-  UpdatedBody(String)
-  UpdatedTagInput(String)
-  AddedTag
-  RemovedTag(String)
-  ClickedPublish
-  GotPublish(Result(String, List(String)))
-}
-
-pub type ServerPublishArticle {
-  ServerPublishArticle(
-    title: String,
-    description: String,
-    body: String,
-    tags: List(String),
   )
 }
 
@@ -59,6 +41,19 @@ pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
     ),
     effect.none(),
   )
+}
+
+// UPDATE
+
+pub type Msg {
+  UpdatedTitle(String)
+  UpdatedDescription(String)
+  UpdatedBody(String)
+  UpdatedTagInput(String)
+  AddedTag
+  RemovedTag(String)
+  ClickedPublish
+  GotPublish(Result(String, List(String)))
 }
 
 pub fn update(
@@ -107,6 +102,8 @@ pub fn update(
     GotPublish(Error(errors)) -> #(Model(..model, errors:), effect.none())
   }
 }
+
+// VIEW
 
 pub fn view(_client_context: ClientContext, model: Model) -> Element(Msg) {
   html.div([attr.class("editor-page")], [
@@ -190,7 +187,16 @@ fn error_list(errors: List(String)) -> Element(msg) {
   })
 }
 
-// --- Server handler ---
+// SERVER
+
+pub type ServerPublishArticle {
+  ServerPublishArticle(
+    title: String,
+    description: String,
+    body: String,
+    tags: List(String),
+  )
+}
 
 pub fn server_publish_article(
   msg msg: ServerPublishArticle,

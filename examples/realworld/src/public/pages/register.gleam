@@ -13,9 +13,17 @@ import public/client_context.{type ClientContext, SignedIn, User}
 import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 
+// MODEL
+
 pub type Model {
   Model(username: String, email: String, password: String, errors: List(String))
 }
+
+pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
+  #(Model(username: "", email: "", password: "", errors: []), effect.none())
+}
+
+// UPDATE
 
 pub type Msg {
   UpdatedUsername(String)
@@ -23,14 +31,6 @@ pub type Msg {
   UpdatedPassword(String)
   ClickedRegister
   GotRegister(Result(#(String, String), List(String)))
-}
-
-pub type ServerRegister {
-  ServerRegister(username: String, email: String, password: String)
-}
-
-pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
-  #(Model(username: "", email: "", password: "", errors: []), effect.none())
 }
 
 pub fn update(
@@ -63,6 +63,8 @@ pub fn update(
     GotRegister(Error(errors)) -> #(Model(..model, errors:), effect.none())
   }
 }
+
+// VIEW
 
 pub fn view(_client_context: ClientContext, model: Model) -> Element(Msg) {
   html.div([attr.class("auth-page")], [
@@ -121,7 +123,11 @@ fn fieldset_input(
   ])
 }
 
-// --- Server handler ---
+// SERVER
+
+pub type ServerRegister {
+  ServerRegister(username: String, email: String, password: String)
+}
 
 pub fn server_register(
   msg msg: ServerRegister,

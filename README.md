@@ -140,7 +140,7 @@ The client package is a standalone Gleam project. The server project is the inpu
 
 ## Examples
 
-- `examples/realworld/`: [RealWorld](https://github.com/gothinkster/realworld) (Conduit) clone with auth, articles, comments, tags, favorites, follows. Uses both RPC and stateful server models. See [its README](https://github.com/pairshaped/rally-gleam/blob/master/examples/realworld/README.md).
+- [`examples/realworld/`](https://github.com/pairshaped/rally-gleam/tree/master/examples/realworld): Conduit clone with auth, articles, comments, tags, favorites, follows. Uses both RPC and stateful server models.
 
 ## More docs
 

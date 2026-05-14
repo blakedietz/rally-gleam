@@ -20,6 +20,8 @@ import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 import sqlight
 
+// MODEL
+
 pub type Model {
   Model(
     article: Option(Article),
@@ -57,48 +59,6 @@ pub type Comment {
   )
 }
 
-pub type Msg {
-  ClickedFavorite
-  ClickedFollow(String)
-  UpdatedComment(String)
-  ClickedSubmitComment
-  ClickedDeleteComment(Int)
-  ClickedDeleteArticle
-  GotServerMsg(ToClient)
-}
-
-pub type ToServer {
-  ToggleFavorite
-  ToggleFollow(username: String)
-  SubmitComment(body: String)
-  DeleteComment(id: Int)
-  DeleteArticle
-}
-
-pub type ToClient {
-  ArticleData(
-    article: Article,
-    comments: List(Comment),
-    is_favorited: Bool,
-    is_following: Bool,
-    favorites_count: Int,
-  )
-  FavoriteUpdated(count: Int, is_favorited: Bool)
-  FavoriteCountUpdated(count: Int)
-  FollowUpdated(is_following: Bool)
-  CommentAdded(Comment)
-  CommentRemoved(id: Int)
-  ArticleDeleted
-  ArticleError(String)
-}
-
-pub type ServerModel {
-  ServerModel(article_id: Int, author_id: Int)
-  ServerModelEmpty
-}
-
-// --- Client ---
-
 pub fn init(
   _client_context: ClientContext,
   _slug: String,
@@ -115,6 +75,18 @@ pub fn init(
     ),
     effect.none(),
   )
+}
+
+// UPDATE
+
+pub type Msg {
+  ClickedFavorite
+  ClickedFollow(String)
+  UpdatedComment(String)
+  ClickedSubmitComment
+  ClickedDeleteComment(Int)
+  ClickedDeleteArticle
+  GotServerMsg(ToClient)
 }
 
 pub fn update(
@@ -186,7 +158,7 @@ pub fn update(
   }
 }
 
-// --- View ---
+// VIEW
 
 pub fn view(client_context: ClientContext, model: Model) -> Element(Msg) {
   case model.article {
@@ -385,7 +357,37 @@ fn comment_card(comment: Comment) -> Element(Msg) {
   ])
 }
 
-// --- Server ---
+// SERVER
+
+pub type ToServer {
+  ToggleFavorite
+  ToggleFollow(username: String)
+  SubmitComment(body: String)
+  DeleteComment(id: Int)
+  DeleteArticle
+}
+
+pub type ToClient {
+  ArticleData(
+    article: Article,
+    comments: List(Comment),
+    is_favorited: Bool,
+    is_following: Bool,
+    favorites_count: Int,
+  )
+  FavoriteUpdated(count: Int, is_favorited: Bool)
+  FavoriteCountUpdated(count: Int)
+  FollowUpdated(is_following: Bool)
+  CommentAdded(Comment)
+  CommentRemoved(id: Int)
+  ArticleDeleted
+  ArticleError(String)
+}
+
+pub type ServerModel {
+  ServerModel(article_id: Int, author_id: Int)
+  ServerModelEmpty
+}
 
 pub fn server_init(
   server_context: ServerContext,
@@ -701,8 +703,6 @@ pub fn server_update(
     }
   }
 }
-
-// --- Helpers ---
 
 fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
   let now = datetime.now_unix()

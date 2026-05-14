@@ -13,23 +13,23 @@ import public/client_context.{type ClientContext, SignedIn, User}
 import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 
+// MODEL
+
 pub type Model {
   Model(email: String, password: String, errors: List(String))
 }
+
+pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
+  #(Model(email: "", password: "", errors: []), effect.none())
+}
+
+// UPDATE
 
 pub type Msg {
   UpdatedEmail(String)
   UpdatedPassword(String)
   ClickedLogin
   GotLogin(Result(#(String, String), List(String)))
-}
-
-pub type ServerLogin {
-  ServerLogin(email: String, password: String)
-}
-
-pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
-  #(Model(email: "", password: "", errors: []), effect.none())
 }
 
 pub fn update(
@@ -57,6 +57,8 @@ pub fn update(
     GotLogin(Error(errors)) -> #(Model(..model, errors:), effect.none())
   }
 }
+
+// VIEW
 
 pub fn view(_client_context: ClientContext, model: Model) -> Element(Msg) {
   html.div([attr.class("auth-page")], [
@@ -116,7 +118,11 @@ fn fieldset_input(
   ])
 }
 
-// --- Server handler ---
+// SERVER
+
+pub type ServerLogin {
+  ServerLogin(email: String, password: String)
+}
 
 pub fn server_login(
   msg msg: ServerLogin,

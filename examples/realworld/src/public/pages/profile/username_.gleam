@@ -17,6 +17,8 @@ import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 import sqlight
 
+// MODEL
+
 pub type Model {
   Model(
     profile: Option(Profile),
@@ -47,34 +49,6 @@ pub type ProfileTab {
   FavoritedArticles
 }
 
-pub type Msg {
-  ClickedFollow
-  ClickedTab(ProfileTab)
-  GotServerMsg(ToClient)
-}
-
-pub type ToServer {
-  ToggleFollow
-  SwitchTab(tab_name: String)
-}
-
-pub type ToClient {
-  ProfileData(
-    profile: Profile,
-    articles: List(ArticlePreview),
-    is_following: Bool,
-  )
-  FollowUpdated(Bool)
-  ProfileArticles(List(ArticlePreview))
-}
-
-pub type ServerModel {
-  ServerModel(profile_user_id: Int)
-  ServerModelEmpty
-}
-
-// --- Client ---
-
 pub fn init(
   _client_context: ClientContext,
   _username: String,
@@ -88,6 +62,14 @@ pub fn init(
     ),
     effect.none(),
   )
+}
+
+// UPDATE
+
+pub type Msg {
+  ClickedFollow
+  ClickedTab(ProfileTab)
+  GotServerMsg(ToClient)
 }
 
 pub fn update(
@@ -122,7 +104,7 @@ pub fn update(
   }
 }
 
-// --- View ---
+// VIEW
 
 pub fn view(_client_context: ClientContext, model: Model) -> Element(Msg) {
   case model.profile {
@@ -238,7 +220,27 @@ fn article_preview(article: ArticlePreview) -> Element(Msg) {
   ])
 }
 
-// --- Server ---
+// SERVER
+
+pub type ToServer {
+  ToggleFollow
+  SwitchTab(tab_name: String)
+}
+
+pub type ToClient {
+  ProfileData(
+    profile: Profile,
+    articles: List(ArticlePreview),
+    is_following: Bool,
+  )
+  FollowUpdated(Bool)
+  ProfileArticles(List(ArticlePreview))
+}
+
+pub type ServerModel {
+  ServerModel(profile_user_id: Int)
+  ServerModelEmpty
+}
 
 pub fn server_init(
   server_context: ServerContext,
@@ -327,8 +329,6 @@ pub fn server_update(
     }
   }
 }
-
-// --- Helpers ---
 
 fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
   let now = datetime.now_unix()

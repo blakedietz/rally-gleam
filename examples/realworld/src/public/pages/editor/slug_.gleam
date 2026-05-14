@@ -16,6 +16,8 @@ import server_context.{type ServerContext}
 import slug
 import sqlight
 
+// MODEL
+
 pub type Model {
   Model(
     slug: String,
@@ -28,44 +30,6 @@ pub type Model {
     loaded: Bool,
   )
 }
-
-pub type Msg {
-  UpdatedTitle(String)
-  UpdatedDescription(String)
-  UpdatedBody(String)
-  UpdatedTagInput(String)
-  AddedTag
-  RemovedTag(String)
-  ClickedUpdate
-  GotServerMsg(ToClient)
-}
-
-pub type ToServer {
-  UpdateArticle(
-    title: String,
-    description: String,
-    body: String,
-    tags: List(String),
-  )
-}
-
-pub type ToClient {
-  ArticleLoaded(
-    title: String,
-    description: String,
-    body: String,
-    tags: List(String),
-  )
-  ArticleUpdated(slug: String)
-  EditorErrors(errors: List(String))
-}
-
-pub type ServerModel {
-  ServerModel(article_id: Int, author_id: Int)
-  ServerModelEmpty
-}
-
-// --- Client ---
 
 pub fn init(
   _client_context: ClientContext,
@@ -84,6 +48,19 @@ pub fn init(
     ),
     effect.none(),
   )
+}
+
+// UPDATE
+
+pub type Msg {
+  UpdatedTitle(String)
+  UpdatedDescription(String)
+  UpdatedBody(String)
+  UpdatedTagInput(String)
+  AddedTag
+  RemovedTag(String)
+  ClickedUpdate
+  GotServerMsg(ToClient)
 }
 
 pub fn update(
@@ -137,7 +114,7 @@ pub fn update(
   }
 }
 
-// --- View ---
+// VIEW
 
 pub fn view(_client_context: ClientContext, model: Model) -> Element(Msg) {
   case model.loaded {
@@ -230,7 +207,32 @@ fn error_list(errors: List(String)) -> Element(msg) {
   })
 }
 
-// --- Server ---
+// SERVER
+
+pub type ToServer {
+  UpdateArticle(
+    title: String,
+    description: String,
+    body: String,
+    tags: List(String),
+  )
+}
+
+pub type ToClient {
+  ArticleLoaded(
+    title: String,
+    description: String,
+    body: String,
+    tags: List(String),
+  )
+  ArticleUpdated(slug: String)
+  EditorErrors(errors: List(String))
+}
+
+pub type ServerModel {
+  ServerModel(article_id: Int, author_id: Int)
+  ServerModelEmpty
+}
 
 pub fn server_init(
   server_context: ServerContext,

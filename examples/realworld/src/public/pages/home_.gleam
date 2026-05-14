@@ -16,6 +16,8 @@ import rally_runtime/effect as rally_effect
 import server_context.{type ServerContext}
 import sqlight
 
+// MODEL
+
 pub type Model {
   Model(
     articles: List(ArticlePreview),
@@ -44,26 +46,20 @@ pub type Tab {
   TagFeed(tag: String)
 }
 
-pub type Msg {
-  ClickedTab(Tab)
-  ClickedPage(Int)
-  ClickedTag(String)
-  GotArticles(Result(#(List(ArticlePreview), Int), Nil))
-}
-
-pub type ServerSwitchTab {
-  ServerSwitchTab(tab_name: String, tag: String)
-}
-
-pub type ServerChangePage {
-  ServerChangePage(page: Int, tab_name: String, tag: String)
-}
-
 pub fn init(_client_context: ClientContext) -> #(Model, Effect(Msg)) {
   #(
     Model(articles: [], tags: [], active_tab: GlobalFeed, page: 1, total: 0),
     effect.none(),
   )
+}
+
+// UPDATE
+
+pub type Msg {
+  ClickedTab(Tab)
+  ClickedPage(Int)
+  ClickedTag(String)
+  GotArticles(Result(#(List(ArticlePreview), Int), Nil))
 }
 
 pub fn update(
@@ -117,7 +113,7 @@ fn tab_to_wire(tab: Tab) -> #(String, String) {
   }
 }
 
-// --- View ---
+// VIEW
 
 pub fn view(client_context: ClientContext, model: Model) -> Element(Msg) {
   html.div([attr.class("home-page")], [
@@ -270,7 +266,30 @@ fn pagination(current_page: Int, total: Int) -> Element(Msg) {
   }
 }
 
-// --- SSR ---
+// SERVER
+
+pub type ServerSwitchTab {
+  ServerSwitchTab(tab_name: String, tag: String)
+}
+
+pub type ServerChangePage {
+  ServerChangePage(page: Int, tab_name: String, tag: String)
+}
+
+pub fn server_switch_tab(
+  msg msg: ServerSwitchTab,
+  server_context server_context: ServerContext,
+) -> Result(#(List(ArticlePreview), Int), Nil) {
+  Ok(fetch_tab_articles(server_context.db, msg.tab_name, msg.tag, 0))
+}
+
+pub fn server_change_page(
+  msg msg: ServerChangePage,
+  server_context server_context: ServerContext,
+) -> Result(#(List(ArticlePreview), Int), Nil) {
+  let offset = { msg.page - 1 } * 10
+  Ok(fetch_tab_articles(server_context.db, msg.tab_name, msg.tag, offset))
+}
 
 pub fn load(server_context: ServerContext) -> Model {
   let assert Ok(rows) =
@@ -297,23 +316,6 @@ pub fn load(server_context: ServerContext) -> Model {
     page: 1,
     total: count_row.count,
   )
-}
-
-// --- Server handlers ---
-
-pub fn server_switch_tab(
-  msg msg: ServerSwitchTab,
-  server_context server_context: ServerContext,
-) -> Result(#(List(ArticlePreview), Int), Nil) {
-  Ok(fetch_tab_articles(server_context.db, msg.tab_name, msg.tag, 0))
-}
-
-pub fn server_change_page(
-  msg msg: ServerChangePage,
-  server_context server_context: ServerContext,
-) -> Result(#(List(ArticlePreview), Int), Nil) {
-  let offset = { msg.page - 1 } * 10
-  Ok(fetch_tab_articles(server_context.db, msg.tab_name, msg.tag, offset))
 }
 
 fn fetch_tab_articles(
