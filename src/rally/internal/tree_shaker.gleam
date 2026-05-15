@@ -373,113 +373,189 @@ fn extract_pattern_refs(pattern: glance.Pattern) -> List(String) {
   }
 }
 
-// -- Module-qualified reference extraction --
-// Parallel walkers that only capture names used in qualified access:
-// FieldAccess(container: Variable(name)), PatternVariant(module: Some(name)),
-// NamedType(module: Some(name)). Prevents local variable names from falsely
-// keeping same-named module imports alive.
+// -- Module-qualified reference extraction (scope-aware) --
+// Captures names used in qualified access: FieldAccess(container: Variable(name)),
+// PatternVariant(module: Some(name)), NamedType(module: Some(name)).
+// Threads a bindings set so that locally-bound names (function params, let
+// patterns, case pattern vars, closure params) are excluded from module refs
+// within their scope.
 
-fn extract_stmt_module_refs(stmt: glance.Statement) -> List(String) {
-  case stmt {
-    glance.Use(_, _, expr) -> extract_expr_module_refs(expr)
-    glance.Assignment(value: expr, ..) -> extract_expr_module_refs(expr)
-    glance.Assert(expression: expr, ..) -> extract_expr_module_refs(expr)
-    glance.Expression(expr) -> extract_expr_module_refs(expr)
+fn extract_stmts_module_refs(
+  stmts: List(glance.Statement),
+  bindings: Set(String),
+) -> List(String) {
+  case stmts {
+    [] -> []
+    [stmt, ..rest] -> {
+      let #(refs, updated) = extract_stmt_module_refs(stmt, bindings)
+      list.append(refs, extract_stmts_module_refs(rest, updated))
+    }
   }
 }
 
-fn extract_expr_module_refs(expr: glance.Expression) -> List(String) {
+fn extract_stmt_module_refs(
+  stmt: glance.Statement,
+  bindings: Set(String),
+) -> #(List(String), Set(String)) {
+  case stmt {
+    glance.Assignment(pattern:, value:, ..) -> {
+      let refs = extract_expr_module_refs(value, bindings)
+      let new = collect_pattern_var_names(pattern) |> set.from_list
+      #(refs, set.union(bindings, new))
+    }
+    glance.Use(_, patterns, expr) -> {
+      let refs = extract_expr_module_refs(expr, bindings)
+      let new =
+        list.flat_map(patterns, fn(up: glance.UsePattern) {
+          collect_pattern_var_names(up.pattern)
+        })
+        |> set.from_list
+      #(refs, set.union(bindings, new))
+    }
+    glance.Assert(expression: expr, ..) -> #(
+      extract_expr_module_refs(expr, bindings),
+      bindings,
+    )
+    glance.Expression(expr) -> #(
+      extract_expr_module_refs(expr, bindings),
+      bindings,
+    )
+  }
+}
+
+fn extract_expr_module_refs(
+  expr: glance.Expression,
+  bindings: Set(String),
+) -> List(String) {
   case expr {
-    glance.FieldAccess(container: glance.Variable(name:, ..), ..) -> [name]
-    glance.FieldAccess(container:, ..) -> extract_expr_module_refs(container)
+    glance.FieldAccess(container: glance.Variable(name:, ..), ..) ->
+      case set.contains(bindings, name) {
+        True -> []
+        False -> [name]
+      }
+    glance.FieldAccess(container:, ..) ->
+      extract_expr_module_refs(container, bindings)
     glance.Call(function:, arguments:, ..) ->
       list.append(
-        extract_expr_module_refs(function),
+        extract_expr_module_refs(function, bindings),
         list.flat_map(arguments, fn(a) {
           case a {
-            glance.LabelledField(item: v, ..) -> extract_expr_module_refs(v)
-            glance.UnlabelledField(item: v) -> extract_expr_module_refs(v)
+            glance.LabelledField(item: v, ..) ->
+              extract_expr_module_refs(v, bindings)
+            glance.UnlabelledField(item: v) ->
+              extract_expr_module_refs(v, bindings)
             glance.ShorthandField(..) -> []
           }
         }),
       )
-    glance.Fn(body:, ..) -> list.flat_map(body, extract_stmt_module_refs)
+    glance.Fn(arguments:, body:, ..) -> {
+      let fn_bindings =
+        list.filter_map(arguments, fn(p: glance.FnParameter) {
+          case p.name {
+            glance.Named(name) -> Ok(name)
+            glance.Discarded(_) -> Error(Nil)
+          }
+        })
+        |> set.from_list
+      extract_stmts_module_refs(body, set.union(bindings, fn_bindings))
+    }
     glance.Block(statements:, ..) ->
-      list.flat_map(statements, extract_stmt_module_refs)
+      extract_stmts_module_refs(statements, bindings)
     glance.Case(subjects:, clauses:, ..) ->
       list.append(
-        list.flat_map(subjects, extract_expr_module_refs),
+        list.flat_map(subjects, fn(e) {
+          extract_expr_module_refs(e, bindings)
+        }),
         list.flat_map(clauses, fn(c: glance.Clause) {
+          let clause_bindings =
+            list.flat_map(c.patterns, fn(ps) {
+              list.flat_map(ps, collect_pattern_var_names)
+            })
+            |> set.from_list
+          let inner = set.union(bindings, clause_bindings)
           list.flatten([
             list.flat_map(c.patterns, fn(ps) {
               list.flat_map(ps, extract_pat_module_refs)
             }),
             case c.guard {
-              Some(guard) -> extract_expr_module_refs(guard)
+              Some(guard) -> extract_expr_module_refs(guard, inner)
               None -> []
             },
-            extract_expr_module_refs(c.body),
+            extract_expr_module_refs(c.body, inner),
           ])
         }),
       )
     glance.Tuple(elements:, ..) ->
-      list.flat_map(elements, extract_expr_module_refs)
-    glance.List(elements:, rest:, ..) ->
-      list.append(list.flat_map(elements, extract_expr_module_refs), case rest {
-        Some(r) -> extract_expr_module_refs(r)
-        None -> []
+      list.flat_map(elements, fn(e) {
+        extract_expr_module_refs(e, bindings)
       })
+    glance.List(elements:, rest:, ..) ->
+      list.append(
+        list.flat_map(elements, fn(e) {
+          extract_expr_module_refs(e, bindings)
+        }),
+        case rest {
+          Some(r) -> extract_expr_module_refs(r, bindings)
+          None -> []
+        },
+      )
     glance.RecordUpdate(record:, fields:, ..) ->
       list.append(
-        extract_expr_module_refs(record),
+        extract_expr_module_refs(record, bindings),
         list.flat_map(fields, fn(f) {
           case f.item {
-            Some(v) -> extract_expr_module_refs(v)
+            Some(v) -> extract_expr_module_refs(v, bindings)
             None -> []
           }
         }),
       )
     glance.BinaryOperator(left:, right:, ..) ->
       list.append(
-        extract_expr_module_refs(left),
-        extract_expr_module_refs(right),
+        extract_expr_module_refs(left, bindings),
+        extract_expr_module_refs(right, bindings),
       )
-    glance.NegateInt(value:, ..) -> extract_expr_module_refs(value)
-    glance.NegateBool(value:, ..) -> extract_expr_module_refs(value)
+    glance.NegateInt(value:, ..) -> extract_expr_module_refs(value, bindings)
+    glance.NegateBool(value:, ..) -> extract_expr_module_refs(value, bindings)
     glance.Panic(message:, ..) ->
       case message {
-        Some(v) -> extract_expr_module_refs(v)
+        Some(v) -> extract_expr_module_refs(v, bindings)
         None -> []
       }
     glance.Todo(message:, ..) ->
       case message {
-        Some(v) -> extract_expr_module_refs(v)
+        Some(v) -> extract_expr_module_refs(v, bindings)
         None -> []
       }
-    glance.TupleIndex(tuple:, ..) -> extract_expr_module_refs(tuple)
+    glance.TupleIndex(tuple:, ..) -> extract_expr_module_refs(tuple, bindings)
     glance.FnCapture(function:, arguments_before:, arguments_after:, ..) ->
       list.flatten([
-        extract_expr_module_refs(function),
+        extract_expr_module_refs(function, bindings),
         list.flat_map(arguments_before, fn(a) {
           case a {
-            glance.LabelledField(item: v, ..) -> extract_expr_module_refs(v)
-            glance.UnlabelledField(item: v) -> extract_expr_module_refs(v)
+            glance.LabelledField(item: v, ..) ->
+              extract_expr_module_refs(v, bindings)
+            glance.UnlabelledField(item: v) ->
+              extract_expr_module_refs(v, bindings)
             glance.ShorthandField(..) -> []
           }
         }),
         list.flat_map(arguments_after, fn(a) {
           case a {
-            glance.LabelledField(item: v, ..) -> extract_expr_module_refs(v)
-            glance.UnlabelledField(item: v) -> extract_expr_module_refs(v)
+            glance.LabelledField(item: v, ..) ->
+              extract_expr_module_refs(v, bindings)
+            glance.UnlabelledField(item: v) ->
+              extract_expr_module_refs(v, bindings)
             glance.ShorthandField(..) -> []
           }
         }),
       ])
     glance.BitString(segments:, ..) ->
-      list.flat_map(segments, fn(seg) { extract_expr_module_refs(seg.0) })
+      list.flat_map(segments, fn(seg) {
+        extract_expr_module_refs(seg.0, bindings)
+      })
     glance.Echo(expression:, ..) ->
       case expression {
-        Some(v) -> extract_expr_module_refs(v)
+        Some(v) -> extract_expr_module_refs(v, bindings)
         None -> []
       }
     glance.Variable(..) -> []
@@ -521,96 +597,7 @@ fn extract_pat_module_refs(pattern: glance.Pattern) -> List(String) {
   }
 }
 
-// -- Variable binding collection (for disambiguating FieldAccess) --
-
-fn collect_fn_bindings(f: glance.Function) -> Set(String) {
-  let param_names =
-    list.filter_map(f.parameters, fn(p) {
-      case p.name {
-        glance.Named(name) -> Ok(name)
-        glance.Discarded(_) -> Error(Nil)
-      }
-    })
-  let body_bindings = list.flat_map(f.body, collect_stmt_var_names)
-  list.append(param_names, body_bindings) |> set.from_list
-}
-
-fn collect_stmt_var_names(stmt: glance.Statement) -> List(String) {
-  case stmt {
-    glance.Assignment(pattern:, value:, ..) ->
-      list.append(
-        collect_pattern_var_names(pattern),
-        collect_expr_var_names(value),
-      )
-    glance.Assert(expression:, ..) -> collect_expr_var_names(expression)
-    glance.Use(_, _, expr) -> collect_expr_var_names(expr)
-    glance.Expression(expr) -> collect_expr_var_names(expr)
-  }
-}
-
-fn collect_expr_var_names(expr: glance.Expression) -> List(String) {
-  case expr {
-    glance.Fn(arguments:, body:, ..) -> {
-      let params =
-        list.filter_map(arguments, fn(p: glance.FnParameter) {
-          case p.name {
-            glance.Named(name) -> Ok(name)
-            glance.Discarded(_) -> Error(Nil)
-          }
-        })
-      list.append(params, list.flat_map(body, collect_stmt_var_names))
-    }
-    glance.Case(subjects:, clauses:, ..) ->
-      list.append(
-        list.flat_map(subjects, collect_expr_var_names),
-        list.flat_map(clauses, fn(c: glance.Clause) {
-          list.append(
-            list.flat_map(c.patterns, fn(ps) {
-              list.flat_map(ps, collect_pattern_var_names)
-            }),
-            collect_expr_var_names(c.body),
-          )
-        }),
-      )
-    glance.Block(statements:, ..) ->
-      list.flat_map(statements, collect_stmt_var_names)
-    glance.Call(function:, arguments:, ..) ->
-      list.append(
-        collect_expr_var_names(function),
-        list.flat_map(arguments, fn(a) {
-          case a {
-            glance.LabelledField(item: v, ..) -> collect_expr_var_names(v)
-            glance.UnlabelledField(item: v) -> collect_expr_var_names(v)
-            glance.ShorthandField(..) -> []
-          }
-        }),
-      )
-    glance.Tuple(elements:, ..) ->
-      list.flat_map(elements, collect_expr_var_names)
-    glance.List(elements:, rest:, ..) ->
-      list.append(list.flat_map(elements, collect_expr_var_names), case rest {
-        Some(r) -> collect_expr_var_names(r)
-        None -> []
-      })
-    glance.RecordUpdate(record:, fields:, ..) ->
-      list.append(
-        collect_expr_var_names(record),
-        list.flat_map(fields, fn(f) {
-          case f.item {
-            Some(v) -> collect_expr_var_names(v)
-            None -> []
-          }
-        }),
-      )
-    glance.BinaryOperator(left:, right:, ..) ->
-      list.append(collect_expr_var_names(left), collect_expr_var_names(right))
-    glance.FieldAccess(container:, ..) -> collect_expr_var_names(container)
-    glance.TupleIndex(tuple:, ..) -> collect_expr_var_names(tuple)
-    glance.NegateInt(value:, ..) -> collect_expr_var_names(value)
-    glance.NegateBool(value:, ..) -> collect_expr_var_names(value)
-    _ -> []
-  }
-}
+// -- Variable binding collection (used by scope-aware module ref extraction) --
 
 fn collect_pattern_var_names(pattern: glance.Pattern) -> List(String) {
   case pattern {
@@ -775,10 +762,15 @@ fn collect_module_refs(
   let body_refs =
     list.flat_map(client_fns, fn(def) {
       let f = def.definition
-      let bindings = collect_fn_bindings(f)
-      f.body
-      |> list.flat_map(extract_stmt_module_refs)
-      |> list.filter(fn(name) { !set.contains(bindings, name) })
+      let param_bindings =
+        list.filter_map(f.parameters, fn(p) {
+          case p.name {
+            glance.Named(name) -> Ok(name)
+            glance.Discarded(_) -> Error(Nil)
+          }
+        })
+        |> set.from_list
+      extract_stmts_module_refs(f.body, param_bindings)
     })
 
   let sig_refs =

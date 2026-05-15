@@ -666,6 +666,42 @@ pub fn view(model: Model) -> Element(Msg) {
   result |> string.contains("pub fn view(") |> should.be_true()
 }
 
+// -- Test: module access in sibling clause survives binding in another clause --
+
+pub fn keeps_import_when_module_used_in_sibling_case_clause_test() {
+  let source =
+    "import gleam/result
+
+pub type DataResult { DataResult(rows: List(String), total: Int) }
+pub type Model { Model(data: Option(DataResult)) }
+pub type Msg {
+  GotData(Result(DataResult, String))
+  ApplyFilters(formdata: List(#(String, String)))
+}
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case msg {
+    GotData(Ok(result)) -> #(
+      Model(..model, data: Some(result)),
+      effect.none(),
+    )
+    GotData(Error(_)) -> #(model, effect.none())
+    ApplyFilters(formdata) -> {
+      let get = fn(key) { list.key_find(formdata, key) |> result.unwrap(\"\") }
+      #(model, effect.none())
+    }
+  }
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // `result` is bound in the GotData clause but used as a MODULE in the
+  // ApplyFilters clause (result.unwrap). The import must survive.
+  result |> string.contains("gleam/result") |> should.be_true()
+  result |> string.contains("pub fn update(") |> should.be_true()
+}
+
 // -- Test: case-pattern binding with field access does not keep module --
 
 pub fn drops_import_when_case_pattern_binds_and_accesses_fields_test() {
