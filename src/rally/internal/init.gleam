@@ -20,6 +20,7 @@ pub fn init_project(root: String) -> Result(Nil, String) {
 pub fn files(project_name: String) -> List(ScaffoldFile) {
   [
     ScaffoldFile(".gitignore", gitignore()),
+    ScaffoldFile(".env", env_example()),
     ScaffoldFile(".env.example", env_example()),
     ScaffoldFile("gleam.toml", gleam_toml(project_name)),
     ScaffoldFile("src/public/pages/home_.gleam", home_page()),
@@ -112,6 +113,7 @@ fn run_executable(program: String, args: List(String)) -> Int
 
 fn gitignore() -> String {
   "build/
+.env
 app.db
 erl_crash.dump
 *.bak

@@ -30,6 +30,15 @@ pub fn init_project_writes_hex_scaffold_test() {
   |> string.contains("libero = \">= 6.0.0 and < 7.0.0\"")
   |> should.be_true()
 
+  let assert Ok(env) = simplifile.read(dir <> "/.env")
+  let assert Ok(env_example) = simplifile.read(dir <> "/.env.example")
+  env |> should.equal(env_example)
+  env |> string.contains("APP_ENV=dev") |> should.be_true()
+  env |> string.contains("LOG_LEVEL=debug") |> should.be_true()
+
+  let assert Ok(gitignore) = simplifile.read(dir <> "/.gitignore")
+  gitignore |> string.contains(".env") |> should.be_true()
+
   let assert Ok(home) = simplifile.read(dir <> "/src/public/pages/home_.gleam")
   home |> string.contains("pub fn server_increment") |> should.be_true()
 
