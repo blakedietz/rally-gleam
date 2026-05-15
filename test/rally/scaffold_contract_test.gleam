@@ -101,7 +101,9 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
   |> should.equal(True)
 
   script
-  |> string.contains("import server_context.{ServerContext}")
+  |> string.contains(
+    "import server_context.{type ServerContext, ServerContext}",
+  )
   |> should.equal(True)
 
   script

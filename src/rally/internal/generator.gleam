@@ -987,6 +987,7 @@ fn etf_protocol_wire_source(
   server_context server_context: ServerContext,
   identity identity: auth.Identity,
 ) -> #(RpcResult, ServerContext) {
+  ensure_atoms()
   let #(data, server_context) =
     rpc_dispatch.handle(server_context:, data: envelope.raw, identity:)
   #(RpcResult(data:), server_context)
@@ -997,6 +998,7 @@ fn etf_protocol_wire_source(
   envelope envelope: RpcEnvelope,
   server_context server_context: ServerContext,
 ) -> #(RpcResult, ServerContext) {
+  ensure_atoms()
   let #(data, server_context) =
     rpc_dispatch.handle(server_context:, data: envelope.raw)
   #(RpcResult(data:), server_context)

@@ -85,6 +85,10 @@ pub fn generate(
     "json" -> ""
     _ -> "import gleam/bit_array\n"
   }
+  let option_import = case protocol {
+    "json" -> "import gleam/option.{None, Some}\n"
+    _ -> "import gleam/option.{Some}\n"
+  }
   let time_imports =
     "import gleam/time/duration\n" <> "import gleam/time/timestamp\n"
   let header =
@@ -92,7 +96,9 @@ pub fn generate(
     <> bit_array_import
     <> dynamic_import
     <> time_imports
-    <> "import gleam/int\nimport gleam/io\nimport gleam/list\nimport gleam/option.{None, Some}\nimport gleam/erlang/process\nimport rally_runtime/internal/effect_state\nimport rally_runtime/env\n"
+    <> "import gleam/int\nimport gleam/io\nimport gleam/list\n"
+    <> option_import
+    <> "import gleam/erlang/process\nimport rally_runtime/internal/effect_state\nimport rally_runtime/env\n"
     <> import_as(wire_import_module, "wire")
     <> "\n"
     <> effect_runner_import

@@ -251,7 +251,7 @@ import gleam/erlang/process
 import gleam/http.{Get, Post}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response
-import mist.{type Connection, type ResponseData}
+import mist.{type Connection}
 import generated/public/http_handler as http_handler
 import generated/public/router as router
 import generated/public/ssr_handler as ssr_handler
@@ -260,7 +260,7 @@ import rally_runtime/db
 import rally_runtime/env
 import rally_runtime/session
 import rally_runtime/system
-import server_context.{ServerContext}
+import server_context.{type ServerContext, ServerContext}
 import simplifile
 import sqlight
 
