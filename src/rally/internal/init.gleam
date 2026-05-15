@@ -416,6 +416,7 @@ import sqlight
 const client_build_root = \".generated_clients/public/build/dev/javascript\"
 
 pub fn main() {
+  load_dotenv()
   let db = start_db()
   system.start(\"system.db\")
   let server_context = ServerContext(db:)
@@ -468,6 +469,56 @@ pub fn main() {
     |> mist.port(port)
     |> mist.start
   process.sleep_forever()
+}
+
+fn load_dotenv() -> Nil {
+  case simplifile.read(\".env\") {
+    Ok(contents) ->
+      contents
+      |> string.split(\"\\n\")
+      |> list.each(load_dotenv_line)
+    Error(_) -> Nil
+  }
+}
+
+fn load_dotenv_line(raw_line: String) -> Nil {
+  let line = string.trim(raw_line)
+  case line == \"\" || string.starts_with(line, \"#\") {
+    True -> Nil
+    False -> {
+      let line = case string.starts_with(line, \"export \") {
+        True -> string.drop_start(line, 7)
+        False -> line
+      }
+      case string.split_once(line, \"=\") {
+        Ok(#(name, value)) -> set_env_if_missing(string.trim(name), value)
+        Error(_) -> Nil
+      }
+    }
+  }
+}
+
+fn set_env_if_missing(name: String, value: String) -> Nil {
+  case name == \"\" {
+    True -> Nil
+    False ->
+      case envoy.get(name) {
+        Ok(_) -> Nil
+        Error(_) -> envoy.set(name, clean_env_value(value))
+      }
+  }
+}
+
+fn clean_env_value(value: String) -> String {
+  let value = string.trim(value)
+  case string.starts_with(value, \"\\\"\") && string.ends_with(value, \"\\\"\") {
+    True -> value |> string.drop_start(1) |> string.drop_end(1)
+    False ->
+      case string.starts_with(value, \"'\") && string.ends_with(value, \"'\") {
+        True -> value |> string.drop_start(1) |> string.drop_end(1)
+        False -> value
+      }
+  }
 }
 
 fn server_port() -> Int {

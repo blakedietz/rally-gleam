@@ -17,14 +17,11 @@ gleam new my_app
 cd my_app
 gleam add rally libero
 gleam run -m rally init
-gleam run -m rally
-cd .generated_clients/public
-gleam build --target javascript
-cd ../..
+gleam run -m rally build
 gleam run
 ```
 
-`rally init` creates the starter app files, including `src/my_app.gleam`. It only replaces the default files from `gleam new` or files from a previous Rally scaffold. If another target file already exists, Rally stops before writing anything and reports the path. After that, run Rally codegen (scans `src/<namespace>/pages/`, generates namespaced router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), build the JS client, and start the server on port 8080. Open `http://localhost:8080` to see the app. To use a different port, set `PORT` in `.env` or run `PORT=8081 gleam run`.
+`rally init` creates the starter app files, including `src/my_app.gleam`. It only replaces the default files from `gleam new` or files from a previous Rally scaffold. If another target file already exists, Rally stops before writing anything and reports the path. After that, `rally build` runs Rally codegen (scans `src/<namespace>/pages/`, generates namespaced router, dispatch, RPC dispatch, SSR handler, WS handler, HTTP handler, and client package), builds every generated JS client, and runs Marmot if `[tools.marmot]` is configured. Start the server with `gleam run` on port 8080. Open `http://localhost:8080` to see the app. To use a different port, set `PORT` in `.env` or run `PORT=8081 gleam run`.
 
 `APP_ENV=dev` is the default. Set `APP_ENV=prod` in production for secure session cookies and quieter console output.
 
@@ -255,10 +252,7 @@ Integration check with the curling/v3 app:
 ```sh
 cd /Users/daverapin/projects/curling/v3
 bin/regen
-gleam run -m rally
-cd .generated_clients/public
-gleam build --target javascript
-cd ../..
+gleam run -m rally build
 gleam run
 ```
 

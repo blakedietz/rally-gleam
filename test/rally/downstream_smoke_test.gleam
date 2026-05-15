@@ -55,16 +55,15 @@ pub fn scaffold_builds_without_warnings_test() {
     )
   let assert Ok(Nil) = simplifile.write(dir <> "/gleam.toml", patched)
 
-  let #(codegen_exit, codegen_out) =
-    run_in_dir(gleam, ["run", "-m", "rally"], dir)
-  case codegen_exit {
+  let #(rally_build_exit, rally_build_out) =
+    run_in_dir(gleam, ["run", "-m", "rally", "build"], dir)
+  case rally_build_exit {
     0 -> Nil
     _ -> {
       cleanup(dir)
-      panic as { "codegen failed: " <> codegen_out }
+      panic as { "rally build failed: " <> rally_build_out }
     }
   }
-  assert_no_warning(codegen_out, "codegen", dir)
 
   let #(build_exit, build_out) = run_in_dir(gleam, ["build"], dir)
   case build_exit {

@@ -53,7 +53,7 @@ pub fn main() -> Nil {
 @external(erlang, "erlang", "halt")
 fn halt(code: Int) -> Nil
 
-fn read_configs() -> Result(List(ScanConfig), RallyError) {
+fn read_project_toml() -> Result(dict.Dict(String, tom.Toml), RallyError) {
   use toml_str <- result.try(
     simplifile.read("gleam.toml")
     |> result.map_error(fn(e) {
@@ -66,6 +66,11 @@ fn read_configs() -> Result(List(ScanConfig), RallyError) {
       RallyError("Invalid gleam.toml: " <> tom_error_to_string(e))
     }),
   )
+  Ok(toml_map)
+}
+
+fn read_configs() -> Result(List(ScanConfig), RallyError) {
+  use toml_map <- result.try(read_project_toml())
 
   let rally_config =
     tom.get_table(toml_map, ["tools", "rally"])
@@ -249,6 +254,11 @@ fn run(args: List(String)) -> Result(String, RallyError) {
       )
       Ok("initialized project")
     }
+    ["build"] -> {
+      use configs <- result.try(read_configs())
+      use Nil <- result.try(build_project(configs))
+      Ok("built " <> int.to_string(list.length(configs)) <> " client(s)")
+    }
     [] | ["gen"] -> {
       use configs <- result.try(read_configs())
       use Nil <- result.try(list.try_each(configs, generate_for_config))
@@ -256,7 +266,79 @@ fn run(args: List(String)) -> Result(String, RallyError) {
     }
     _ ->
       Error(RallyError(
-        "Unknown command. Run `gleam run -m rally` for codegen or `gleam run -m rally init` to scaffold the current project.",
+        "Unknown command. Run `gleam run -m rally` for codegen, `gleam run -m rally build` to build generated clients, or `gleam run -m rally init` to scaffold the current project.",
+      ))
+  }
+}
+
+fn build_project(configs: List(ScanConfig)) -> Result(Nil, RallyError) {
+  use gleam <- result.try(find_gleam())
+  use Nil <- result.try(run_marmot_if_configured(gleam))
+  use Nil <- result.try(list.try_each(configs, generate_for_config))
+  list.try_each(configs, fn(config) {
+    run_command(
+      program: gleam,
+      args: ["build", "--target", "javascript"],
+      dir: config.client_root,
+      label: "client build for " <> config.client_root,
+    )
+  })
+}
+
+fn run_marmot_if_configured(gleam: String) -> Result(Nil, RallyError) {
+  use toml_map <- result.try(read_project_toml())
+  case should_run_marmot(toml_map) {
+    True ->
+      run_command(
+        program: gleam,
+        args: ["run", "-m", "marmot"],
+        dir: ".",
+        label: "marmot codegen",
+      )
+    False -> Ok(Nil)
+  }
+}
+
+fn should_run_marmot(toml_map: dict.Dict(String, tom.Toml)) -> Bool {
+  case tom.get_table(toml_map, ["tools", "marmot"]) {
+    Ok(_) -> {
+      let sql_dir =
+        tom.get_string(toml_map, ["tools", "marmot", "sql_dir"])
+        |> result.unwrap("src/sql")
+      case simplifile.get_files(sql_dir) {
+        Ok(files) ->
+          list.any(files, fn(file) { string.ends_with(file, ".sql") })
+        Error(_) -> False
+      }
+    }
+    Error(_) -> False
+  }
+}
+
+fn find_gleam() -> Result(String, RallyError) {
+  case find_executable("gleam") {
+    option.Some(path) -> Ok(path)
+    option.None -> Error(RallyError("Could not find `gleam` on PATH"))
+  }
+}
+
+fn run_command(
+  program program: String,
+  args args: List(String),
+  dir dir: String,
+  label label: String,
+) -> Result(Nil, RallyError) {
+  io.println("rally: " <> label)
+  let #(status, output) = run_in_dir(program, args, dir)
+  case output == "" {
+    True -> Nil
+    False -> io.println(output)
+  }
+  case status {
+    0 -> Ok(Nil)
+    _ ->
+      Error(RallyError(
+        label <> " failed with exit code " <> int.to_string(status),
       ))
   }
 }
@@ -1310,3 +1392,13 @@ fn tom_get_error_to_string(e: tom.GetError) -> String {
       <> string.join(key, ".")
   }
 }
+
+@external(erlang, "rally_cli_ffi", "find_executable")
+fn find_executable(name: String) -> option.Option(String)
+
+@external(erlang, "rally_cli_ffi", "run_in_dir")
+fn run_in_dir(
+  program: String,
+  args: List(String),
+  dir: String,
+) -> #(Int, String)
