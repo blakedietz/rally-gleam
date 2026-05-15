@@ -188,7 +188,6 @@ fn is_server_runtime_dep(name: String) -> Bool {
       "envoy",
       "gleam_erlang",
       "gleam_http",
-      "gleam_time",
       "global_value",
       "logging",
       "mist",
