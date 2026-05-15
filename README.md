@@ -31,7 +31,7 @@ gleam run
 
 `rally init` writes the starter app into the current Gleam project, including `src/my_app.gleam`. It replaces the default files from `gleam new` that Rally needs to take over: `gleam.toml`, `.gitignore`, `README.md`, and `src/my_app.gleam`. If you already wrote your own `README.md`, Rally leaves it alone. If any other target file already exists, Rally stops before writing anything and tells you which file needs attention.
 
-`rally migrate` applies SQLite migrations from `migrations/` and runs Marmot SQL codegen. `rally build` then generates the routing, SSR, and transport code and builds the JavaScript client. Start the server with `gleam run` and open `http://localhost:8080`. The starter is a counter that persists in SQLite: the value survives page refreshes because clicks go through RPC to the database. To use a different port, set `PORT` in `.env` or run `PORT=8081 gleam run`. Run `rally migrate` before `rally build` and before deploying against a new database.
+`rally migrate` applies SQLite migrations from `migrations/`, creates local databases under `db/`, and runs Marmot SQL codegen. `rally build` then generates the routing, SSR, and transport code and builds the JavaScript client. Start the server with `gleam run` and open `http://localhost:8080`. The starter is a counter that persists in SQLite: the value survives page refreshes because clicks go through RPC to the database. To use a different port, set `PORT` in `.env` or run `PORT=8081 gleam run`. Run `rally migrate` before `rally build` and before deploying against a new database.
 
 ## Writing a page
 

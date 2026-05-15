@@ -5,12 +5,13 @@ A [RealWorld](https://github.com/gothinkster/realworld) implementation built wit
 ## Running it
 
 ```sh
+gleam run -m rally migrate
 gleam run -m rally build
 gleam run
 # => http://localhost:8080
 ```
 
-`rally build` runs marmot codegen (SQL), Rally codegen (routes, handlers, client), and builds the ignored JS client in `.generated_clients/public`. To use a different port, set `PORT` in `.env` or run `PORT=8081 gleam run`.
+`rally migrate` applies migrations to `db/realworld.db` and runs Marmot SQL codegen. `rally build` runs Rally codegen (routes, handlers, client) and builds the ignored JS client in `.generated_clients/public`. Runtime database files live under `db/`, including Rally's `db/system.db`. To use a different port, set `PORT` in `.env` or run `PORT=8081 gleam run`.
 
 ## What's here
 
@@ -67,7 +68,7 @@ pub fn server_update(model, msg, server_context) -> #(ServerModel, Effect(ToClie
 
 SQLite with marmot-generated query modules. Tables: `users`, `articles`, `tags`, `article_tags`, `comments`, `favorites`, `follows`, `sessions`.
 
-SQL files live in `src/sql/` organized by domain (`auth/`, `articles/`, `comments/`, `tags/`, `users/`, `favorites/`, `follows/`). Migrations in `migrations/`.
+SQL files live in `src/sql/` organized by domain (`auth/`, `articles/`, `comments/`, `tags/`, `users/`, `favorites/`, `follows/`). Migrations live in `migrations/`. Local database files live in ignored `db/`.
 
 ### Server context
 

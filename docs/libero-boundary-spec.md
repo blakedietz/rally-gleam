@@ -67,8 +67,6 @@ Current protocol boundary:
 - Generated app code uses generated codec and hydration helpers.
 - `rally_runtime/wire.gleam` remains as a small ETF wrapper for legacy and
   direct runtime helpers.
-- Some historical plans under `docs/plans/` still describe the migration steps
-  that led here.
 
 ## Boundary Shape
 
