@@ -1,11 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+APP_ENV_OVERRIDE="${APP_ENV:-}"
+PORT_OVERRIDE="${PORT:-}"
+if [ -f ".env" ]; then
+  set -a; . .env; set +a
+fi
+if [ -n "$APP_ENV_OVERRIDE" ]; then
+  APP_ENV="$APP_ENV_OVERRIDE"
+fi
+if [ -n "$PORT_OVERRIDE" ]; then
+  PORT="$PORT_OVERRIDE"
+fi
+export APP_ENV="${APP_ENV:-dev}"
+export PORT="${PORT:-8080}"
 echo "==> Running marmot codegen..."
 gleam run -m marmot
 echo "==> Running rally codegen..."
 gleam run -m rally
 echo "==> Building client..."
 cd .generated_clients/public && gleam build --target javascript && cd ../..
-echo "==> Starting server on http://localhost:8080"
+echo "==> Starting server on http://localhost:${PORT}"
 gleam run

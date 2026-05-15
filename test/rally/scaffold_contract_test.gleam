@@ -111,12 +111,22 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
   |> should.equal(True)
 
   script
-  |> string.contains("<script type=\"module\" src=\"/client.js\"></script>")
+  |> string.contains(
+    "<script type=\"module\" src=\"/_build/client/generated/app.mjs\"></script>",
+  )
+  |> should.equal(True)
+
+  script
+  |> string.contains("const client_build_root")
+  |> should.equal(True)
+
+  script
+  |> string.contains("case string.starts_with(path, \"/_build/\")")
   |> should.equal(True)
 
   script
   |> string.contains(
-    ".generated_clients/public/build/dev/javascript/client/generated/app.mjs",
+    "|> response.set_header(\"content-type\", content_type(path))",
   )
   |> should.equal(True)
 

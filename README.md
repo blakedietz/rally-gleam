@@ -27,7 +27,7 @@ gleam run -m rally init
 ./bin/dev
 ```
 
-`rally init` writes the starter app into the current Gleam project, including `bin/dev`. After that, `./bin/dev` runs codegen, builds the JS client, and starts the server on port 8080. Open `http://localhost:8080` to see the app. The starter app uses SQLite, so development does not need a database daemon.
+`rally init` writes the starter app into the current Gleam project, including `bin/dev`. After that, `./bin/dev` runs codegen, builds the JS client, and starts the server on port 8080. Open `http://localhost:8080` to see the app. To use a different port, set `PORT` in `.env` or run `PORT=8081 ./bin/dev`. The starter app uses SQLite, so development does not need a database daemon.
 
 ## Writing a page
 

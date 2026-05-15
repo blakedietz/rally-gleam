@@ -157,7 +157,7 @@ pub fn server_register(
               db: server_context.db,
               session_id: Some(session_id),
               user_id: user.id,
-              created_at: now,
+              now: now,
               expires_at: now + datetime.session_ttl_seconds,
             )
           Ok(#(user.username, user.image))

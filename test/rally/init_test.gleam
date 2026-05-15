@@ -35,6 +35,7 @@ pub fn init_project_writes_hex_scaffold_test() {
   env |> should.equal(env_example)
   env |> string.contains("APP_ENV=dev") |> should.be_true()
   env |> string.contains("LOG_LEVEL=debug") |> should.be_true()
+  env |> string.contains("PORT=8080") |> should.be_true()
 
   let assert Ok(gitignore) = simplifile.read(dir <> "/.gitignore")
   gitignore |> string.contains(".env") |> should.be_true()
@@ -44,6 +45,21 @@ pub fn init_project_writes_hex_scaffold_test() {
 
   let assert Ok(dev) = simplifile.read(dir <> "/bin/dev")
   dev |> string.contains("gleam run -m rally") |> should.be_true()
+  dev |> string.contains("PORT_OVERRIDE=\"${PORT:-}\"") |> should.be_true()
+  dev |> string.contains("export PORT=\"${PORT:-8080}\"") |> should.be_true()
+  dev |> string.contains("http://localhost:${PORT}") |> should.be_true()
+
+  let assert Ok(app) = simplifile.read(dir <> "/src/app.gleam")
+  app |> string.contains("envoy.get(\"PORT\")") |> should.be_true()
+  app |> string.contains("|> mist.port(port)") |> should.be_true()
+  app
+  |> string.contains("case string.starts_with(path, \"/_build/\")")
+  |> should.be_true()
+
+  let assert Ok(shell) = simplifile.read(dir <> "/src/public/shell.html")
+  shell
+  |> string.contains("src=\"/_build/client/generated/app.mjs\"")
+  |> should.be_true()
 
   cleanup(dir)
 }

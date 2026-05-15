@@ -472,7 +472,7 @@ pub fn client_app_underscores_ignored_hydrate_route_params_test() {
   |> should.equal(True)
 }
 
-pub fn client_app_underscores_unused_hydrate_context_test() {
+pub fn client_app_uses_hydrate_context_for_fallback_init_test() {
   let routes = basic_routes()
   let contracts = basic_contracts()
   let files =
@@ -483,7 +483,13 @@ pub fn client_app_underscores_unused_hydrate_context_test() {
     })
 
   file.content
-  |> string.contains("_client_context: client_context.ClientContext")
+  |> string.contains("client_context: client_context.ClientContext")
+  |> should.equal(True)
+
+  file.content
+  |> string.contains(
+    "Error(_) -> init_page(route: route, client_context: client_context)",
+  )
   |> should.equal(True)
 }
 

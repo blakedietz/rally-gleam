@@ -3,7 +3,6 @@ import generated/sql/articles_sql
 import generated/sql/auth_sql
 import generated/sql/tags_sql
 import gleam/list
-import gleam/option.{Some}
 import gleam/string
 import lustre/attribute as attr
 import lustre/effect.{type Effect}
@@ -209,7 +208,7 @@ pub fn server_publish_article(
       case
         auth_sql.find_user_by_session(
           db: server_context.db,
-          session_id: Some(session_id),
+          session_id: session_id,
           now: datetime.now_unix(),
         )
       {

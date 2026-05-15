@@ -944,7 +944,7 @@ fn generate_hydrate_page(
     has_client_context
     && list.any(routes, fn(route) {
       case dict.get(contract_map, route.variant_name) {
-        Ok(contract) -> contract.has_model && contract.has_init_loaded
+        Ok(contract) -> contract.has_model
         Error(Nil) -> False
       }
     })

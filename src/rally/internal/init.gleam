@@ -125,6 +125,7 @@ erl_crash.dump
 fn env_example() -> String {
   "APP_ENV=dev
 LOG_LEVEL=debug
+PORT=8080
 "
 }
 
@@ -134,6 +135,7 @@ version = \"0.1.0\"
 target = \"erlang\"
 
 [dependencies]
+envoy = \">= 1.2.0 and < 2.0.0\"
 gleam_erlang = \">= 1.0.0 and < 2.0.0\"
 gleam_http = \">= 4.0.0 and < 5.0.0\"
 gleam_stdlib = \">= 0.60.0 and < 2.0.0\"
@@ -246,11 +248,17 @@ pub fn layout(content: Element(msg)) -> Element(msg) {
 
 fn app_module() -> String {
   "// Scaffolded by rally: yours to customize.
+import envoy
 import gleam/bytes_tree
 import gleam/erlang/process
 import gleam/http.{Get, Post}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response
+import gleam/int
+import gleam/io
+import gleam/list
+import gleam/result
+import gleam/string
 import mist.{type Connection}
 import generated/public/http_handler as http_handler
 import generated/public/router as router
@@ -264,10 +272,13 @@ import server_context.{type ServerContext, ServerContext}
 import simplifile
 import sqlight
 
+const client_build_root = \".generated_clients/public/build/dev/javascript\"
+
 pub fn main() {
   let db = start_db()
   system.start(\"system.db\")
   let server_context = ServerContext(db:)
+  let port = server_port()
 
   let handler = fn(req: Request(Connection)) {
     let Request(path: path, method: method, ..) = req
@@ -290,28 +301,45 @@ pub fn main() {
         )
       }
       \"/rpc\" -> handle_rpc(req, server_context)
-      \"/client.js\" -> serve_client_js()
       _ -> {
-        case method {
-          Get -> {
-            let session_id = get_session_id(req)
-            let route = router.parse_route(request.to_uri(req))
-            let resp = ssr_handler.handle_request(route)
-            set_session_cookie_if_missing(req, resp, session_id)
-          }
-          _ ->
-            response.new(405)
-            |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not found\")))
+        case string.starts_with(path, \"/_build/\") {
+          True -> serve_static(string.drop_start(path, 8))
+          False ->
+            case method {
+              Get -> {
+                let session_id = get_session_id(req)
+                let route = router.parse_route(request.to_uri(req))
+                let resp = ssr_handler.handle_request(route)
+                set_session_cookie_if_missing(req, resp, session_id)
+              }
+              _ ->
+                response.new(405)
+                |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not found\")))
+            }
         }
       }
     }
   }
 
+  io.println(\"Listening on http://localhost:\" <> int.to_string(port))
   let assert Ok(_) =
     mist.new(handler)
-    |> mist.port(8080)
+    |> mist.port(port)
     |> mist.start
   process.sleep_forever()
+}
+
+fn server_port() -> Int {
+  let raw = envoy.get(\"PORT\") |> result.unwrap(\"8080\")
+  case int.parse(raw) {
+    Ok(port) -> port
+    Error(_) ->
+      panic as {
+        \"Invalid PORT value: \"
+        <> raw
+        <> \". Set PORT to an integer, for example PORT=8080.\"
+      }
+  }
 }
 
 fn handle_rpc(req: Request(Connection), server_context: ServerContext) {
@@ -380,15 +408,35 @@ fn set_session_cookie_if_missing(req, resp, session_id: String) {
   }
 }
 
-fn serve_client_js() {
-  case simplifile.read(\".generated_clients/public/build/dev/javascript/client/generated/app.mjs\") {
-    Ok(js) ->
-      response.new(200)
-      |> response.set_header(\"content-type\", \"application/javascript\")
-      |> response.set_body(mist.Bytes(bytes_tree.from_string(js)))
-    Error(_) ->
-      response.new(404)
-      |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Client JS not found\")))
+fn serve_static(path: String) {
+  let has_traversal =
+    path
+    |> string.split(\"/\")
+    |> list.any(fn(seg) { seg == \"..\" || seg == \".\" })
+
+  case has_traversal {
+    True ->
+      response.new(403)
+      |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Forbidden\")))
+    False -> {
+      let file_path = client_build_root <> \"/\" <> path
+      case simplifile.read(file_path) {
+        Ok(content) ->
+          response.new(200)
+          |> response.set_header(\"content-type\", content_type(path))
+          |> response.set_body(mist.Bytes(bytes_tree.from_string(content)))
+        Error(_) ->
+          response.new(404)
+          |> response.set_body(mist.Bytes(bytes_tree.from_string(\"Not found\")))
+      }
+    }
+  }
+}
+
+fn content_type(path: String) -> String {
+  case string.ends_with(path, \".mjs\") || string.ends_with(path, \".js\") {
+    True -> \"application/javascript\"
+    False -> \"application/octet-stream\"
   }
 }
 
@@ -410,7 +458,7 @@ fn shell_html() -> String {
 </head>
 <body>
   <div id=\"app\"></div>
-  <script type=\"module\" src=\"/client.js\"></script>
+  <script type=\"module\" src=\"/_build/client/generated/app.mjs\"></script>
 </body>
 </html>
 "
@@ -430,15 +478,24 @@ fn dev_script() -> String {
   "#!/usr/bin/env bash
 set -euo pipefail
 cd \"$(dirname \"$0\")/..\"
+APP_ENV_OVERRIDE=\"${APP_ENV:-}\"
+PORT_OVERRIDE=\"${PORT:-}\"
 if [ -f \".env\" ]; then
   set -a; . .env; set +a
 fi
+if [ -n \"$APP_ENV_OVERRIDE\" ]; then
+  APP_ENV=\"$APP_ENV_OVERRIDE\"
+fi
+if [ -n \"$PORT_OVERRIDE\" ]; then
+  PORT=\"$PORT_OVERRIDE\"
+fi
 export APP_ENV=\"${APP_ENV:-dev}\"
+export PORT=\"${PORT:-8080}\"
 echo \"==> Running rally codegen...\"
 gleam run -m rally
 echo \"==> Building client...\"
 cd .generated_clients/public && gleam build --target javascript && cd ../..
-echo \"==> Starting server...\"
+echo \"==> Starting server on http://localhost:${PORT}...\"
 gleam run -m app
 "
 }

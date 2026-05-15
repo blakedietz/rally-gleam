@@ -603,7 +603,7 @@ pub fn server_update(
                       body:,
                       article_id:,
                       author_id: user_id,
-                      created_at: now,
+                      now: now,
                     )
                   {
                     Ok([row]) -> {
@@ -706,13 +706,13 @@ pub fn server_update(
 
 fn get_user_id(db: sqlight.Connection, session_id: String) -> Result(Int, Nil) {
   let now = datetime.now_unix()
-  case auth_sql.find_user_by_session(db:, session_id: Some(session_id), now:) {
+  case auth_sql.find_user_by_session(db:, session_id: session_id, now:) {
     Ok([row]) -> {
       let _result =
         auth_sql.extend_session(
           db:,
           expires_at: now + datetime.session_ttl_seconds,
-          session_id: Some(session_id),
+          session_id: session_id,
         )
       Ok(row.id)
     }

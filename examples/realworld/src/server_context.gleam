@@ -15,7 +15,7 @@ pub fn from_session(
   case
     auth_sql.find_user_by_session(
       db: server_context.db,
-      session_id: Some(session_id),
+      session_id: session_id,
       now: datetime.now_unix(),
     )
   {

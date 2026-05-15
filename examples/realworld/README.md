@@ -9,7 +9,7 @@ bin/dev
 # => http://localhost:8080
 ```
 
-This runs marmot codegen (SQL), Rally codegen (routes, handlers, client), builds the ignored JS client in `.generated_clients/public`, and starts the server.
+This runs marmot codegen (SQL), Rally codegen (routes, handlers, client), builds the ignored JS client in `.generated_clients/public`, and starts the server. To use a different port, set `PORT` in `.env` or run `PORT=8081 bin/dev`.
 
 ## What's here
 

@@ -1,3 +1,4 @@
+import envoy
 import generated/public/http_handler
 import generated/public/router
 import generated/public/ssr_handler
@@ -7,6 +8,8 @@ import gleam/erlang/process
 import gleam/http.{Get, Post}
 import gleam/http/request.{type Request, Request}
 import gleam/http/response.{type Response}
+import gleam/int
+import gleam/io
 import gleam/list
 import gleam/result
 import gleam/string
@@ -36,6 +39,7 @@ pub fn main() -> Nil {
   let db = start_db()
   system.start("system.db")
   let server_context = ServerContext(db:)
+  let port = server_port()
 
   let handler = fn(req: Request(Connection)) -> Response(ResponseData) {
     let Request(path: path, method: method, ..) = req
@@ -163,11 +167,25 @@ pub fn main() -> Nil {
     }
   }
 
+  io.println("Listening on http://localhost:" <> int.to_string(port))
   let assert Ok(_) =
     mist.new(handler)
-    |> mist.port(8080)
+    |> mist.port(port)
     |> mist.start
   process.sleep_forever()
+}
+
+fn server_port() -> Int {
+  let raw = envoy.get("PORT") |> result.unwrap("8080")
+  case int.parse(raw) {
+    Ok(port) -> port
+    Error(_) ->
+      panic as {
+        "Invalid PORT value: "
+        <> raw
+        <> ". Set PORT to an integer, for example PORT=8080."
+      }
+  }
 }
 
 fn serve_static(path: String) -> Response(ResponseData) {
