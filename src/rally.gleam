@@ -499,7 +499,6 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
       routes,
       contracts,
       config,
-      config.server_deps,
       transport_ffi_content,
       client_context_contract,
       client_context_module,
@@ -573,18 +572,27 @@ fn generate_for_config(config: ScanConfig) -> Result(Nil, RallyError) {
     }),
   )
 
+  let all_source_files =
+    list.flatten([
+      codec_files,
+      client_files,
+      client_context_files,
+      layout_files,
+      dependency_files,
+    ])
+
+  let gleam_toml =
+    client.generate_gleam_toml(
+      all_client_files: all_source_files,
+      server_deps: config.server_deps,
+      client_root: config.client_root,
+      protocol: config.protocol,
+    )
+
   reset_generated_client_src(config.client_root)
 
   use _ <- result.try(
-    write_generated_files(
-      list.flatten([
-        codec_files,
-        client_files,
-        client_context_files,
-        layout_files,
-        dependency_files,
-      ]),
-    )
+    write_generated_files([gleam_toml, ..all_source_files])
     |> result.map_error(fn(msg) { RallyError("write error: " <> msg) }),
   )
 

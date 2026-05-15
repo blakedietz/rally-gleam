@@ -326,10 +326,19 @@ pub fn client_package_keeps_absolute_dependency_paths_test() {
         ),
       ),
     ])
-  let files =
-    client.generate_package([], [], test_scan_config(), deps, "", False)
-  let assert Ok(file) =
-    list.find(files, fn(file) { file.path == ".generated_clients/gleam.toml" })
+  let mock_files = [
+    client.GeneratedFile(
+      ".generated_clients/src/pages/home.gleam",
+      "import shared/widgets/button\npub type Model { Model }\n",
+    ),
+  ]
+  let file =
+    client.generate_gleam_toml(
+      all_client_files: mock_files,
+      server_deps: deps,
+      client_root: ".generated_clients",
+      protocol: "etf",
+    )
 
   file.content
   |> string.contains("shared_widgets = { path = \"/tmp/shared_widgets\" }")
@@ -346,10 +355,19 @@ pub fn client_package_does_not_copy_server_runtime_deps_test() {
         tom.InlineTable(dict.from_list([#("path", tom.String("/tmp/libero"))])),
       ),
     ])
-  let files =
-    client.generate_package([], [], test_scan_config(), deps, "", False)
-  let assert Ok(file) =
-    list.find(files, fn(file) { file.path == ".generated_clients/gleam.toml" })
+  let mock_files = [
+    client.GeneratedFile(
+      ".generated_clients/src/generated/codec.gleam",
+      "import libero/codec\npub fn decode() { Nil }\n",
+    ),
+  ]
+  let file =
+    client.generate_gleam_toml(
+      all_client_files: mock_files,
+      server_deps: deps,
+      client_root: ".generated_clients",
+      protocol: "etf",
+    )
 
   file.content
   |> string.contains("mist")
@@ -366,9 +384,14 @@ pub fn client_package_does_not_copy_server_runtime_deps_test() {
 
 pub fn json_client_package_uses_hex_libero_test() {
   let config = ScanConfig(..test_scan_config(), protocol: "json")
-  let files = client.generate_package([], [], config, dict.new(), "", False)
-  let assert Ok(file) =
-    list.find(files, fn(file) { file.path == ".generated_clients/gleam.toml" })
+  let files = client.generate_package([], [], config, "", False)
+  let file =
+    client.generate_gleam_toml(
+      all_client_files: files,
+      server_deps: dict.new(),
+      client_root: config.client_root,
+      protocol: "json",
+    )
 
   file.content
   |> string.contains("libero = \">= 6.0.0 and < 7.0.0\"")

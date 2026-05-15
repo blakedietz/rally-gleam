@@ -5,6 +5,7 @@
 //// transport.gleam (WebSocket FFI bridge), and router.gleam (client-side
 //// route parsing). The generated package lives in .generated_clients/<namespace>.
 
+import glance
 import gleam/dict
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -27,7 +28,6 @@ pub fn generate_package(
   routes routes: List(ScannedRoute),
   contracts contracts: List(#(ScannedRoute, PageContract)),
   config config: ScanConfig,
-  server_deps server_deps: dict.Dict(String, tom.Toml),
   transport_ffi_content transport_ffi_content: String,
   has_client_context has_client_context: Bool,
 ) -> List(GeneratedFile) {
@@ -35,7 +35,6 @@ pub fn generate_package(
     routes:,
     contracts:,
     config:,
-    server_deps:,
     transport_ffi_content:,
     client_context_contract: case has_client_context {
       True -> Some(empty_client_context_contract())
@@ -50,17 +49,12 @@ pub fn generate_package_with_client_context_contract(
   routes routes: List(ScannedRoute),
   contracts contracts: List(#(ScannedRoute, PageContract)),
   config config: ScanConfig,
-  server_deps server_deps: dict.Dict(String, tom.Toml),
   transport_ffi_content transport_ffi_content: String,
   client_context_contract client_context_contract: Option(ClientContextContract),
   client_context_module client_context_module: String,
   protocol protocol: String,
 ) -> List(GeneratedFile) {
   [
-    GeneratedFile(
-      config.client_root <> "/gleam.toml",
-      client_gleam_toml(server_deps, config.client_root, protocol),
-    ),
     GeneratedFile(
       config.client_root <> "/src/generated/transport_ffi.mjs",
       transport_ffi_content,
@@ -141,61 +135,77 @@ pub fn parse_route_from_url() -> Route {
   server_router <> "\n" <> client_fns
 }
 
-fn client_gleam_toml(
-  server_deps: dict.Dict(String, tom.Toml),
-  client_root: String,
-  protocol: String,
-) -> String {
+pub fn generate_gleam_toml(
+  all_client_files all_client_files: List(GeneratedFile),
+  server_deps server_deps: dict.Dict(String, tom.Toml),
+  client_root client_root: String,
+  protocol protocol: String,
+) -> GeneratedFile {
   let header =
     "name = \"client\"\nversion = \"0.1.0\"\ntarget = \"javascript\"\n\n[dependencies]\ngleam_stdlib = \">= 0.60.0 and < 2.0.0\"\nlustre = \">= 5.7.0 and < 7.0.0\"\nmodem = \">= 2.0.0 and < 3.0.0\"\n"
 
   let depth = list.length(string.split(client_root, "/"))
   let prefix = string.repeat("../", depth)
 
-  // JSON protocol requires gleam_json and libero for typed codecs.
   let json_deps = case protocol {
     "json" ->
       "gleam_json = \">= 3.1.0 and < 4.0.0\"\nlibero = \">= 6.0.0 and < 7.0.0\"\n"
     _ -> ""
   }
 
-  let baseline = set.from_list(["gleam_stdlib", "lustre", "modem"])
+  let client_imports = collect_client_imports(all_client_files)
+  let baseline =
+    set.from_list([
+      "gleam_stdlib", "lustre", "modem", "rally", "marmot", "gleeunit",
+    ])
+  let json_baseline = case protocol {
+    "json" -> set.from_list(["libero", "gleam_json"])
+    _ -> set.new()
+  }
+  let exclude = set.union(baseline, json_baseline)
 
   let extra_deps =
     server_deps
     |> dict.to_list
-    |> list.filter(fn(pair) { !set.contains(baseline, pair.0) })
-    |> list.filter(fn(pair) { pair.0 != "rally" && pair.0 != "marmot" })
     |> list.filter(fn(pair) {
-      case protocol {
-        "json" -> pair.0 != "libero" && pair.0 != "gleam_json"
-        _ -> True
-      }
+      !set.contains(exclude, pair.0)
+      && !is_browser_impossible(pair.0)
+      && package_needed(pair.0, client_imports)
     })
-    |> list.filter(fn(pair) { !is_server_runtime_dep(pair.0) })
     |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
     |> list.map(fn(pair) {
       format_dep(name: pair.0, value: pair.1, prefix: prefix)
     })
     |> string.join("")
 
-  header <> json_deps <> extra_deps
+  GeneratedFile(client_root <> "/gleam.toml", header <> json_deps <> extra_deps)
 }
 
-fn is_server_runtime_dep(name: String) -> Bool {
-  list.contains(
-    [
-      "envoy",
-      "gleam_erlang",
-      "gleam_http",
-      "global_value",
-      "logging",
-      "mist",
-      "simplifile",
-      "sqlight",
-    ],
-    name,
-  )
+fn collect_client_imports(files: List(GeneratedFile)) -> set.Set(String) {
+  files
+  |> list.filter(fn(f) { string.ends_with(f.path, ".gleam") })
+  |> list.flat_map(fn(f) {
+    case glance.module(f.content) {
+      Ok(ast) -> list.map(ast.imports, fn(def) { def.definition.module })
+      _ -> []
+    }
+  })
+  |> set.from_list
+}
+
+fn package_needed(
+  package_name: String,
+  client_imports: set.Set(String),
+) -> Bool {
+  let prefix = string.replace(package_name, "_", "/")
+  set.to_list(client_imports)
+  |> list.any(fn(import_path) {
+    import_path == prefix || string.starts_with(import_path, prefix <> "/")
+  })
+}
+
+fn is_browser_impossible(name: String) -> Bool {
+  list.contains(["mist", "sqlight", "simplifile", "gleam_erlang"], name)
 }
 
 fn format_dep(
