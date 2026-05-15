@@ -573,3 +573,194 @@ pub fn server_notify(server_context: ServerContext) -> Result(Nil, Nil) {
   |> string.contains("import rally_runtime/effect as rally_effect")
   |> should.be_false()
 }
+
+// -- Test: local variable name does not keep same-named module import --
+
+pub fn drops_import_when_name_is_only_local_variable_test() {
+  let source =
+    "import gleam/result
+import gleam/int
+
+pub type Model { Model(data: String) }
+pub type Msg { GotData(Result(String, Nil)) }
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  let result = get_data()
+  case result {
+    Ok(value) -> #(Model(data: value), effect.none())
+    Error(_) -> #(model, effect.none())
+  }
+}
+
+fn get_data() {
+  Ok(\"hello\")
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // `result` is only a local variable, not a qualified module access
+  result |> string.contains("gleam/result") |> should.be_false()
+  // `int` is never used (no int.something), should also be dropped
+  result |> string.contains("gleam/int") |> should.be_false()
+  result |> string.contains("pub fn update(") |> should.be_true()
+}
+
+// -- Test: parameter name does not keep same-named module import --
+
+pub fn drops_import_when_name_is_only_parameter_test() {
+  let source =
+    "import age
+
+pub type Model { Model(value: Int) }
+pub type Msg { NoOp }
+
+pub fn view(model: Model) -> Element(Msg) {
+  html.text(format_age(age: 25))
+}
+
+fn format_age(age age: Int) -> String {
+  int.to_string(age)
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // `age` is a parameter name and argument label, not age.something()
+  result |> string.contains("import age") |> should.be_false()
+  result |> string.contains("pub fn view(") |> should.be_true()
+}
+
+// -- Test: field access on local variable does not keep same-named module --
+
+pub fn drops_import_when_field_access_is_on_local_variable_test() {
+  let source =
+    "import gleam/result
+
+pub type DataResult { DataResult(rows: List(String), total: Int) }
+pub type Model { Model(data: DataResult) }
+pub type Msg { GotData(Result(DataResult, String)) }
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case msg {
+    GotData(Ok(result)) -> #(
+      Model(data: result),
+      effect.none(),
+    )
+    GotData(Error(_)) -> #(model, effect.none())
+  }
+}
+
+pub fn view(model: Model) -> Element(Msg) {
+  let result = model.data
+  html.text(int.to_string(result.total))
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // `result` is bound as case pattern and let variable, field access is on
+  // the local variable, not qualified module access like result.unwrap(...)
+  result |> string.contains("gleam/result") |> should.be_false()
+  result |> string.contains("pub fn update(") |> should.be_true()
+  result |> string.contains("pub fn view(") |> should.be_true()
+}
+
+// -- Test: case-pattern binding with field access does not keep module --
+
+pub fn drops_import_when_case_pattern_binds_and_accesses_fields_test() {
+  let source =
+    "import gleam/result
+
+pub type DataResult { DataResult(rows: List(String), total: Int) }
+pub type Model { Model(data: Option(DataResult)) }
+pub type Msg { GotData(Result(DataResult, String)) }
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case msg {
+    GotData(Ok(result)) -> #(
+      Model(data: Some(result)),
+      show_count(result.total),
+    )
+    GotData(Error(_)) -> #(model, effect.none())
+  }
+}
+
+fn show_count(n) {
+  effect.none()
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // `result` is bound in a case pattern and accessed via result.total
+  // in the same clause body — this is field access, not module access
+  result |> string.contains("gleam/result") |> should.be_false()
+  result |> string.contains("pub fn update(") |> should.be_true()
+}
+
+// -- Test: private type used only by server code is dropped --
+
+pub fn drops_private_type_only_used_by_server_code_test() {
+  let source =
+    "import server_context.{type ServerContext}
+
+pub type Model { Model(name: String) }
+pub type Msg { GotData(Result(String, Nil)) }
+
+type ServerRow {
+  ServerRow(id: Int, name: String, created_at: Int)
+}
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(name: \"\"), effect.none())
+}
+
+pub fn server_get_name(msg: ServerGetName, server_context: ServerContext) -> String {
+  let row = ServerRow(id: 1, name: \"dave\", created_at: 0)
+  row.name
+}
+"
+
+  let result =
+    tree_shaker.shake(source, server_symbols: ["ServerContext", "ServerGetName"])
+
+  // Private type used only by removed server code should be dropped
+  result |> string.contains("ServerRow") |> should.be_false()
+  result |> string.contains("pub fn init()") |> should.be_true()
+  result |> string.contains("pub type Model") |> should.be_true()
+}
+
+// -- Test: private type referenced by Model survives --
+
+pub fn keeps_private_type_referenced_by_model_test() {
+  let source =
+    "pub type FilterState { Active Inactive }
+
+pub type Model { Model(filter: FilterState) }
+pub type Msg { ToggleFilter }
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(filter: Active), effect.none())
+}
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case msg {
+    ToggleFilter -> {
+      let new_filter = case model.filter {
+        Active -> Inactive
+        Inactive -> Active
+      }
+      #(Model(filter: new_filter), effect.none())
+    }
+  }
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // FilterState is used by Model and client code, must survive
+  result |> string.contains("FilterState") |> should.be_true()
+  result |> string.contains("Active") |> should.be_true()
+  result |> string.contains("Inactive") |> should.be_true()
+}

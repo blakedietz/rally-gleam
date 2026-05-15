@@ -50,20 +50,25 @@ pub fn shake(
         |> set.from_list
         |> set.union(reachable_private)
 
-      // Collect all symbols referenced by client code (for import filtering)
       let client_refs =
         collect_all_client_refs(
           ast: ast,
           client_fn_names: all_client_fn_names,
           server_symbols: server_set,
         )
+      let module_refs =
+        collect_module_refs(
+          ast: ast,
+          client_fn_names: all_client_fn_names,
+          server_symbols: server_set,
+        )
 
-      // Reconstruct source with only client-safe parts
       let client_imports =
         filter_imports(
           imports: ast.imports,
           server_symbols: server_set,
           client_refs: client_refs,
+          module_refs: module_refs,
         )
       let client_types =
         filter_types(
@@ -368,6 +373,274 @@ fn extract_pattern_refs(pattern: glance.Pattern) -> List(String) {
   }
 }
 
+// -- Module-qualified reference extraction --
+// Parallel walkers that only capture names used in qualified access:
+// FieldAccess(container: Variable(name)), PatternVariant(module: Some(name)),
+// NamedType(module: Some(name)). Prevents local variable names from falsely
+// keeping same-named module imports alive.
+
+fn extract_stmt_module_refs(stmt: glance.Statement) -> List(String) {
+  case stmt {
+    glance.Use(_, _, expr) -> extract_expr_module_refs(expr)
+    glance.Assignment(value: expr, ..) -> extract_expr_module_refs(expr)
+    glance.Assert(expression: expr, ..) -> extract_expr_module_refs(expr)
+    glance.Expression(expr) -> extract_expr_module_refs(expr)
+  }
+}
+
+fn extract_expr_module_refs(expr: glance.Expression) -> List(String) {
+  case expr {
+    glance.FieldAccess(container: glance.Variable(name:, ..), ..) -> [name]
+    glance.FieldAccess(container:, ..) -> extract_expr_module_refs(container)
+    glance.Call(function:, arguments:, ..) ->
+      list.append(
+        extract_expr_module_refs(function),
+        list.flat_map(arguments, fn(a) {
+          case a {
+            glance.LabelledField(item: v, ..) -> extract_expr_module_refs(v)
+            glance.UnlabelledField(item: v) -> extract_expr_module_refs(v)
+            glance.ShorthandField(..) -> []
+          }
+        }),
+      )
+    glance.Fn(body:, ..) -> list.flat_map(body, extract_stmt_module_refs)
+    glance.Block(statements:, ..) ->
+      list.flat_map(statements, extract_stmt_module_refs)
+    glance.Case(subjects:, clauses:, ..) ->
+      list.append(
+        list.flat_map(subjects, extract_expr_module_refs),
+        list.flat_map(clauses, fn(c: glance.Clause) {
+          list.flatten([
+            list.flat_map(c.patterns, fn(ps) {
+              list.flat_map(ps, extract_pat_module_refs)
+            }),
+            case c.guard {
+              Some(guard) -> extract_expr_module_refs(guard)
+              None -> []
+            },
+            extract_expr_module_refs(c.body),
+          ])
+        }),
+      )
+    glance.Tuple(elements:, ..) ->
+      list.flat_map(elements, extract_expr_module_refs)
+    glance.List(elements:, rest:, ..) ->
+      list.append(list.flat_map(elements, extract_expr_module_refs), case rest {
+        Some(r) -> extract_expr_module_refs(r)
+        None -> []
+      })
+    glance.RecordUpdate(record:, fields:, ..) ->
+      list.append(
+        extract_expr_module_refs(record),
+        list.flat_map(fields, fn(f) {
+          case f.item {
+            Some(v) -> extract_expr_module_refs(v)
+            None -> []
+          }
+        }),
+      )
+    glance.BinaryOperator(left:, right:, ..) ->
+      list.append(
+        extract_expr_module_refs(left),
+        extract_expr_module_refs(right),
+      )
+    glance.NegateInt(value:, ..) -> extract_expr_module_refs(value)
+    glance.NegateBool(value:, ..) -> extract_expr_module_refs(value)
+    glance.Panic(message:, ..) ->
+      case message {
+        Some(v) -> extract_expr_module_refs(v)
+        None -> []
+      }
+    glance.Todo(message:, ..) ->
+      case message {
+        Some(v) -> extract_expr_module_refs(v)
+        None -> []
+      }
+    glance.TupleIndex(tuple:, ..) -> extract_expr_module_refs(tuple)
+    glance.FnCapture(function:, arguments_before:, arguments_after:, ..) ->
+      list.flatten([
+        extract_expr_module_refs(function),
+        list.flat_map(arguments_before, fn(a) {
+          case a {
+            glance.LabelledField(item: v, ..) -> extract_expr_module_refs(v)
+            glance.UnlabelledField(item: v) -> extract_expr_module_refs(v)
+            glance.ShorthandField(..) -> []
+          }
+        }),
+        list.flat_map(arguments_after, fn(a) {
+          case a {
+            glance.LabelledField(item: v, ..) -> extract_expr_module_refs(v)
+            glance.UnlabelledField(item: v) -> extract_expr_module_refs(v)
+            glance.ShorthandField(..) -> []
+          }
+        }),
+      ])
+    glance.BitString(segments:, ..) ->
+      list.flat_map(segments, fn(seg) { extract_expr_module_refs(seg.0) })
+    glance.Echo(expression:, ..) ->
+      case expression {
+        Some(v) -> extract_expr_module_refs(v)
+        None -> []
+      }
+    glance.Variable(..) -> []
+    glance.Int(..) -> []
+    glance.Float(..) -> []
+    glance.String(..) -> []
+  }
+}
+
+fn extract_pat_module_refs(pattern: glance.Pattern) -> List(String) {
+  case pattern {
+    glance.PatternVariant(module:, arguments:, ..) -> {
+      let mod_refs = case module {
+        Some(m) -> [m]
+        None -> []
+      }
+      list.append(
+        mod_refs,
+        list.flat_map(arguments, fn(arg) {
+          case arg {
+            glance.LabelledField(item: p, ..) -> extract_pat_module_refs(p)
+            glance.UnlabelledField(item: p) -> extract_pat_module_refs(p)
+            glance.ShorthandField(..) -> []
+          }
+        }),
+      )
+    }
+    glance.PatternTuple(elements:, ..) ->
+      list.flat_map(elements, extract_pat_module_refs)
+    glance.PatternList(elements:, tail:, ..) ->
+      list.append(list.flat_map(elements, extract_pat_module_refs), case tail {
+        Some(t) -> extract_pat_module_refs(t)
+        None -> []
+      })
+    glance.PatternAssignment(pattern: p, ..) -> extract_pat_module_refs(p)
+    glance.PatternBitString(segments:, ..) ->
+      list.flat_map(segments, fn(seg) { extract_pat_module_refs(seg.0) })
+    _ -> []
+  }
+}
+
+// -- Variable binding collection (for disambiguating FieldAccess) --
+
+fn collect_fn_bindings(f: glance.Function) -> Set(String) {
+  let param_names =
+    list.filter_map(f.parameters, fn(p) {
+      case p.name {
+        glance.Named(name) -> Ok(name)
+        glance.Discarded(_) -> Error(Nil)
+      }
+    })
+  let body_bindings = list.flat_map(f.body, collect_stmt_var_names)
+  list.append(param_names, body_bindings) |> set.from_list
+}
+
+fn collect_stmt_var_names(stmt: glance.Statement) -> List(String) {
+  case stmt {
+    glance.Assignment(pattern:, value:, ..) ->
+      list.append(
+        collect_pattern_var_names(pattern),
+        collect_expr_var_names(value),
+      )
+    glance.Assert(expression:, ..) -> collect_expr_var_names(expression)
+    glance.Use(_, _, expr) -> collect_expr_var_names(expr)
+    glance.Expression(expr) -> collect_expr_var_names(expr)
+  }
+}
+
+fn collect_expr_var_names(expr: glance.Expression) -> List(String) {
+  case expr {
+    glance.Fn(arguments:, body:, ..) -> {
+      let params =
+        list.filter_map(arguments, fn(p: glance.FnParameter) {
+          case p.name {
+            glance.Named(name) -> Ok(name)
+            glance.Discarded(_) -> Error(Nil)
+          }
+        })
+      list.append(params, list.flat_map(body, collect_stmt_var_names))
+    }
+    glance.Case(subjects:, clauses:, ..) ->
+      list.append(
+        list.flat_map(subjects, collect_expr_var_names),
+        list.flat_map(clauses, fn(c: glance.Clause) {
+          list.append(
+            list.flat_map(c.patterns, fn(ps) {
+              list.flat_map(ps, collect_pattern_var_names)
+            }),
+            collect_expr_var_names(c.body),
+          )
+        }),
+      )
+    glance.Block(statements:, ..) ->
+      list.flat_map(statements, collect_stmt_var_names)
+    glance.Call(function:, arguments:, ..) ->
+      list.append(
+        collect_expr_var_names(function),
+        list.flat_map(arguments, fn(a) {
+          case a {
+            glance.LabelledField(item: v, ..) -> collect_expr_var_names(v)
+            glance.UnlabelledField(item: v) -> collect_expr_var_names(v)
+            glance.ShorthandField(..) -> []
+          }
+        }),
+      )
+    glance.Tuple(elements:, ..) ->
+      list.flat_map(elements, collect_expr_var_names)
+    glance.List(elements:, rest:, ..) ->
+      list.append(list.flat_map(elements, collect_expr_var_names), case rest {
+        Some(r) -> collect_expr_var_names(r)
+        None -> []
+      })
+    glance.RecordUpdate(record:, fields:, ..) ->
+      list.append(
+        collect_expr_var_names(record),
+        list.flat_map(fields, fn(f) {
+          case f.item {
+            Some(v) -> collect_expr_var_names(v)
+            None -> []
+          }
+        }),
+      )
+    glance.BinaryOperator(left:, right:, ..) ->
+      list.append(collect_expr_var_names(left), collect_expr_var_names(right))
+    glance.FieldAccess(container:, ..) -> collect_expr_var_names(container)
+    glance.TupleIndex(tuple:, ..) -> collect_expr_var_names(tuple)
+    glance.NegateInt(value:, ..) -> collect_expr_var_names(value)
+    glance.NegateBool(value:, ..) -> collect_expr_var_names(value)
+    _ -> []
+  }
+}
+
+fn collect_pattern_var_names(pattern: glance.Pattern) -> List(String) {
+  case pattern {
+    glance.PatternVariable(name:, ..) -> [name]
+    glance.PatternAssignment(pattern: p, name:, ..) -> [
+      name,
+      ..collect_pattern_var_names(p)
+    ]
+    glance.PatternTuple(elements:, ..) ->
+      list.flat_map(elements, collect_pattern_var_names)
+    glance.PatternList(elements:, tail:, ..) ->
+      list.append(
+        list.flat_map(elements, collect_pattern_var_names),
+        case tail {
+          Some(t) -> collect_pattern_var_names(t)
+          None -> []
+        },
+      )
+    glance.PatternVariant(arguments:, ..) ->
+      list.flat_map(arguments, fn(arg) {
+        case arg {
+          glance.LabelledField(item: p, ..) -> collect_pattern_var_names(p)
+          glance.UnlabelledField(item: p) -> collect_pattern_var_names(p)
+          glance.ShorthandField(label:, ..) -> [label]
+        }
+      })
+    _ -> []
+  }
+}
+
 // -- Filtering --
 
 /// Collect all referenced names from client function bodies, signatures, and types.
@@ -406,6 +679,7 @@ fn collect_all_client_refs(
     ast.custom_types
     |> list.filter(fn(def) {
       !set.contains(server_symbols, def.definition.name)
+      && def.definition.publicity == glance.Public
     })
 
   let type_refs =
@@ -467,14 +741,95 @@ fn extract_type_refs(t: glance.Type) -> List(String) {
   }
 }
 
+fn extract_type_module_only_refs(t: glance.Type) -> List(String) {
+  case t {
+    glance.NamedType(module: Some(m), parameters:, ..) -> [
+      m,
+      ..list.flat_map(parameters, extract_type_module_only_refs)
+    ]
+    glance.NamedType(module: None, parameters:, ..) ->
+      list.flat_map(parameters, extract_type_module_only_refs)
+    glance.TupleType(elements:, ..) ->
+      list.flat_map(elements, extract_type_module_only_refs)
+    glance.FunctionType(parameters:, return:, ..) ->
+      list.append(
+        list.flat_map(parameters, extract_type_module_only_refs),
+        extract_type_module_only_refs(return),
+      )
+    glance.VariableType(..) -> []
+    glance.HoleType(..) -> []
+  }
+}
+
+fn collect_module_refs(
+  ast ast: glance.Module,
+  client_fn_names client_fn_names: Set(String),
+  server_symbols server_symbols: Set(String),
+) -> Set(String) {
+  let client_fns =
+    ast.functions
+    |> list.filter(fn(def) {
+      set.contains(client_fn_names, def.definition.name)
+    })
+
+  let body_refs =
+    list.flat_map(client_fns, fn(def) {
+      let f = def.definition
+      let bindings = collect_fn_bindings(f)
+      f.body
+      |> list.flat_map(extract_stmt_module_refs)
+      |> list.filter(fn(name) { !set.contains(bindings, name) })
+    })
+
+  let sig_refs =
+    list.flat_map(client_fns, fn(def) {
+      let function = def.definition
+      let param_refs =
+        list.flat_map(function.parameters, fn(p) {
+          case p.type_ {
+            Some(t) -> extract_type_module_only_refs(t)
+            None -> []
+          }
+        })
+      let return_refs = case function.return {
+        Some(t) -> extract_type_module_only_refs(t)
+        None -> []
+      }
+      list.append(param_refs, return_refs)
+    })
+
+  let type_refs = {
+    let client_types =
+      ast.custom_types
+      |> list.filter(fn(def) {
+        !set.contains(server_symbols, def.definition.name)
+        && def.definition.publicity == glance.Public
+      })
+    list.flat_map(client_types, fn(def) {
+      list.flat_map(def.definition.variants, fn(v) {
+        list.flat_map(v.fields, fn(f) {
+          case f {
+            glance.LabelledVariantField(item: t, ..) ->
+              extract_type_module_only_refs(t)
+            glance.UnlabelledVariantField(item: t) ->
+              extract_type_module_only_refs(t)
+          }
+        })
+      })
+    })
+  }
+
+  list.flatten([body_refs, sig_refs, type_refs]) |> set.from_list
+}
+
 fn filter_imports(
   imports imports: List(glance.Definition(glance.Import)),
   server_symbols server_symbols: Set(String),
   client_refs client_refs: Set(String),
+  module_refs module_refs: Set(String),
 ) -> List(glance.Definition(glance.Import)) {
   list.filter(imports, fn(def) {
     let imp = def.definition
-    // Always exclude imports that bring in server-only types
     let imports_server_type =
       list.any(imp.unqualified_types, fn(uq) {
         set.contains(server_symbols, uq.name)
@@ -482,7 +837,6 @@ fn filter_imports(
     case imports_server_type {
       True -> False
       False -> {
-        // Keep if any unqualified import is referenced by client code
         let has_unqualified_ref =
           list.any(imp.unqualified_values, fn(uv) {
             set.contains(client_refs, uv.name)
@@ -490,12 +844,11 @@ fn filter_imports(
           || list.any(imp.unqualified_types, fn(ut) {
             set.contains(client_refs, ut.name)
           })
-        // Keep if the module itself is referenced (qualified access)
         let module_alias = case imp.alias {
           Some(glance.Named(name)) -> name
           _ -> last_segment(imp.module)
         }
-        let module_referenced = set.contains(client_refs, module_alias)
+        let module_referenced = set.contains(module_refs, module_alias)
         has_unqualified_ref || module_referenced
       }
     }
@@ -514,18 +867,16 @@ fn filter_types(
   server_symbols server_symbols: Set(String),
   client_refs client_refs: Set(String),
 ) -> List(glance.Definition(glance.CustomType)) {
+  let is_referenced = fn(def: glance.Definition(glance.CustomType)) {
+    set.contains(client_refs, def.definition.name)
+    || list.any(def.definition.variants, fn(v) {
+      set.contains(client_refs, v.name)
+    })
+  }
   list.filter(types, fn(def) {
-    let name = def.definition.name
-    let is_server = set.contains(server_symbols, name)
-    case is_server {
-      False -> True
-      True -> {
-        // Keep server types whose constructors are referenced by client code
-        set.contains(client_refs, name)
-        || list.any(def.definition.variants, fn(v) {
-          set.contains(client_refs, v.name)
-        })
-      }
+    case set.contains(server_symbols, def.definition.name) {
+      True -> is_referenced(def)
+      False -> def.definition.publicity == glance.Public || is_referenced(def)
     }
   })
 }
