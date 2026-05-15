@@ -16,7 +16,7 @@ import gleam/string
 import mist.{type Connection, type ResponseData}
 import rally_runtime/db
 import rally_runtime/env
-import rally_runtime/migrate
+
 import rally_runtime/session
 import rally_runtime/system
 import server_context.{ServerContext}
@@ -271,7 +271,6 @@ fn serve_static(path: String) -> Response(ResponseData) {
 }
 
 fn start_db() -> sqlight.Connection {
-  let assert Ok(conn) = db.open("app.db")
-  let assert Ok(_) = migrate.run(conn:, dir: "migrations")
+  let assert Ok(conn) = db.open("realworld.db")
   conn
 }

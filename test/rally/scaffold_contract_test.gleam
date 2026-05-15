@@ -111,7 +111,11 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
   |> should.equal(True)
 
   script
-  |> string.contains("ssr_handler.handle_request(route)")
+  |> string.contains("ssr_handler.handle_request(")
+  |> should.equal(True)
+
+  script
+  |> string.contains("server_context: server_context")
   |> should.equal(True)
 
   script
@@ -147,12 +151,32 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
   |> should.equal(False)
 
   script
+  |> string.contains("pub fn load(server_context: ServerContext) -> Model")
+  |> should.equal(True)
+
+  script
   |> string.contains("pub fn update(model: Model, msg: Msg)")
   |> should.equal(True)
 
   script
   |> string.contains("pub fn view(model: Model)")
   |> should.equal(True)
+
+  script
+  |> string.contains("counter_sql.increment(db: server_context.db)")
+  |> should.equal(True)
+
+  script
+  |> string.contains("counter_sql.decrement(db: server_context.db)")
+  |> should.equal(True)
+
+  script
+  |> string.contains("import rally_runtime/migrate")
+  |> should.equal(False)
+
+  script
+  |> string.contains("migrate.run")
+  |> should.equal(False)
 }
 
 pub fn scaffold_uses_namespaced_client_config_test() {

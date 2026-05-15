@@ -55,6 +55,16 @@ pub fn scaffold_builds_without_warnings_test() {
     )
   let assert Ok(Nil) = simplifile.write(dir <> "/gleam.toml", patched)
 
+  let #(migrate_exit, migrate_out) =
+    run_in_dir(gleam, ["run", "-m", "rally", "migrate"], dir)
+  case migrate_exit {
+    0 -> Nil
+    _ -> {
+      cleanup(dir)
+      panic as { "rally migrate failed: " <> migrate_out }
+    }
+  }
+
   let #(rally_build_exit, rally_build_out) =
     run_in_dir(gleam, ["run", "-m", "rally", "build"], dir)
   case rally_build_exit {

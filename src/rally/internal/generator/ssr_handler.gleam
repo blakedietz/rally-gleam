@@ -139,13 +139,22 @@ pub fn generate(
     False -> "route _route: router.Route,"
   }
 
+  let uses_session_params = has_auth || use_session
+  let session_id_param = case uses_session_params {
+    True -> "session_id session_id: String,"
+    False -> "session_id _session_id: String,"
+  }
+  let hostname_param = case uses_session_params {
+    True -> "hostname hostname: String,"
+    False -> "hostname _hostname: String,"
+  }
   let fn_params = case needs_server_context {
     True -> "
 pub fn handle_request(
   " <> route_arg <> "
   server_context server_context: ServerContext,
-  session_id session_id: String,
-  hostname hostname: String,
+  " <> session_id_param <> "
+  " <> hostname_param <> "
 ) -> response.Response(ResponseData) {"
     False ->
       "

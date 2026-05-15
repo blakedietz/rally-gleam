@@ -40,19 +40,46 @@ pub fn init_project_writes_hex_scaffold_test() {
   let assert Ok(gitignore) = simplifile.read(dir <> "/.gitignore")
   gitignore |> string.contains(".env") |> should.be_true()
 
+  let assert Ok(migration) =
+    simplifile.read(dir <> "/migrations/001_create_counter.sql")
+  migration |> string.contains("CREATE TABLE counter") |> should.be_true()
+  migration |> string.contains("CHECK (id = 1)") |> should.be_true()
+
+  let assert Ok(get_sql) = simplifile.read(dir <> "/src/sql/counter/get.sql")
+  get_sql |> string.contains("SELECT value FROM counter") |> should.be_true()
+
+  let assert Ok(inc_sql) =
+    simplifile.read(dir <> "/src/sql/counter/increment.sql")
+  inc_sql |> string.contains("RETURNING value") |> should.be_true()
+
+  let assert Ok(dec_sql) =
+    simplifile.read(dir <> "/src/sql/counter/decrement.sql")
+  dec_sql |> string.contains("value - 1") |> should.be_true()
+
   let assert Ok(home) = simplifile.read(dir <> "/src/public/pages/home_.gleam")
+  home |> string.contains("pub fn load(") |> should.be_true()
+  home |> string.contains("counter_sql") |> should.be_true()
   home |> string.contains("pub fn server_increment") |> should.be_true()
 
   simplifile.read(dir <> "/bin/dev")
   |> should.be_error()
 
+  let assert Ok(toml_marmot) = simplifile.read(dir <> "/gleam.toml")
+  toml_marmot
+  |> string.contains("database = \"rally_init_test_hex_scaffold.db\"")
+  |> should.be_true()
+
   let assert Ok(app) =
     simplifile.read(dir <> "/src/rally_init_test_hex_scaffold.gleam")
+  app
+  |> string.contains("const db_path = \"rally_init_test_hex_scaffold.db\"")
+  |> should.be_true()
   app |> string.contains("envoy.get(\"PORT\")") |> should.be_true()
   app |> string.contains("|> mist.port(port)") |> should.be_true()
   app
   |> string.contains("case string.starts_with(path, \"/_build/\")")
   |> should.be_true()
+  app |> string.contains("import rally_runtime/migrate") |> should.be_false()
 
   simplifile.read(dir <> "/src/app.gleam")
   |> should.be_error()
@@ -66,6 +93,27 @@ pub fn init_project_writes_hex_scaffold_test() {
   shell
   |> string.contains("main();")
   |> should.be_true()
+
+  let assert Ok(readme) = simplifile.read(dir <> "/README.md")
+  readme
+  |> string.contains("# rally_init_test_hex_scaffold")
+  |> should.be_true()
+  readme
+  |> string.contains("gleam run -m rally migrate")
+  |> should.be_true()
+
+  cleanup(dir)
+}
+
+pub fn init_project_does_not_overwrite_existing_readme_test() {
+  let dir = make_temp_dir("existing_readme")
+  let assert Ok(Nil) =
+    simplifile.write(dir <> "/README.md", "My custom README\n")
+
+  let assert Ok(Nil) = init.init_project(dir)
+
+  let assert Ok(readme) = simplifile.read(dir <> "/README.md")
+  readme |> should.equal("My custom README\n")
 
   cleanup(dir)
 }
@@ -148,7 +196,6 @@ pub fn init_project_refuses_to_overwrite_user_module_test() {
         "Refusing to overwrite src/rally_init_test_user_module.gleam",
       )
       |> should.be_true()
-      message |> string.contains("It may contain your code") |> should.be_true()
       message
       |> string.contains("fresh `gleam new` project")
       |> should.be_true()
@@ -194,6 +241,107 @@ pub fn init_project_refuses_existing_scaffold_directory_test() {
   }
 
   simplifile.read(dir <> "/src/public/pages/home_.gleam")
+  |> should.be_error()
+
+  cleanup(dir)
+}
+
+pub fn init_project_refuses_existing_migration_test() {
+  let dir = make_temp_dir("existing_migration")
+  let assert Ok(Nil) = simplifile.create_directory_all(dir <> "/migrations")
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/migrations/001_create_counter.sql",
+      "CREATE TABLE my_stuff (id INTEGER PRIMARY KEY);\n",
+    )
+
+  case init.init_project(dir) {
+    Ok(_) -> should.fail()
+    Error(message) -> {
+      message
+      |> string.contains(
+        "Refusing to overwrite migrations/001_create_counter.sql",
+      )
+      |> should.be_true()
+    }
+  }
+
+  simplifile.read(dir <> "/.env")
+  |> should.be_error()
+
+  cleanup(dir)
+}
+
+pub fn init_project_refuses_existing_sql_file_test() {
+  let dir = make_temp_dir("existing_sql")
+  let assert Ok(Nil) =
+    simplifile.create_directory_all(dir <> "/src/sql/counter")
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/src/sql/counter/get.sql",
+      "SELECT * FROM my_table\n",
+    )
+
+  case init.init_project(dir) {
+    Ok(_) -> should.fail()
+    Error(message) -> {
+      message
+      |> string.contains("Refusing to overwrite src/sql/counter/get.sql")
+      |> should.be_true()
+    }
+  }
+
+  simplifile.read(dir <> "/.env")
+  |> should.be_error()
+
+  cleanup(dir)
+}
+
+pub fn init_project_refuses_existing_page_test() {
+  let dir = make_temp_dir("existing_page")
+  let assert Ok(Nil) =
+    simplifile.create_directory_all(dir <> "/src/public/pages")
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/src/public/pages/home_.gleam",
+      "pub fn init() { todo }\n",
+    )
+
+  case init.init_project(dir) {
+    Ok(_) -> should.fail()
+    Error(message) -> {
+      message
+      |> string.contains("Refusing to overwrite src/public/pages/home_.gleam")
+      |> should.be_true()
+    }
+  }
+
+  simplifile.read(dir <> "/.env")
+  |> should.be_error()
+
+  cleanup(dir)
+}
+
+pub fn init_project_refuses_existing_layout_test() {
+  let dir = make_temp_dir("existing_layout")
+  let assert Ok(Nil) =
+    simplifile.create_directory_all(dir <> "/src/public/pages")
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/src/public/pages/layout.gleam",
+      "pub fn layout(c) { c }\n",
+    )
+
+  case init.init_project(dir) {
+    Ok(_) -> should.fail()
+    Error(message) -> {
+      message
+      |> string.contains("Refusing to overwrite src/public/pages/layout.gleam")
+      |> should.be_true()
+    }
+  }
+
+  simplifile.read(dir <> "/.env")
   |> should.be_error()
 
   cleanup(dir)

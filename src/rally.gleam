@@ -32,6 +32,8 @@ import rally/internal/parser
 import rally/internal/scanner
 import rally/internal/tree_shaker
 import rally/internal/types.{type ScanConfig, ScanConfig}
+import rally_runtime/db
+import rally_runtime/migrate
 import simplifile
 import tom
 
@@ -254,6 +256,7 @@ fn run(args: List(String)) -> Result(String, RallyError) {
       )
       Ok("initialized project")
     }
+    ["migrate"] -> run_migrate()
     ["build"] -> {
       use configs <- result.try(read_configs())
       use Nil <- result.try(build_project(configs))
@@ -266,14 +269,13 @@ fn run(args: List(String)) -> Result(String, RallyError) {
     }
     _ ->
       Error(RallyError(
-        "Unknown command. Run `gleam run -m rally` for codegen, `gleam run -m rally build` to build generated clients, or `gleam run -m rally init` to scaffold the current project.",
+        "Unknown command. Usage: rally init | rally migrate | rally build | rally gen",
       ))
   }
 }
 
 fn build_project(configs: List(ScanConfig)) -> Result(Nil, RallyError) {
   use gleam <- result.try(find_gleam())
-  use Nil <- result.try(run_marmot_if_configured(gleam))
   use Nil <- result.try(list.try_each(configs, generate_for_config))
   list.try_each(configs, fn(config) {
     run_command(
@@ -285,16 +287,47 @@ fn build_project(configs: List(ScanConfig)) -> Result(Nil, RallyError) {
   })
 }
 
-fn run_marmot_if_configured(gleam: String) -> Result(Nil, RallyError) {
+fn run_migrate() -> Result(String, RallyError) {
   use toml_map <- result.try(read_project_toml())
+  let db_path =
+    tom.get_string(toml_map, ["tools", "marmot", "database"])
+    |> result.unwrap("app.db")
+
+  use Nil <- result.try(run_migrations(db_path))
+  use Nil <- result.try(run_marmot_if_configured(toml_map))
+  Ok("migrate complete")
+}
+
+fn run_migrations(db_path: String) -> Result(Nil, RallyError) {
+  case simplifile.is_directory("migrations") {
+    Ok(True) -> {
+      io.println("rally: migrations (" <> db_path <> ")")
+      use conn <- result.try(
+        db.open(db_path)
+        |> result.map_error(fn(e) {
+          RallyError("Cannot open " <> db_path <> ": " <> e.message)
+        }),
+      )
+      migrate.run(conn:, dir: "migrations")
+      |> result.map_error(fn(e) { RallyError(migrate.error_to_string(e)) })
+    }
+    _ -> Ok(Nil)
+  }
+}
+
+fn run_marmot_if_configured(
+  toml_map: dict.Dict(String, tom.Toml),
+) -> Result(Nil, RallyError) {
   case should_run_marmot(toml_map) {
-    True ->
+    True -> {
+      use gleam <- result.try(find_gleam())
       run_command(
         program: gleam,
         args: ["run", "-m", "marmot"],
         dir: ".",
         label: "marmot codegen",
       )
+    }
     False -> Ok(Nil)
   }
 }

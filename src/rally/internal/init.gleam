@@ -15,6 +15,7 @@ pub fn init_project(root: String) -> Result(Nil, String) {
   use Nil <- result.try(ensure_safe_to_write(root, name, scaffold_files))
   use Nil <- result.try(create_dirs(root))
   use Nil <- result.try(write_files(root, scaffold_files))
+  write_readme_if_missing(root, name)
   Ok(Nil)
 }
 
@@ -24,9 +25,13 @@ pub fn files(project_name: String) -> List(ScaffoldFile) {
     ScaffoldFile(".env", env_example()),
     ScaffoldFile(".env.example", env_example()),
     ScaffoldFile("gleam.toml", gleam_toml(project_name)),
+    ScaffoldFile("migrations/001_create_counter.sql", migration_001()),
+    ScaffoldFile("src/sql/counter/get.sql", counter_get_sql()),
+    ScaffoldFile("src/sql/counter/increment.sql", counter_increment_sql()),
+    ScaffoldFile("src/sql/counter/decrement.sql", counter_decrement_sql()),
     ScaffoldFile("src/public/pages/home_.gleam", home_page()),
     ScaffoldFile("src/public/pages/layout.gleam", layout_page()),
-    ScaffoldFile("src/" <> project_name <> ".gleam", app_module()),
+    ScaffoldFile("src/" <> project_name <> ".gleam", app_module(project_name)),
     ScaffoldFile("src/public/shell.html", shell_html()),
     ScaffoldFile("src/server_context.gleam", server_context()),
   ]
@@ -34,8 +39,9 @@ pub fn files(project_name: String) -> List(ScaffoldFile) {
 
 fn create_dirs(root: String) -> Result(Nil, String) {
   [
+    "migrations",
     "src/public/pages",
-    "src/sql",
+    "src/sql/counter",
     "src/generated/public",
     ".generated_clients/public/src/generated",
   ]
@@ -128,7 +134,7 @@ fn ensure_path_is_missing(
 fn refuse_overwrite_message(path: String) -> String {
   "Refusing to overwrite "
   <> path
-  <> ". This file already exists and does not look like Rally scaffold or the default file from `gleam new`. It may contain your code, so Rally stopped before writing anything. Run `rally init` in a fresh `gleam new` project, or only remove this file if you are certain it is disposable."
+  <> ". This file already exists, so Rally stopped before writing anything. Run `rally init` in a fresh `gleam new` project, or remove this file if you are certain it is disposable."
 }
 
 fn can_overwrite(
@@ -136,9 +142,8 @@ fn can_overwrite(
   project_name: String,
   existing: String,
 ) -> Bool {
-  let ScaffoldFile(path:, contents:) = file
-  existing == contents
-  || is_default_gleam_new_file(path, project_name, existing)
+  let ScaffoldFile(path:, ..) = file
+  is_default_gleam_new_file(path, project_name, existing)
 }
 
 fn is_default_gleam_new_file(
@@ -245,6 +250,17 @@ fn basename(path: String) -> String {
   |> result.unwrap("rally_app")
 }
 
+fn write_readme_if_missing(root: String, project_name: String) -> Nil {
+  let path = join(root, "README.md")
+  case simplifile.is_file(path) {
+    Ok(True) -> Nil
+    _ -> {
+      let _ = simplifile.write(to: path, contents: readme(project_name))
+      Nil
+    }
+  }
+}
+
 fn join(root: String, path: String) -> String {
   case root {
     "." -> path
@@ -255,7 +271,7 @@ fn join(root: String, path: String) -> String {
 fn gitignore() -> String {
   "build/
 .env
-app.db
+*.db
 erl_crash.dump
 *.bak
 .DS_Store
@@ -304,7 +320,7 @@ namespace = \"public\"
 route_root = \"/\"
 
 [tools.marmot]
-database = \"app.db\"
+database = \"" <> project_name <> ".db\"
 sql_dir = \"src/sql\"
 output = \"src/generated/sql\"
 "
@@ -312,7 +328,8 @@ output = \"src/generated/sql\"
 
 fn home_page() -> String {
   "// Scaffolded by rally: yours to customize.
-import gleam/string
+import generated/sql/counter_sql
+import gleam/int
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/effect.{type Effect}
@@ -327,7 +344,7 @@ pub type Model {
 pub type Msg {
   UserClickedIncrement
   UserClickedDecrement
-  GotIncrement(Result(Int, Nil))
+  GotCount(Result(Int, Nil))
 }
 
 pub type ServerIncrement {
@@ -338,6 +355,11 @@ pub type ServerDecrement {
   ServerDecrement
 }
 
+pub fn load(server_context: ServerContext) -> Model {
+  let assert Ok([row]) = counter_sql.get(db: server_context.db)
+  Model(count: row.value)
+}
+
 pub fn init() -> #(Model, Effect(Msg)) {
   #(Model(count: 0), effect.none())
 }
@@ -345,34 +367,40 @@ pub fn init() -> #(Model, Effect(Msg)) {
 pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     UserClickedIncrement ->
-      #(model, rally_effect.rpc(ServerIncrement, on_response: GotIncrement))
+      #(model, rally_effect.rpc(ServerIncrement, on_response: GotCount))
     UserClickedDecrement ->
-      #(model, rally_effect.rpc(ServerDecrement, on_response: GotIncrement))
-    GotIncrement(Ok(n)) -> #(Model(count: model.count + n), effect.none())
-    GotIncrement(Error(_)) -> #(model, effect.none())
+      #(model, rally_effect.rpc(ServerDecrement, on_response: GotCount))
+    GotCount(Ok(count)) -> #(Model(count:), effect.none())
+    GotCount(Error(_)) -> #(model, effect.none())
   }
 }
 
 pub fn view(model: Model) -> Element(Msg) {
   html.div([], [
     html.button([event.on_click(UserClickedIncrement)], [html.text(\"+\")]),
-    html.text(string.inspect(model.count)),
+    html.text(int.to_string(model.count)),
     html.button([event.on_click(UserClickedDecrement)], [html.text(\"-\")]),
   ])
 }
 
 pub fn server_increment(
   msg _msg: ServerIncrement,
-  server_context _server_context: ServerContext,
+  server_context server_context: ServerContext,
 ) -> Result(Int, Nil) {
-  Ok(1)
+  case counter_sql.increment(db: server_context.db) {
+    Ok([row]) -> Ok(row.value)
+    _ -> Error(Nil)
+  }
 }
 
 pub fn server_decrement(
   msg _msg: ServerDecrement,
-  server_context _server_context: ServerContext,
+  server_context server_context: ServerContext,
 ) -> Result(Int, Nil) {
-  Ok(-1)
+  case counter_sql.decrement(db: server_context.db) {
+    Ok([row]) -> Ok(row.value)
+    _ -> Error(Nil)
+  }
 }
 "
 }
@@ -387,7 +415,7 @@ pub fn layout(content: Element(msg)) -> Element(msg) {
 "
 }
 
-fn app_module() -> String {
+fn app_module(project_name: String) -> String {
   "// Scaffolded by rally: yours to customize.
 import envoy
 import gleam/bytes_tree
@@ -412,6 +440,8 @@ import rally_runtime/system
 import server_context.{type ServerContext, ServerContext}
 import simplifile
 import sqlight
+
+const db_path = \"" <> project_name <> ".db\"
 
 const client_build_root = \".generated_clients/public/build/dev/javascript\"
 
@@ -450,8 +480,15 @@ pub fn main() {
             case method {
               Get -> {
                 let session_id = get_session_id(req)
+                let hostname = request_header(req, \"host\")
                 let route = router.parse_route(request.to_uri(req))
-                let resp = ssr_handler.handle_request(route)
+                let resp =
+                  ssr_handler.handle_request(
+                    route: route,
+                    server_context: server_context,
+                    session_id: session_id,
+                    hostname: hostname,
+                  )
                 set_session_cookie_if_missing(req, resp, session_id)
               }
               _ ->
@@ -633,7 +670,7 @@ fn content_type(path: String) -> String {
 }
 
 fn start_db() -> sqlight.Connection {
-  let assert Ok(conn) = db.open(\"app.db\")
+  let assert Ok(conn) = db.open(db_path)
   conn
 }
 "
@@ -659,6 +696,31 @@ fn shell_html() -> String {
 "
 }
 
+fn migration_001() -> String {
+  "CREATE TABLE counter (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  value INTEGER NOT NULL
+);
+
+INSERT INTO counter (id, value) VALUES (1, 0);
+"
+}
+
+fn counter_get_sql() -> String {
+  "SELECT value FROM counter WHERE id = 1
+"
+}
+
+fn counter_increment_sql() -> String {
+  "UPDATE counter SET value = value + 1 WHERE id = 1 RETURNING value
+"
+}
+
+fn counter_decrement_sql() -> String {
+  "UPDATE counter SET value = value - 1 WHERE id = 1 RETURNING value
+"
+}
+
 fn server_context() -> String {
   "// Scaffolded by rally: yours to customize.
 import sqlight
@@ -666,5 +728,45 @@ import sqlight
 pub type ServerContext {
   ServerContext(db: sqlight.Connection)
 }
+"
+}
+
+fn readme(project_name: String) -> String {
+  "# " <> project_name <> "
+
+## Run
+
+```sh
+gleam run -m rally migrate
+gleam run -m rally build
+gleam run
+```
+
+Open http://localhost:8080.
+
+Set `PORT` in `.env` or run `PORT=8081 gleam run` to use another port.
+
+## Next Steps
+
+The scaffolded counter is disposable. It shows the request/SQL/UI loop.
+
+- Replace the counter migration in `migrations/` with your real schema.
+- Replace the counter queries in `src/sql/` with your app's queries.
+- Edit `src/public/pages/home_.gleam`, or add new pages under `src/public/pages/`.
+- Put shared server resources in `src/server_context.gleam`.
+- Run `gleam run -m rally migrate` after changing migrations or SQL.
+- Run `gleam run -m rally build` after changing pages, handlers, or shared client code.
+- Start the server with `gleam run`.
+
+## Reset the Demo Database
+
+The scaffold stores data in `" <> project_name <> ".db`. To reset the demo counter, stop the server and run:
+
+```sh
+rm " <> project_name <> ".db
+gleam run -m rally migrate
+```
+
+This deletes local data for this app. `rally migrate` recreates the database, applies migrations, and regenerates the typed SQL modules.
 "
 }
