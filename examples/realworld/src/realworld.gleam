@@ -37,8 +37,9 @@ fn session_id(req: Request(Connection)) -> String {
 
 pub fn main() -> Nil {
   load_dotenv()
+  ensure_db_dir()
   let db = start_db()
-  system.start("system.db")
+  system.start("db/system.db")
   let server_context = ServerContext(db:)
   let port = server_port()
 
@@ -271,6 +272,11 @@ fn serve_static(path: String) -> Response(ResponseData) {
 }
 
 fn start_db() -> sqlight.Connection {
-  let assert Ok(conn) = db.open("realworld.db")
+  let assert Ok(conn) = db.open("db/realworld.db")
   conn
+}
+
+fn ensure_db_dir() -> Nil {
+  let assert Ok(Nil) = simplifile.create_directory_all("db")
+  Nil
 }

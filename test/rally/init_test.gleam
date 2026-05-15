@@ -39,6 +39,7 @@ pub fn init_project_writes_hex_scaffold_test() {
 
   let assert Ok(gitignore) = simplifile.read(dir <> "/.gitignore")
   gitignore |> string.contains(".env") |> should.be_true()
+  gitignore |> string.contains("db/") |> should.be_true()
 
   let assert Ok(migration) =
     simplifile.read(dir <> "/migrations/001_create_counter.sql")
@@ -66,14 +67,15 @@ pub fn init_project_writes_hex_scaffold_test() {
 
   let assert Ok(toml_marmot) = simplifile.read(dir <> "/gleam.toml")
   toml_marmot
-  |> string.contains("database = \"rally_init_test_hex_scaffold.db\"")
+  |> string.contains("database = \"db/rally_init_test_hex_scaffold.db\"")
   |> should.be_true()
 
   let assert Ok(app) =
     simplifile.read(dir <> "/src/rally_init_test_hex_scaffold.gleam")
   app
-  |> string.contains("const db_path = \"rally_init_test_hex_scaffold.db\"")
+  |> string.contains("const db_path = \"db/rally_init_test_hex_scaffold.db\"")
   |> should.be_true()
+  app |> string.contains("system.start(\"db/system.db\")") |> should.be_true()
   app |> string.contains("envoy.get(\"PORT\")") |> should.be_true()
   app |> string.contains("|> mist.port(port)") |> should.be_true()
   app
@@ -101,6 +103,57 @@ pub fn init_project_writes_hex_scaffold_test() {
   readme
   |> string.contains("gleam run -m rally migrate")
   |> should.be_true()
+  readme
+  |> string.contains("Package Version")
+  |> should.be_false()
+  readme
+  |> string.contains("Further documentation can be found")
+  |> should.be_false()
+
+  cleanup(dir)
+}
+
+pub fn init_project_replaces_default_gleam_new_readme_test() {
+  let dir = make_temp_dir("default_readme")
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/README.md",
+      "# rally_init_test_default_readme
+
+[![Package Version](https://img.shields.io/hexpm/v/rally_init_test_default_readme)](https://hex.pm/packages/rally_init_test_default_readme)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/rally_init_test_default_readme/)
+
+```sh
+gleam add rally_init_test_default_readme@1
+```
+```gleam
+import rally_init_test_default_readme
+
+pub fn main() -> Nil {
+  // TODO: An example of the project in use
+}
+```
+
+Further documentation can be found at <https://hexdocs.pm/rally_init_test_default_readme>.
+
+## Development
+
+```sh
+gleam run   # Run the project
+gleam test  # Run the tests
+```
+",
+    )
+
+  let assert Ok(Nil) = init.init_project(dir)
+
+  let assert Ok(readme) = simplifile.read(dir <> "/README.md")
+  readme |> string.contains("## Project Layout") |> should.be_true()
+  readme |> string.contains("src/public/pages/") |> should.be_true()
+  readme |> string.contains("Package Version") |> should.be_false()
+  readme
+  |> string.contains("Further documentation can be found")
+  |> should.be_false()
 
   cleanup(dir)
 }

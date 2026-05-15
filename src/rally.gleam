@@ -293,9 +293,27 @@ fn run_migrate() -> Result(String, RallyError) {
     tom.get_string(toml_map, ["tools", "marmot", "database"])
     |> result.unwrap("app.db")
 
+  use Nil <- result.try(ensure_db_parent_dir(db_path))
   use Nil <- result.try(run_migrations(db_path))
   use Nil <- result.try(run_marmot_if_configured(toml_map))
   Ok("migrate complete")
+}
+
+fn ensure_db_parent_dir(db_path: String) -> Result(Nil, RallyError) {
+  let dir = dirname(db_path)
+  case dir == "" || dir == "." {
+    True -> Ok(Nil)
+    False ->
+      simplifile.create_directory_all(dir)
+      |> result.map_error(fn(e) {
+        RallyError(
+          "Cannot create database directory "
+          <> dir
+          <> ": "
+          <> simplifile.describe_error(e),
+        )
+      })
+  }
 }
 
 fn run_migrations(db_path: String) -> Result(Nil, RallyError) {

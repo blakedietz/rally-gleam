@@ -1,5 +1,7 @@
 build/
 tmp/
+db/
+examples/*/db/
 examples/*/src/generated/
 examples/*/src/generated@*.erl
 erl_crash.dump

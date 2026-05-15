@@ -33,6 +33,6 @@ namespace = "public"
 route_root = "/"
 
 [tools.marmot]
-database = "realworld.db"
+database = "db/realworld.db"
 sql_dir = "src/sql"
 output = "src/generated/sql"

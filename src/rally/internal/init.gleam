@@ -40,6 +40,7 @@ pub fn files(project_name: String) -> List(ScaffoldFile) {
 fn create_dirs(root: String) -> Result(Nil, String) {
   [
     "migrations",
+    "db",
     "src/public/pages",
     "src/sql/counter",
     "src/generated/public",
@@ -253,12 +254,52 @@ fn basename(path: String) -> String {
 fn write_readme_if_missing(root: String, project_name: String) -> Nil {
   let path = join(root, "README.md")
   case simplifile.is_file(path) {
-    Ok(True) -> Nil
+    Ok(True) -> {
+      case simplifile.read(path) {
+        Ok(existing) ->
+          case existing == default_gleam_new_readme(project_name) {
+            True -> {
+              let _ = simplifile.write(to: path, contents: readme(project_name))
+              Nil
+            }
+            False -> Nil
+          }
+        _ -> Nil
+      }
+    }
     _ -> {
       let _ = simplifile.write(to: path, contents: readme(project_name))
       Nil
     }
   }
+}
+
+fn default_gleam_new_readme(project_name: String) -> String {
+  "# " <> project_name <> "
+
+[![Package Version](https://img.shields.io/hexpm/v/" <> project_name <> ")](https://hex.pm/packages/" <> project_name <> ")
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/" <> project_name <> "/)
+
+```sh
+gleam add " <> project_name <> "@1
+```
+```gleam
+import " <> project_name <> "
+
+pub fn main() -> Nil {
+  // TODO: An example of the project in use
+}
+```
+
+Further documentation can be found at <https://hexdocs.pm/" <> project_name <> ">.
+
+## Development
+
+```sh
+gleam run   # Run the project
+gleam test  # Run the tests
+```
+"
 }
 
 fn join(root: String, path: String) -> String {
@@ -271,7 +312,7 @@ fn join(root: String, path: String) -> String {
 fn gitignore() -> String {
   "build/
 .env
-*.db
+db/
 erl_crash.dump
 *.bak
 .DS_Store
@@ -320,7 +361,7 @@ namespace = \"public\"
 route_root = \"/\"
 
 [tools.marmot]
-database = \"" <> project_name <> ".db\"
+database = \"db/" <> project_name <> ".db\"
 sql_dir = \"src/sql\"
 output = \"src/generated/sql\"
 "
@@ -441,14 +482,17 @@ import server_context.{type ServerContext, ServerContext}
 import simplifile
 import sqlight
 
-const db_path = \"" <> project_name <> ".db\"
+const db_dir = \"db\"
+
+const db_path = \"db/" <> project_name <> ".db\"
 
 const client_build_root = \".generated_clients/public/build/dev/javascript\"
 
 pub fn main() {
   load_dotenv()
+  ensure_db_dir()
   let db = start_db()
-  system.start(\"system.db\")
+  system.start(\"db/system.db\")
   let server_context = ServerContext(db:)
   let port = server_port()
 
@@ -556,6 +600,11 @@ fn clean_env_value(value: String) -> String {
         False -> value
       }
   }
+}
+
+fn ensure_db_dir() -> Nil {
+  let assert Ok(Nil) = simplifile.create_directory_all(db_dir)
+  Nil
 }
 
 fn server_port() -> Int {
@@ -746,6 +795,15 @@ Open http://localhost:8080.
 
 Set `PORT` in `.env` or run `PORT=8081 gleam run` to use another port.
 
+## Project Layout
+
+- `src/public/pages/`: your pages. Edit `home_.gleam` or add routes here.
+- `src/public/shell.html`: the HTML shell that loads the client.
+- `src/sql/`: typed SQL queries for Marmot.
+- `migrations/`: SQLite migrations.
+- `src/server_context.gleam`: shared server resources passed to page loads and server handlers.
+- `db/`: local SQLite databases created when you run the app.
+
 ## Next Steps
 
 The scaffolded counter is disposable. It shows the request/SQL/UI loop.
@@ -760,10 +818,12 @@ The scaffolded counter is disposable. It shows the request/SQL/UI loop.
 
 ## Reset the Demo Database
 
-The scaffold stores data in `" <> project_name <> ".db`. To reset the demo counter, stop the server and run:
+The scaffold stores demo app data in `db/" <> project_name <> ".db`. Rally stores its own runtime data in `db/system.db`.
+
+To reset the demo counter, stop the server and run:
 
 ```sh
-rm " <> project_name <> ".db
+rm -f db/" <> project_name <> ".db db/" <> project_name <> ".db-wal db/" <> project_name <> ".db-shm
 gleam run -m rally migrate
 ```
 
