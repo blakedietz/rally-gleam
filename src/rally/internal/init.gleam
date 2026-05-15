@@ -1,6 +1,5 @@
 import gleam/bool
 import gleam/list
-import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
 import simplifile
@@ -16,7 +15,7 @@ pub fn init_project(root: String) -> Result(Nil, String) {
   use Nil <- result.try(ensure_safe_to_write(root, name, scaffold_files))
   use Nil <- result.try(create_dirs(root))
   use Nil <- result.try(write_files(root, scaffold_files))
-  set_executable(join(root, "bin/dev"))
+  Ok(Nil)
 }
 
 pub fn files(project_name: String) -> List(ScaffoldFile) {
@@ -30,7 +29,6 @@ pub fn files(project_name: String) -> List(ScaffoldFile) {
     ScaffoldFile("src/" <> project_name <> ".gleam", app_module()),
     ScaffoldFile("src/public/shell.html", shell_html()),
     ScaffoldFile("src/server_context.gleam", server_context()),
-    ScaffoldFile("bin/dev", dev_script()),
   ]
 }
 
@@ -40,7 +38,6 @@ fn create_dirs(root: String) -> Result(Nil, String) {
     "src/sql",
     "src/generated/public",
     ".generated_clients/public/src/generated",
-    "bin",
   ]
   |> list.try_each(fn(dir) {
     let path = join(root, dir)
@@ -212,16 +209,14 @@ gleeunit = \">= 1.0.0 and < 2.0.0\"
 
 fn is_default_dependency_lines(lines: List(String)) -> Bool {
   let stdlib = "gleam_stdlib = \">= 1.0.0 and < 2.0.0\""
-  case lines {
-    [line] -> line == stdlib
-    [first, second] -> {
-      first == stdlib
-      && string.starts_with(second, "rally = ")
-      || second == stdlib
-      && string.starts_with(first, "rally = ")
-    }
-    _ -> False
-  }
+  lines |> list.contains(stdlib)
+  && list.length(lines) <= 3
+  && lines
+  |> list.all(fn(line) {
+    line == stdlib
+    || string.starts_with(line, "rally = ")
+    || string.starts_with(line, "libero = ")
+  })
 }
 
 fn project_name(root: String) -> String {
@@ -256,24 +251,6 @@ fn join(root: String, path: String) -> String {
     _ -> root <> "/" <> path
   }
 }
-
-fn set_executable(path: String) -> Result(Nil, String) {
-  case find_executable("chmod") {
-    Some(chmod) -> {
-      case run_executable(chmod, ["+x", path]) {
-        0 -> Ok(Nil)
-        _ -> Error("Failed to mark " <> path <> " executable")
-      }
-    }
-    None -> Ok(Nil)
-  }
-}
-
-@external(erlang, "rally_cli_ffi", "find_executable")
-fn find_executable(name: String) -> option.Option(String)
-
-@external(erlang, "rally_cli_ffi", "run_executable")
-fn run_executable(program: String, args: List(String)) -> Int
 
 fn gitignore() -> String {
   "build/
@@ -638,31 +615,5 @@ import sqlight
 pub type ServerContext {
   ServerContext(db: sqlight.Connection)
 }
-"
-}
-
-fn dev_script() -> String {
-  "#!/usr/bin/env bash
-set -euo pipefail
-cd \"$(dirname \"$0\")/..\"
-APP_ENV_OVERRIDE=\"${APP_ENV:-}\"
-PORT_OVERRIDE=\"${PORT:-}\"
-if [ -f \".env\" ]; then
-  set -a; . .env; set +a
-fi
-if [ -n \"$APP_ENV_OVERRIDE\" ]; then
-  APP_ENV=\"$APP_ENV_OVERRIDE\"
-fi
-if [ -n \"$PORT_OVERRIDE\" ]; then
-  PORT=\"$PORT_OVERRIDE\"
-fi
-export APP_ENV=\"${APP_ENV:-dev}\"
-export PORT=\"${PORT:-8080}\"
-echo \"==> Running rally codegen...\"
-gleam run -m rally
-echo \"==> Building client...\"
-cd .generated_clients/public && gleam build --target javascript && cd ../..
-echo \"==> Starting server on http://localhost:${PORT}...\"
-gleam run
 "
 }

@@ -942,7 +942,7 @@ Expected: ALL PASS (no regressions)
 
 - [ ] **Step 2: Test with curling/v3**
 
-Run: `cd /Users/daverapin/projects/curling/v3 && bin/dev`
+Run: `cd /Users/daverapin/projects/curling/v3 && gleam run -m rally && cd .generated_clients/public && gleam build --target javascript && cd ../.. && gleam run`
 Expected: Builds and runs without errors (v3 doesn't have auth.gleam yet, so auth codegen shouldn't activate)
 
 - [ ] **Step 3: Commit any fixes**

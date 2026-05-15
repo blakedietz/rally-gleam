@@ -43,11 +43,8 @@ pub fn init_project_writes_hex_scaffold_test() {
   let assert Ok(home) = simplifile.read(dir <> "/src/public/pages/home_.gleam")
   home |> string.contains("pub fn server_increment") |> should.be_true()
 
-  let assert Ok(dev) = simplifile.read(dir <> "/bin/dev")
-  dev |> string.contains("gleam run -m rally") |> should.be_true()
-  dev |> string.contains("PORT_OVERRIDE=\"${PORT:-}\"") |> should.be_true()
-  dev |> string.contains("export PORT=\"${PORT:-8080}\"") |> should.be_true()
-  dev |> string.contains("http://localhost:${PORT}") |> should.be_true()
+  simplifile.read(dir <> "/bin/dev")
+  |> should.be_error()
 
   let assert Ok(app) =
     simplifile.read(dir <> "/src/rally_init_test_hex_scaffold.gleam")
@@ -106,6 +103,7 @@ version = \"1.0.0\"
 [dependencies]
 gleam_stdlib = \">= 1.0.0 and < 2.0.0\"
 rally = { path = \"/tmp/rally\" }
+libero = \">= 6.0.0 and < 7.0.0\"
 
 [dev_dependencies]
 gleeunit = \">= 1.0.0 and < 2.0.0\"
@@ -195,7 +193,7 @@ pub fn init_project_refuses_existing_scaffold_directory_test() {
     }
   }
 
-  simplifile.read(dir <> "/bin/dev")
+  simplifile.read(dir <> "/src/public/pages/home_.gleam")
   |> should.be_error()
 
   cleanup(dir)

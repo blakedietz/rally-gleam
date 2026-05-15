@@ -5,11 +5,16 @@ A [RealWorld](https://github.com/gothinkster/realworld) implementation built wit
 ## Running it
 
 ```sh
-bin/dev
+gleam run -m marmot
+gleam run -m rally
+cd .generated_clients/public
+gleam build --target javascript
+cd ../..
+gleam run
 # => http://localhost:8080
 ```
 
-This runs marmot codegen (SQL), Rally codegen (routes, handlers, client), builds the ignored JS client in `.generated_clients/public`, and starts the server. To use a different port, set `PORT` in `.env` or run `PORT=8081 bin/dev`.
+This runs marmot codegen (SQL), Rally codegen (routes, handlers, client), builds the ignored JS client in `.generated_clients/public`, and starts the server. To use a different port, set `PORT` in `.env` or run `PORT=8081 gleam run`.
 
 ## What's here
 

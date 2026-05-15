@@ -24,12 +24,16 @@ gleam new my_app
 cd my_app
 gleam add rally libero
 gleam run -m rally init
-bin/dev
+gleam run -m rally
+cd .generated_clients/public
+gleam build --target javascript
+cd ../..
+gleam run
 ```
 
-`rally init` writes the starter app into the current Gleam project, including `src/my_app.gleam` and `bin/dev`. It only replaces the default files from `gleam new` or files from a previous Rally scaffold. If another target file already exists, Rally stops before writing anything and tells you which file needs attention.
+`rally init` writes the starter app into the current Gleam project, including `src/my_app.gleam`. It only replaces the default files from `gleam new` or files from a previous Rally scaffold. If another target file already exists, Rally stops before writing anything and tells you which file needs attention.
 
-After that, `bin/dev` runs codegen, builds the JS client, and starts the server on port 8080. Open `http://localhost:8080` to see the app. To use a different port, set `PORT` in `.env` or run `PORT=8081 bin/dev`. The starter app uses SQLite, so development does not need a database daemon.
+After that, run codegen, build the JS client, and start the server. Open `http://localhost:8080` to see the app. To use a different port, set `PORT` in `.env` or run `PORT=8081 gleam run`. The starter app uses SQLite, so development does not need a database daemon.
 
 ## Writing a page
 

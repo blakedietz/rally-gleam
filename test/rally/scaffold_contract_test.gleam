@@ -144,7 +144,7 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
 
   script
   |> string.contains("gleam run\n")
-  |> should.equal(True)
+  |> should.equal(False)
 
   script
   |> string.contains("pub fn update(model: Model, msg: Msg)")
