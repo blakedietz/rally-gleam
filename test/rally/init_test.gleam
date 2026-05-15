@@ -49,16 +49,25 @@ pub fn init_project_writes_hex_scaffold_test() {
   dev |> string.contains("export PORT=\"${PORT:-8080}\"") |> should.be_true()
   dev |> string.contains("http://localhost:${PORT}") |> should.be_true()
 
-  let assert Ok(app) = simplifile.read(dir <> "/src/app.gleam")
+  let assert Ok(app) =
+    simplifile.read(dir <> "/src/rally_init_test_hex_scaffold.gleam")
   app |> string.contains("envoy.get(\"PORT\")") |> should.be_true()
   app |> string.contains("|> mist.port(port)") |> should.be_true()
   app
   |> string.contains("case string.starts_with(path, \"/_build/\")")
   |> should.be_true()
 
+  simplifile.read(dir <> "/src/app.gleam")
+  |> should.be_error()
+
   let assert Ok(shell) = simplifile.read(dir <> "/src/public/shell.html")
   shell
-  |> string.contains("src=\"/_build/client/generated/app.mjs\"")
+  |> string.contains(
+    "import { main } from \"/_build/client/generated/app.mjs\"",
+  )
+  |> should.be_true()
+  shell
+  |> string.contains("main();")
   |> should.be_true()
 
   cleanup(dir)

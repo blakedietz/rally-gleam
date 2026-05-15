@@ -87,6 +87,10 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
   let script = scaffold_source()
 
   script
+  |> string.contains("src/my_app.gleam")
+  |> should.equal(True)
+
+  script
   |> string.contains("APP_ENV=dev")
   |> should.equal(True)
 
@@ -112,8 +116,12 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
 
   script
   |> string.contains(
-    "<script type=\"module\" src=\"/_build/client/generated/app.mjs\"></script>",
+    "import { main } from \"/_build/client/generated/app.mjs\"",
   )
+  |> should.equal(True)
+
+  script
+  |> string.contains("main();")
   |> should.equal(True)
 
   script
@@ -132,6 +140,10 @@ pub fn scaffold_uses_app_env_and_no_client_context_page_arity_test() {
 
   script
   |> string.contains("gleam run -m app")
+  |> should.equal(False)
+
+  script
+  |> string.contains("gleam run\n")
   |> should.equal(True)
 
   script

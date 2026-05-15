@@ -25,7 +25,7 @@ pub fn files(project_name: String) -> List(ScaffoldFile) {
     ScaffoldFile("gleam.toml", gleam_toml(project_name)),
     ScaffoldFile("src/public/pages/home_.gleam", home_page()),
     ScaffoldFile("src/public/pages/layout.gleam", layout_page()),
-    ScaffoldFile("src/app.gleam", app_module()),
+    ScaffoldFile("src/" <> project_name <> ".gleam", app_module()),
     ScaffoldFile("src/public/shell.html", shell_html()),
     ScaffoldFile("src/server_context.gleam", server_context()),
     ScaffoldFile("bin/dev", dev_script()),
@@ -458,7 +458,10 @@ fn shell_html() -> String {
 </head>
 <body>
   <div id=\"app\"></div>
-  <script type=\"module\" src=\"/_build/client/generated/app.mjs\"></script>
+  <script type=\"module\">
+    import { main } from \"/_build/client/generated/app.mjs\";
+    main();
+  </script>
 </body>
 </html>
 "
@@ -496,6 +499,6 @@ gleam run -m rally
 echo \"==> Building client...\"
 cd .generated_clients/public && gleam build --target javascript && cd ../..
 echo \"==> Starting server on http://localhost:${PORT}...\"
-gleam run -m app
+gleam run
 "
 }
