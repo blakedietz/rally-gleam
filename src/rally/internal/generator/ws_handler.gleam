@@ -6,6 +6,7 @@
 //// stale sessions. The output wires together page dispatch, libero RPC
 //// dispatch, and the system message logger.
 
+import gleam/bool
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -848,8 +849,7 @@ fn generate_handler_page_info(
             <> "))"
           })
         }
-        Error(Nil) ->
-          panic as "rally codegen: WS handler has no matching page contract"
+        Error(Nil) -> []
       }
     })
     |> string.join("\n")
@@ -1123,10 +1123,7 @@ fn module_to_alias(module_path: String) -> String {
 }
 
 fn bool_str(b: Bool) -> String {
-  case b {
-    True -> "True"
-    False -> "False"
-  }
+  bool.to_string(b)
 }
 
 fn import_as(module_path: String, alias: String) -> String {

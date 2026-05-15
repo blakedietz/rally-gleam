@@ -589,7 +589,6 @@ pub fn json_wire_client_encoder_uses_qualified_types_test() {
       server_symbols: [],
       protocol: "json",
     )
-
   let assert Ok(types_file) =
     list.find(files, fn(f) { f.path == "src/generated/types.gleam" })
 

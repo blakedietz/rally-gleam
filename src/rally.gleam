@@ -18,6 +18,7 @@ import libero/field_type
 import libero/gen_error
 import libero/json/contract as json_contract
 import libero/scanner as libero_scanner
+import libero/walker.{type DiscoveredType}
 import rally/internal/dependency_resolver
 import rally/internal/format
 import rally/internal/generator
@@ -848,7 +849,7 @@ fn walk_discovered_types(
   contracts: List(#(types.ScannedRoute, types.PageContract)),
   client_context_source: option.Option(String),
   client_context_module: String,
-) {
+) -> List(DiscoveredType) {
   let handler_seeds = libero.collect_seeds(ns_endpoints)
   let cc_seeds = case client_context_source {
     option.Some(source) ->
@@ -932,7 +933,7 @@ fn build_push_dispatches(
 fn compute_contract_hash(
   contracts: List(#(types.ScannedRoute, types.PageContract)),
   ns_endpoints: List(libero_scanner.HandlerEndpoint),
-  discovered,
+  discovered: List(DiscoveredType),
   config: ScanConfig,
 ) -> String {
   case config.protocol {
@@ -978,7 +979,7 @@ fn compute_contract_hash(
 /// base module with push dispatch functions and persistent_term registrations.
 fn generate_atoms_erl_source(
   ns_endpoints: List(libero_scanner.HandlerEndpoint),
-  discovered,
+  discovered: List(DiscoveredType),
   config: ScanConfig,
   json_push_dispatches: List(#(String, String)),
 ) -> String {

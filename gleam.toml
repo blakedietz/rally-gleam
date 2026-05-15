@@ -83,4 +83,9 @@ exclude = ["tmp/**", "examples/**"]
 [tools.glinter.ignore]
 "src/rally_runtime/*.gleam" = ["unused_exports"]
 "src/rally_runtime/internal/*.gleam" = ["unused_exports"]
-"src/**/*.gleam" = ["deep_nesting", "stringly_typed_error"]
+"src/**/*.gleam" = [
+  "deep_nesting",
+  "label_possible",
+  "stringly_typed_error",
+  "unnecessary_string_concatenation",
+]

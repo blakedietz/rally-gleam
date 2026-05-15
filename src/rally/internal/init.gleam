@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
@@ -72,10 +73,8 @@ fn project_name(root: String) -> String {
 }
 
 fn trim_trailing_slash(path: String) -> String {
-  case string.ends_with(path, "/") {
-    True -> string.drop_end(path, 1) |> trim_trailing_slash
-    False -> path
-  }
+  use <- bool.guard(when: !string.ends_with(path, "/"), return: path)
+  string.drop_end(path, 1) |> trim_trailing_slash
 }
 
 fn basename(path: String) -> String {
