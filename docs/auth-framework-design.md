@@ -12,9 +12,9 @@ describe the pre-auth state before this design was implemented.
 
 Before this design, Rally apps needed authentication and authorization but Rally
 had no framework convention for them. Apps hardcoded identity or built ad-hoc
-session handling in `app.gleam`. There was no generated path for protecting
-pages, resolving user identity, or gating access by role. Server handlers
-(RPCs) had no generated auth gate across WebSocket and HTTP transports.
+session handling in their application entrypoint. There was no generated path
+for protecting pages, resolving user identity, or gating access by role. Server
+handlers (RPCs) had no generated auth gate across WebSocket and HTTP transports.
 
 ## Design
 

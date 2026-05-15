@@ -72,3 +72,131 @@ pub fn init_project_writes_hex_scaffold_test() {
 
   cleanup(dir)
 }
+
+pub fn init_project_replaces_default_gleam_new_files_test() {
+  let dir = make_temp_dir("default_gleam_new")
+  let assert Ok(Nil) = simplifile.create_directory_all(dir <> "/src")
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/src/rally_init_test_default_gleam_new.gleam",
+      "import gleam/io
+
+pub fn main() -> Nil {
+  io.println(\"Hello from rally_init_test_default_gleam_new!\")
+}
+",
+    )
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/gleam.toml",
+      "name = \"rally_init_test_default_gleam_new\"
+version = \"1.0.0\"
+
+# Fill out these fields if you intend to generate HTML documentation or publish
+# your project to the Hex package manager.
+#
+# description = \"\"
+# licences = [\"Apache-2.0\"]
+# repository = { type = \"github\", user = \"\", repo = \"\" }
+# links = [{ title = \"Website\", href = \"\" }]
+#
+# For a full reference of all the available options, you can have a look at
+# https://gleam.run/writing-gleam/gleam-toml/.
+
+[dependencies]
+gleam_stdlib = \">= 1.0.0 and < 2.0.0\"
+rally = { path = \"/tmp/rally\" }
+
+[dev_dependencies]
+gleeunit = \">= 1.0.0 and < 2.0.0\"
+",
+    )
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/.gitignore",
+      "*.beam
+*.ez
+/build
+erl_crash.dump
+",
+    )
+
+  let assert Ok(Nil) = init.init_project(dir)
+  let assert Ok(app) =
+    simplifile.read(dir <> "/src/rally_init_test_default_gleam_new.gleam")
+  app |> string.contains("Hello from") |> should.equal(False)
+  app |> string.contains("pub fn main()") |> should.be_true()
+
+  cleanup(dir)
+}
+
+pub fn init_project_refuses_to_overwrite_user_module_test() {
+  let dir = make_temp_dir("user_module")
+  let assert Ok(Nil) = simplifile.create_directory_all(dir <> "/src")
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/src/rally_init_test_user_module.gleam",
+      "pub fn main() -> Nil {
+  Nil
+}
+",
+    )
+
+  case init.init_project(dir) {
+    Ok(_) -> should.fail()
+    Error(message) -> {
+      message
+      |> string.contains(
+        "Refusing to overwrite src/rally_init_test_user_module.gleam",
+      )
+      |> should.be_true()
+      message |> string.contains("It may contain your code") |> should.be_true()
+      message
+      |> string.contains("fresh `gleam new` project")
+      |> should.be_true()
+    }
+  }
+
+  simplifile.read(dir <> "/.env")
+  |> should.be_error()
+
+  cleanup(dir)
+}
+
+pub fn init_project_refuses_empty_existing_scaffold_file_test() {
+  let dir = make_temp_dir("empty_file")
+  let assert Ok(Nil) = simplifile.write(dir <> "/.env", "")
+
+  case init.init_project(dir) {
+    Ok(_) -> should.fail()
+    Error(message) -> {
+      message
+      |> string.contains("Refusing to overwrite .env")
+      |> should.be_true()
+    }
+  }
+
+  cleanup(dir)
+}
+
+pub fn init_project_refuses_existing_scaffold_directory_test() {
+  let dir = make_temp_dir("directory_collision")
+  let assert Ok(Nil) = simplifile.create_directory(dir <> "/.env")
+
+  case init.init_project(dir) {
+    Ok(_) -> should.fail()
+    Error(message) -> {
+      message
+      |> string.contains("Refusing to overwrite .env")
+      |> should.be_true()
+      message
+      |> string.contains("already exists as a directory")
+      |> should.be_true()
+    }
+  }
+
+  simplifile.read(dir <> "/bin/dev")
+  |> should.be_error()
+
+  cleanup(dir)
+}

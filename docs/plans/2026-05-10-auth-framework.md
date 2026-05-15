@@ -543,7 +543,7 @@ pub fn on_init(
 }
 ```
 
-**Important design note:** Rally doesn't know the app's Identity type, so it can't construct an "unauthenticated" value on `Error(Nil)`. For WS, the spec says to reject the upgrade with HTTP 500 on resolve Error. This rejection happens in `app.gleam` (before the WS upgrade), not in `on_init`. So `on_init` can assume resolve succeeded. The `on_init` signature should receive identity as a parameter:
+**Important design note:** Rally doesn't know the app's Identity type, so it can't construct an "unauthenticated" value on `Error(Nil)`. For WS, the spec says to reject the upgrade with HTTP 500 on resolve Error. This rejection happens in the application entrypoint (before the WS upgrade), not in `on_init`. So `on_init` can assume resolve succeeded. The `on_init` signature should receive identity as a parameter:
 
 ```gleam
 pub fn on_init(
@@ -961,7 +961,7 @@ git commit -m "Fix backwards compatibility: auth-free namespaces unchanged"
 - Modifying `from_session` to accept identity parameter (app code)
 - Session infrastructure (`src/session.gleam`)
 - Auth pages (login, verify, logout, OAuth callbacks)
-- `app.gleam` routing changes
+- Application entrypoint routing changes
 
 ### Open implementation questions
 - **Libero dispatch identity threading (Task 8):** May need libero changes or rally post-processing. Investigate during implementation.

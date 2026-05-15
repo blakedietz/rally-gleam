@@ -98,4 +98,4 @@ The article page shows how stateful pages work: `server_init` loads the article 
 
 **Generated** (`src/generated/public/`, `.generated_clients/public/src/generated/`): router, SSR handler, WebSocket handler, client app shell, transport layer, codec, type mirrors. The client package lives under ignored `.generated_clients/public` so generated SPA code stays out of the repository.
 
-**Hand-written**: everything in `src/public/pages/`, `src/sql/`, `server_context.gleam`, `src/public/client_context.gleam`, `app.gleam`, and supporting modules like `password.gleam` and `datetime.gleam`.
+**Hand-written**: everything in `src/public/pages/`, `src/sql/`, `src/server_context.gleam`, `src/public/client_context.gleam`, `src/realworld.gleam`, and supporting modules like `password.gleam` and `datetime.gleam`.

@@ -11,9 +11,11 @@ pub type ScaffoldFile {
 
 pub fn init_project(root: String) -> Result(Nil, String) {
   let name = project_name(root)
+  let scaffold_files = files(name)
 
+  use Nil <- result.try(ensure_safe_to_write(root, name, scaffold_files))
   use Nil <- result.try(create_dirs(root))
-  use Nil <- result.try(write_files(root, files(name)))
+  use Nil <- result.try(write_files(root, scaffold_files))
   set_executable(join(root, "bin/dev"))
 }
 
@@ -58,6 +60,168 @@ fn write_files(root: String, files: List(ScaffoldFile)) -> Result(Nil, String) {
       "Failed to write " <> path <> ": " <> simplifile.describe_error(e)
     })
   })
+}
+
+fn ensure_safe_to_write(
+  root: String,
+  project_name: String,
+  files: List(ScaffoldFile),
+) -> Result(Nil, String) {
+  files
+  |> list.try_each(fn(file) {
+    let path = join(root, file.path)
+    case simplifile.is_file(path) {
+      Ok(True) -> ensure_file_safe_to_overwrite(path, file, project_name)
+      Ok(False) -> ensure_path_is_missing(path, file.path)
+      Error(e) ->
+        Error(
+          "Failed to inspect "
+          <> file.path
+          <> ": "
+          <> simplifile.describe_error(e),
+        )
+    }
+  })
+}
+
+fn ensure_file_safe_to_overwrite(
+  path: String,
+  file: ScaffoldFile,
+  project_name: String,
+) -> Result(Nil, String) {
+  case simplifile.read(path) {
+    Ok(existing) -> {
+      case can_overwrite(file, project_name, existing) {
+        True -> Ok(Nil)
+        False -> Error(refuse_overwrite_message(file.path))
+      }
+    }
+    Error(e) ->
+      Error(
+        "Failed to read existing "
+        <> file.path
+        <> ": "
+        <> simplifile.describe_error(e),
+      )
+  }
+}
+
+fn ensure_path_is_missing(
+  path: String,
+  relative_path: String,
+) -> Result(Nil, String) {
+  case simplifile.is_directory(path) {
+    Ok(False) -> Ok(Nil)
+    Ok(True) ->
+      Error(
+        "Refusing to overwrite "
+        <> relative_path
+        <> ". This path already exists as a directory, so Rally stopped before writing anything.",
+      )
+    Error(e) ->
+      Error(
+        "Failed to inspect "
+        <> relative_path
+        <> ": "
+        <> simplifile.describe_error(e),
+      )
+  }
+}
+
+fn refuse_overwrite_message(path: String) -> String {
+  "Refusing to overwrite "
+  <> path
+  <> ". This file already exists and does not look like Rally scaffold or the default file from `gleam new`. It may contain your code, so Rally stopped before writing anything. Run `rally init` in a fresh `gleam new` project, or only remove this file if you are certain it is disposable."
+}
+
+fn can_overwrite(
+  file: ScaffoldFile,
+  project_name: String,
+  existing: String,
+) -> Bool {
+  let ScaffoldFile(path:, contents:) = file
+  existing == contents
+  || is_default_gleam_new_file(path, project_name, existing)
+}
+
+fn is_default_gleam_new_file(
+  path: String,
+  project_name: String,
+  existing: String,
+) -> Bool {
+  case path {
+    ".gitignore" -> existing == "*.beam
+*.ez
+/build
+erl_crash.dump
+"
+    "gleam.toml" -> is_default_gleam_toml(existing, project_name)
+    _ -> {
+      case path == "src/" <> project_name <> ".gleam" {
+        True -> existing == "import gleam/io
+
+pub fn main() -> Nil {
+  io.println(\"Hello from " <> project_name <> "!\")
+}
+"
+        False -> False
+      }
+    }
+  }
+}
+
+fn is_default_gleam_toml(existing: String, project_name: String) -> Bool {
+  let header = "name = \"" <> project_name <> "\"
+version = \"1.0.0\"
+
+# Fill out these fields if you intend to generate HTML documentation or publish
+# your project to the Hex package manager.
+#
+# description = \"\"
+# licences = [\"Apache-2.0\"]
+# repository = { type = \"github\", user = \"\", repo = \"\" }
+# links = [{ title = \"Website\", href = \"\" }]
+#
+# For a full reference of all the available options, you can have a look at
+# https://gleam.run/writing-gleam/gleam-toml/.
+
+[dependencies]
+"
+
+  let footer =
+    "
+[dev_dependencies]
+gleeunit = \">= 1.0.0 and < 2.0.0\"
+"
+
+  case
+    string.starts_with(existing, header) && string.ends_with(existing, footer)
+  {
+    False -> False
+    True -> {
+      existing
+      |> string.drop_start(string.length(header))
+      |> string.drop_end(string.length(footer))
+      |> string.split("\n")
+      |> list.map(string.trim)
+      |> list.filter(fn(line) { line != "" })
+      |> is_default_dependency_lines
+    }
+  }
+}
+
+fn is_default_dependency_lines(lines: List(String)) -> Bool {
+  let stdlib = "gleam_stdlib = \">= 1.0.0 and < 2.0.0\""
+  case lines {
+    [line] -> line == stdlib
+    [first, second] -> {
+      first == stdlib
+      && string.starts_with(second, "rally = ")
+      || second == stdlib
+      && string.starts_with(first, "rally = ")
+    }
+    _ -> False
+  }
 }
 
 fn project_name(root: String) -> String {
