@@ -74,16 +74,7 @@ fn read_configs() -> Result(List(ScanConfig), RallyError) {
     tom.get_table(toml_map, ["dependencies"])
     |> result.unwrap(dict.new())
 
-  let rally_package_path = {
-    case dict.get(server_deps, "rally") {
-      Ok(tom.InlineTable(rally_dep)) | Ok(tom.Table(rally_dep)) ->
-        case dict.get(rally_dep, "path") {
-          Ok(tom.String(path)) -> path
-          _ -> ".."
-        }
-      _ -> ".."
-    }
-  }
+  let rally_package_path = resolve_rally_package_path(server_deps)
 
   case tom.get_array(rally_config, ["clients"]) {
     Ok(clients) -> {
@@ -113,6 +104,20 @@ fn read_configs() -> Result(List(ScanConfig), RallyError) {
     }
     _ ->
       Ok([read_legacy_config(rally_config:, server_deps:, rally_package_path:)])
+  }
+}
+
+pub fn resolve_rally_package_path(
+  server_deps: dict.Dict(String, tom.Toml),
+) -> String {
+  case dict.get(server_deps, "rally") {
+    Ok(tom.InlineTable(rally_dep)) | Ok(tom.Table(rally_dep)) ->
+      case dict.get(rally_dep, "path") {
+        Ok(tom.String(path)) -> path
+        _ -> "build/packages/rally"
+      }
+    Ok(_) -> "build/packages/rally"
+    Error(Nil) -> "."
   }
 }
 
