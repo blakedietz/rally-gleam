@@ -800,3 +800,33 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   result |> string.contains("Active") |> should.be_true()
   result |> string.contains("Inactive") |> should.be_true()
 }
+
+// -- Test: private type nested inside another private type survives --
+
+pub fn keeps_transitive_private_type_referenced_through_model_test() {
+  let source =
+    "type Inner { Inner(value: Int) }
+type Outer { Outer(inner: Inner) }
+pub type Model { Model(data: Option(Outer)) }
+pub type Msg { GotData(Result(Outer, String)) }
+
+pub fn init() -> #(Model, Effect(Msg)) {
+  #(Model(data: None), effect.none())
+}
+
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+  case msg {
+    GotData(Ok(outer)) -> #(Model(data: Some(outer)), effect.none())
+    GotData(Error(_)) -> #(model, effect.none())
+  }
+}
+"
+
+  let result = tree_shaker.shake(source, server_symbols: [])
+
+  // Outer survives because Model and Msg reference it.
+  // Inner must also survive because Outer's variant field uses it,
+  // even though no client code directly names Inner.
+  result |> string.contains("type Outer") |> should.be_true()
+  result |> string.contains("type Inner") |> should.be_true()
+}

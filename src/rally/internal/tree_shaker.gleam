@@ -61,6 +61,7 @@ pub fn shake(
           ast: ast,
           client_fn_names: all_client_fn_names,
           server_symbols: server_set,
+          client_refs: client_refs,
         )
 
       let client_imports =
@@ -463,9 +464,7 @@ fn extract_expr_module_refs(
       extract_stmts_module_refs(statements, bindings)
     glance.Case(subjects:, clauses:, ..) ->
       list.append(
-        list.flat_map(subjects, fn(e) {
-          extract_expr_module_refs(e, bindings)
-        }),
+        list.flat_map(subjects, fn(e) { extract_expr_module_refs(e, bindings) }),
         list.flat_map(clauses, fn(c: glance.Clause) {
           let clause_bindings =
             list.flat_map(c.patterns, fn(ps) {
@@ -486,14 +485,10 @@ fn extract_expr_module_refs(
         }),
       )
     glance.Tuple(elements:, ..) ->
-      list.flat_map(elements, fn(e) {
-        extract_expr_module_refs(e, bindings)
-      })
+      list.flat_map(elements, fn(e) { extract_expr_module_refs(e, bindings) })
     glance.List(elements:, rest:, ..) ->
       list.append(
-        list.flat_map(elements, fn(e) {
-          extract_expr_module_refs(e, bindings)
-        }),
+        list.flat_map(elements, fn(e) { extract_expr_module_refs(e, bindings) }),
         case rest {
           Some(r) -> extract_expr_module_refs(r, bindings)
           None -> []
@@ -662,27 +657,16 @@ fn collect_all_client_refs(
       list.append(param_refs, return_refs)
     })
 
-  let client_types =
+  let non_server_types =
     ast.custom_types
     |> list.filter(fn(def) {
       !set.contains(server_symbols, def.definition.name)
-      && def.definition.publicity == glance.Public
     })
 
-  let type_refs =
-    list.flat_map(client_types, fn(def) {
-      list.flat_map(def.definition.variants, fn(v) {
-        list.flatten([
-          [v.name],
-          list.flat_map(v.fields, fn(f) {
-            case f {
-              glance.LabelledVariantField(item: t, ..) -> extract_type_refs(t)
-              glance.UnlabelledVariantField(item: t) -> extract_type_refs(t)
-            }
-          }),
-        ])
-      })
-    })
+  let public_type_refs =
+    non_server_types
+    |> list.filter(fn(def) { def.definition.publicity == glance.Public })
+    |> list.flat_map(extract_custom_type_refs)
 
   let alias_refs =
     list.flat_map(ast.type_aliases, fn(def) {
@@ -700,7 +684,63 @@ fn collect_all_client_refs(
       }
     })
 
-  list.flatten([body_refs, sig_refs, type_refs, alias_refs]) |> set.from_list
+  let base_refs =
+    list.flatten([body_refs, sig_refs, public_type_refs, alias_refs])
+    |> set.from_list
+
+  expand_type_refs(refs: base_refs, types: non_server_types, visited: set.new())
+}
+
+fn extract_custom_type_refs(
+  def: glance.Definition(glance.CustomType),
+) -> List(String) {
+  list.flat_map(def.definition.variants, fn(v) {
+    list.flatten([
+      [v.name],
+      list.flat_map(v.fields, fn(f) {
+        case f {
+          glance.LabelledVariantField(item: t, ..) -> extract_type_refs(t)
+          glance.UnlabelledVariantField(item: t) -> extract_type_refs(t)
+        }
+      }),
+    ])
+  })
+}
+
+fn expand_type_refs(
+  refs refs: Set(String),
+  types types: List(glance.Definition(glance.CustomType)),
+  visited visited: Set(String),
+) -> Set(String) {
+  let newly_reachable =
+    types
+    |> list.filter(fn(def) {
+      let name = def.definition.name
+      !set.contains(visited, name)
+      && {
+        set.contains(refs, name)
+        || list.any(def.definition.variants, fn(v) {
+          set.contains(refs, v.name)
+        })
+      }
+    })
+  case newly_reachable {
+    [] -> refs
+    _ -> {
+      let new_refs =
+        list.flat_map(newly_reachable, extract_custom_type_refs)
+        |> set.from_list
+      let new_visited =
+        list.map(newly_reachable, fn(def) { def.definition.name })
+        |> set.from_list
+        |> set.union(visited)
+      expand_type_refs(
+        refs: set.union(refs, new_refs),
+        types: types,
+        visited: new_visited,
+      )
+    }
+  }
 }
 
 fn extract_type_refs(t: glance.Type) -> List(String) {
@@ -752,6 +792,7 @@ fn collect_module_refs(
   ast ast: glance.Module,
   client_fn_names client_fn_names: Set(String),
   server_symbols server_symbols: Set(String),
+  client_refs client_refs: Set(String),
 ) -> Set(String) {
   let client_fns =
     ast.functions
@@ -790,14 +831,20 @@ fn collect_module_refs(
       list.append(param_refs, return_refs)
     })
 
-  let type_refs = {
-    let client_types =
-      ast.custom_types
-      |> list.filter(fn(def) {
-        !set.contains(server_symbols, def.definition.name)
-        && def.definition.publicity == glance.Public
-      })
-    list.flat_map(client_types, fn(def) {
+  let type_refs =
+    ast.custom_types
+    |> list.filter(fn(def) {
+      let name = def.definition.name
+      !set.contains(server_symbols, name)
+      && {
+        def.definition.publicity == glance.Public
+        || set.contains(client_refs, name)
+        || list.any(def.definition.variants, fn(v) {
+          set.contains(client_refs, v.name)
+        })
+      }
+    })
+    |> list.flat_map(fn(def) {
       list.flat_map(def.definition.variants, fn(v) {
         list.flat_map(v.fields, fn(f) {
           case f {
@@ -809,7 +856,6 @@ fn collect_module_refs(
         })
       })
     })
-  }
 
   list.flatten([body_refs, sig_refs, type_refs]) |> set.from_list
 }
