@@ -134,11 +134,15 @@ pub fn generate(
     <> page_imports
     <> wire_externals
 
+  let route_arg = case has_load_pages {
+    True -> "route route: router.Route,"
+    False -> "route _route: router.Route,"
+  }
+
   let fn_params = case needs_server_context {
-    True ->
-      "
+    True -> "
 pub fn handle_request(
-  route route: router.Route,
+  " <> route_arg <> "
   server_context server_context: ServerContext,
   session_id session_id: String,
   hostname hostname: String,

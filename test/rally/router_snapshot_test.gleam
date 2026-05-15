@@ -283,6 +283,64 @@ pub fn ssr_handler_with_client_context_snapshot_test() {
   birdie.snap(output, "ssr_handler_with_client_context_gleam")
 }
 
+pub fn ssr_shell_handler_marks_unused_route_test() {
+  let route =
+    ScannedRoute(
+      segments: [],
+      variant_name: "Home",
+      params: [],
+      layout_module: None,
+      module_path: "pages/home_",
+    )
+  let contract =
+    PageContract(
+      model_variants: [
+        VariantInfo("Model", [VariantField("count", IntField)]),
+      ],
+      msg_variants: [],
+      has_load: False,
+      has_init: True,
+      has_init_loaded: False,
+      has_server_init: False,
+      has_server_update: False,
+      has_model: True,
+      updates_client_context: False,
+      param_names: [],
+      source: "",
+      view_source: "",
+      init_source: "",
+      update_source: "",
+      has_page_auth: False,
+      page_auth_required: False,
+      has_authorize: False,
+    )
+  let shell =
+    "<!DOCTYPE html>\n<html><head></head><body><div id='app'></div></body></html>"
+  let output =
+    ssr_handler.generate(
+      [#(route, contract)],
+      True,
+      True,
+      "server_context",
+      "generated/router",
+      shell,
+      "generated/public/rpc_atoms",
+      option.None,
+      Some("public/client_context"),
+      option.None,
+      wire_import_module: "generated/public/protocol_wire",
+      protocol: "etf",
+    )
+
+  output
+  |> string.contains("route _route: router.Route")
+  |> should.equal(True)
+
+  output
+  |> string.contains("route route: router.Route")
+  |> should.equal(False)
+}
+
 pub fn app_gleam_with_client_context_snapshot_test() {
   let routes = basic_routes()
   let contracts = basic_contracts()
